@@ -1,11 +1,9 @@
 # commit_to_git.ps1
 # Kjor fra rot-mappen i prosjektet: .\commit_to_git.ps1
-# -------------------------------------------------------
 
 Set-StrictMode -Off
 $ErrorActionPreference = "Stop"
 
-# --- 1. Vis hva som har endret seg ---
 Write-Host ""
 Write-Host "================================================" -ForegroundColor Cyan
 Write-Host "  XLENT Compliance - git commit og push" -ForegroundColor Cyan
@@ -22,7 +20,6 @@ Write-Host ""
 Write-Host "Endringer siden siste commit:" -ForegroundColor White
 $statusLines | ForEach-Object { Write-Host "  $_" }
 
-# --- 2. Stage alt (.gitignore holder hemmeligheter ute) ---
 git add -A
 
 $staged = git diff --cached --name-only 2>&1
@@ -36,24 +33,21 @@ Write-Host ""
 Write-Host "Filer som committes:" -ForegroundColor Green
 $staged | ForEach-Object { Write-Host "  + $_" -ForegroundColor Green }
 
-# --- 3. Be om commit-melding ---
 Write-Host ""
 $msg = Read-Host "Beskriv endringene"
 
 if ([string]::IsNullOrWhiteSpace($msg)) {
-    Write-Host "Tom melding - avbryter og reverserer staging." -ForegroundColor Red
+    Write-Host "Tom melding - avbryter." -ForegroundColor Red
     git restore --staged . 2>&1 | Out-Null
     exit 1
 }
 
-# --- 4. Commit ---
 git commit -m $msg
 if ($LASTEXITCODE -ne 0) {
     Write-Host "Commit feilet." -ForegroundColor Red
     exit 1
 }
 
-# --- 5. Push (handterer bade forste gang og senere pushes) ---
 Write-Host ""
 Write-Host "Laster opp til GitHub..." -ForegroundColor Cyan
 
