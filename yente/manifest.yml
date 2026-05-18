@@ -1,0 +1,41 @@
+# Yente datasett-manifest for XLENT Compliance — yente v5+
+#
+# Merk: no_un_sanctions og no_legacies er fjernet — disse datasettene har ingen
+# nedlastbar FtM-entitetsfil på OpenSanctions fri-tier og kan derfor ikke indekseres.
+# Norske sanksjoner dekkes i praksis av un_sc_sanctions (Norge implementerer FN-resolusjoner).
+#
+# Dekning:
+#   un_sc_sanctions   — FN Sikkerhetsrådets sanksjoner (kap. VII)
+#   eu_fsf            — EU Financial Sanctions File
+#   us_ofac_sdn       — US OFAC Specially Designated Nationals
+#   us_ofac_cons      — US OFAC Consolidated Non-SDN Lists
+#
+# "default" er et virtuelt aggregert datasett som matcher mot alle fire lister i ett kall
+# (POST /match/default).
+
+datasets:
+  # ── Individuelle datasett ──────────────────────────────────────────────────
+  - name: un_sc_sanctions
+    title: UN Security Council Sanctions
+    entities_url: https://data.opensanctions.org/datasets/latest/un_sc_sanctions/entities.ftm.json
+
+  - name: eu_fsf
+    title: EU Financial Sanctions File
+    entities_url: https://data.opensanctions.org/datasets/latest/eu_fsf/entities.ftm.json
+
+  - name: us_ofac_sdn
+    title: OFAC Specially Designated Nationals
+    entities_url: https://data.opensanctions.org/datasets/latest/us_ofac_sdn/entities.ftm.json
+
+  - name: us_ofac_cons
+    title: OFAC Consolidated Non-SDN Lists
+    entities_url: https://data.opensanctions.org/datasets/latest/us_ofac_cons/entities.ftm.json
+
+  # ── Virtuelt aggregert datasett ────────────────────────────────────────────
+  - name: default
+    title: All Sanctions Lists
+    datasets:
+      - un_sc_sanctions
+      - eu_fsf
+      - us_ofac_sdn
+      - us_ofac_cons

@@ -1,0 +1,17 @@
+
+
+6) Jeg vil så gå gjennom om det finnes flere gratis kilder til sanksjonerte enheter vi kan laste inn.
+
+Lag en meny-item NO/EN der bruker velger norsk eller engelsk tekst i hele appen.
+
+
+Prioritert rekkefølge for hva som bør gjøres nå
+Prioritet	Oppgave	Grunn
+🟠 4	Regelmotor (YAML)	Kjerne-differensiator, gjør systemet konfigurerbart
+🟠 5	Rammeavtale-matching	Sterkeste konkurransefortrinn
+🟡 6	Dashboard/statistikk	CFO og compliance officer trenger KPI-er
+🟡 7	GDPR-endepunkter	Lovpålagt, men mindre akutt i tidlig pilot
+🟡 8	Produksjons-hardening	Trengs før første reelle kundeinstans
+
+
+

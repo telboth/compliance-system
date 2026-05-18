@@ -1,0 +1,201 @@
+name: xlent-compliance
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-xlent_compliance}
+      POSTGRES_USER: ${POSTGRES_USER:-xlent}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-xlent_dev_password}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5433:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-xlent} -d ${POSTGRES_DB:-xlent_compliance}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  # Elasticsearch — krevet av yente v4+ for fuzzy entity-matching.
+  # single-node modus er nok for lokal utvikling / MVP.
+  # Minnegrense: 512 MB heap (standard er 50% av RAM — sett eksplisitt for forutsigbarhet).
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.13.4
+    environment:
+      discovery.type: single-node
+      xpack.security.enabled: "false"
+      ES_JAVA_OPTS: "-Xms512m -Xmx512m"
+      cluster.routing.allocation.disk.threshold_enabled: "false"
+    volumes:
+      - es_data:/usr/share/elasticsearch/data
+    ports:
+      - "9200:9200"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:9200/_cluster/health?wait_for_status=yellow&timeout=5s || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 20
+      start_period: 60s
+
+  api:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    env_file:
+      - path: .secrets
+        required: false
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://${POSTGRES_USER:-xlent}:${POSTGRES_PASSWORD:-xlent_dev_password}@postgres:5432/${POSTGRES_DB:-xlent_compliance}
+      - REDIS_URL=redis://redis:6379/0
+      - APP_ENV=${APP_ENV:-development}
+      - APP_DEBUG=${APP_DEBUG:-true}
+      - APP_SECRET_KEY=${APP_SECRET_KEY:-change-me}
+      - LLM_PRIMARY_PROVIDER=${LLM_PRIMARY_PROVIDER:-anthropic}
+      - LLM_PRIMARY_MODEL=${LLM_PRIMARY_MODEL:-claude-sonnet-4-6}
+      - LLM_FALLBACK_PROVIDER=${LLM_FALLBACK_PROVIDER:-openai}
+      - LLM_FALLBACK_MODEL=${LLM_FALLBACK_MODEL:-gpt-4o}
+      - CONFIDENCE_THRESHOLD=${CONFIDENCE_THRESHOLD:-0.8}
+      - AUTO_EXTRACT_AFTER_PARSE=${AUTO_EXTRACT_AFTER_PARSE:-true}
+      - USE_CELERY_BACKGROUND=${USE_CELERY_BACKGROUND:-true}
+      - UPLOAD_DIR=/data/uploads
+      - CORS_ORIGINS=${CORS_ORIGINS:-http://localhost:5173}
+      - YENTE_URL=${YENTE_URL:-http://yente:8000}
+      - YENTE_UPDATE_TOKEN=${YENTE_UPDATE_TOKEN:-dev-yente-update-token}
+      - SCREENING_MATCH_THRESHOLD=${SCREENING_MATCH_THRESHOLD:-0.70}
+      - SCREENING_CONFIRMED_THRESHOLD=${SCREENING_CONFIRMED_THRESHOLD:-0.79}
+      - AUTO_SCREEN_AFTER_EXTRACT=${AUTO_SCREEN_AFTER_EXTRACT:-true}
+      - ELASTICSEARCH_URL=${ELASTICSEARCH_URL:-http://elasticsearch:9200}
+    volumes:
+      - ./backend:/app
+      - upload_data:/data/uploads
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+
+  worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    env_file:
+      - path: .secrets
+        required: false
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://${POSTGRES_USER:-xlent}:${POSTGRES_PASSWORD:-xlent_dev_password}@postgres:5432/${POSTGRES_DB:-xlent_compliance}
+      - REDIS_URL=redis://redis:6379/0
+      - CELERY_BROKER_URL=redis://redis:6379/1
+      - CELERY_RESULT_BACKEND=redis://redis:6379/2
+      - UPLOAD_DIR=/data/uploads
+      - YENTE_URL=${YENTE_URL:-http://yente:8000}
+      - YENTE_UPDATE_TOKEN=${YENTE_UPDATE_TOKEN:-dev-yente-update-token}
+      - SCREENING_MATCH_THRESHOLD=${SCREENING_MATCH_THRESHOLD:-0.70}
+      - SCREENING_CONFIRMED_THRESHOLD=${SCREENING_CONFIRMED_THRESHOLD:-0.79}
+      - AUTO_SCREEN_AFTER_EXTRACT=${AUTO_SCREEN_AFTER_EXTRACT:-true}
+      - USE_CELERY_BACKGROUND=${USE_CELERY_BACKGROUND:-true}
+      - SCREENING_WATCHDOG_ENABLED=${SCREENING_WATCHDOG_ENABLED:-true}
+      - SCREENING_WATCHDOG_STALE_MINUTES=${SCREENING_WATCHDOG_STALE_MINUTES:-3}
+      - SCREENING_WATCHDOG_BATCH_SIZE=${SCREENING_WATCHDOG_BATCH_SIZE:-20}
+      - SCREENING_WATCHDOG_INTERVAL_MINUTES=${SCREENING_WATCHDOG_INTERVAL_MINUTES:-1}
+      - ELASTICSEARCH_URL=${ELASTICSEARCH_URL:-http://elasticsearch:9200}
+    volumes:
+      - ./backend:/app
+      - upload_data:/data/uploads
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: celery -A app.tasks.celery_app:celery_app worker --loglevel=info
+
+  beat:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    env_file:
+      - path: .secrets
+        required: false
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://${POSTGRES_USER:-xlent}:${POSTGRES_PASSWORD:-xlent_dev_password}@postgres:5432/${POSTGRES_DB:-xlent_compliance}
+      - REDIS_URL=redis://redis:6379/0
+      - CELERY_BROKER_URL=redis://redis:6379/1
+      - CELERY_RESULT_BACKEND=redis://redis:6379/2
+      - CELERY_TIMEZONE=${CELERY_TIMEZONE:-Europe/Oslo}
+      - SANCTIONS_REFRESH_HOUR=${SANCTIONS_REFRESH_HOUR:-7}
+      - SANCTIONS_REFRESH_MINUTE=${SANCTIONS_REFRESH_MINUTE:-40}
+      - UPLOAD_DIR=/data/uploads
+      - YENTE_URL=${YENTE_URL:-http://yente:8000}
+      - YENTE_UPDATE_TOKEN=${YENTE_UPDATE_TOKEN:-dev-yente-update-token}
+      - USE_CELERY_BACKGROUND=${USE_CELERY_BACKGROUND:-true}
+      - SCREENING_WATCHDOG_ENABLED=${SCREENING_WATCHDOG_ENABLED:-true}
+      - SCREENING_WATCHDOG_STALE_MINUTES=${SCREENING_WATCHDOG_STALE_MINUTES:-3}
+      - SCREENING_WATCHDOG_BATCH_SIZE=${SCREENING_WATCHDOG_BATCH_SIZE:-20}
+      - SCREENING_WATCHDOG_INTERVAL_MINUTES=${SCREENING_WATCHDOG_INTERVAL_MINUTES:-1}
+      - ELASTICSEARCH_URL=${ELASTICSEARCH_URL:-http://elasticsearch:9200}
+    volumes:
+      - ./backend:/app
+      - upload_data:/data/uploads
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: celery -A app.tasks.celery_app:celery_app beat --loglevel=info
+
+  yente:
+    image: ghcr.io/opensanctions/yente:latest
+    environment:
+      YENTE_MANIFEST: /yente/manifest.yml
+      YENTE_AUTO_REINDEX: "true"
+      YENTE_INDEX_URL: http://elasticsearch:9200
+      YENTE_UPDATE_TOKEN: ${YENTE_UPDATE_TOKEN:-dev-yente-update-token}
+    volumes:
+      - ./yente:/yente:ro
+      - yente_data:/var/lib/yente
+    ports:
+      - "8001:8000"
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8000/healthz || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 15
+      start_period: 120s
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    environment:
+      # Proxy-target: inne i Docker-nettverket heter API-containeren "api"
+      # IKKE sett VITE_API_BASE_URL her — da bakes localhost inn i JS-bunndelen
+      # og fungerer ikke for LAN-testing. Relativ URL + proxy er riktig løsning.
+      - VITE_API_PROXY_TARGET=http://api:8000
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    ports:
+      - "5173:5173"
+    command: npm run dev -- --host 0.0.0.0
+
+volumes:
+  postgres_data:
+  upload_data:
+  es_data:
+  yente_data:

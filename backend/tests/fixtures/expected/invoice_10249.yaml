@@ -1,0 +1,29 @@
+# Fasit for invoice_10249.pdf
+#
+# Feltformat:
+#   null          = ikke sammenlignet (feltverdi er ukjent eller irrelevant)
+#   "verdi"       = eksakt match (case-insensitive for strenger)
+#   total_amount  = numerisk match med ±0.01 toleranse
+#
+# Generer initielle verdier med:  python scripts/generate_ground_truth.py
+# Korriger manuelt mot originaldokumentet etterpå.
+#
+# Status: IKKE VERIFISERT — fyll inn korrekte verdier etter gjennomgang
+
+invoice_number: null
+invoice_date: null            # YYYY-MM-DD
+total_amount: null            # Numerisk streng, f.eks. "12345.00"
+currency: null                # ISO 4217, f.eks. "USD"
+incoterms: null               # F.eks. "CIF", "FOB", "EXW"
+transport_mode: null          # "air", "sea", "road", "rail" osv.
+destination_country: null     # ISO 3166-1 alpha-2, f.eks. "NO"
+po_number: null
+
+# Liste over forventede parter.
+# Felt med null hoppes over. Tom liste = entiteter sjekkes ikke.
+entities: []
+
+# Liste over forventede varelinjer (i rekkefølge).
+# Kun felt med verdi ≠ null sammenlignes.
+# Tom liste = linjer sjekkes ikke.
+lines: []
