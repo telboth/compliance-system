@@ -100,7 +100,14 @@ async def app(db_engine, tmp_path: Path) -> AsyncIterator[FastAPI]:
 @pytest_asyncio.fixture
 async def client(app: FastAPI) -> AsyncIterator[AsyncClient]:
     transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as ac:
+    async with AsyncClient(
+        transport=transport,
+        base_url="http://test",
+        headers={
+            "X-Actor-Role": "admin",
+            "X-Actor-Name": "pytest-admin",
+        },
+    ) as ac:
         yield ac
 
 

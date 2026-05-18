@@ -4,6 +4,7 @@ import type { AxiosError } from "axios";
 import { useTranslation } from "react-i18next";
 
 import { Pagination } from "@/components/Pagination";
+import { CountryAutocomplete } from "@/components/CountryAutocomplete";
 import {
   useInvoiceRAGSearch,
   useInvoiceSearch,
@@ -305,14 +306,14 @@ export function InvoiceSearchPage() {
                 <label className="mb-1 block text-xs text-xlent-muted">
                   {t("invoice_search.destination_iso2")}
                 </label>
-                <input
-                  className={INPUT_CLS}
+                <CountryAutocomplete
                   value={form.destination_country}
-                  onChange={(e) => {
-                    update("destination_country", e.target.value);
+                  onChange={(next) => {
+                    update("destination_country", next);
                     setClassicCountryError(null);
                   }}
                   placeholder={t("invoice_search.example_fr")}
+                  className={INPUT_CLS}
                   maxLength={32}
                 />
                 {classicCountryError && (
@@ -525,14 +526,14 @@ export function InvoiceSearchPage() {
                 <label className="mb-1 block text-xs text-xlent-muted">
                   {t("invoice_search.destination_iso2")}
                 </label>
-                <input
-                  className={INPUT_CLS}
+                <CountryAutocomplete
                   value={ragForm.destination_country}
-                  onChange={(e) => {
-                    updateRag("destination_country", e.target.value);
+                  onChange={(next) => {
+                    updateRag("destination_country", next);
                     setRagCountryError(null);
                   }}
                   placeholder={t("invoice_search.optional")}
+                  className={INPUT_CLS}
                   maxLength={32}
                 />
                 {ragCountryError && (

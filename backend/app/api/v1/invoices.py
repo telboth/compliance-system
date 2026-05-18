@@ -7,13 +7,14 @@ import uuid
 from datetime import date
 from pathlib import Path
 
-from fastapi import APIRouter, BackgroundTasks, File, Form, HTTPException, Query, UploadFile, status
+from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, HTTPException, Query, UploadFile, status
 from fastapi.responses import FileResponse, Response
 
 from app.core.config import get_settings
 from app.core.database import SessionDep
 from app.core.logging import get_logger
-from app.models.invoice import ComplianceScore, Invoice, InvoiceDirection, InvoiceStatus
+from app.core.security import ActorContext, require_roles
+from app.models.invoice import ComplianceScore, Invoice, InvoiceDirection, InvoiceStatus, compute_approval_state
 from app.schemas.invoice import (
     EntityRead,
     EntityUpdate,
@@ -43,9 +44,10 @@ logger = get_logger(__name__)
 def _to_invoice_read(invoice: Invoice) -> InvoiceRead:
     payload = InvoiceRead.model_validate(invoice)
     payload.vat_mismatch_check = evaluate_invoice_vat_mismatch(invoice).to_dict()
-    payload.approval_state = invoice_service.derive_approval_state(
-        invoice.status,
-        invoice.compliance_score,
+    payload.approval_state = (
+        invoice.approval_state
+        if invoice.approval_state is not None
+        else compute_approval_state(invoice.status, invoice.compliance_score)
     )
     return payload
 
@@ -59,6 +61,7 @@ def _to_invoice_read(invoice: Invoice) -> InvoiceRead:
 async def upload_invoice(
     background_tasks: BackgroundTasks,
     session: SessionDep,
+    _actor: ActorContext = Depends(require_roles("admin", "compliance_officer", "controller")),
     file: UploadFile = File(..., description="PDF, XLSX, PNG, JPG/JPEG eller GIF med invoice"),
     direction: InvoiceDirection = Form(
         InvoiceDirection.INCOMING,
@@ -118,6 +121,7 @@ async def extract_invoice_endpoint(
     invoice_id: uuid.UUID,
     body: ExtractionRequest,
     session: SessionDep,
+    _actor: ActorContext = Depends(require_roles("admin", "compliance_officer", "controller")),
 ) -> ExtractionResponse:
     """Kjør LLM-ekstraksjon på en allerede parsert invoice.
 
@@ -148,6 +152,7 @@ async def update_invoice_fields_endpoint(
     invoice_id: uuid.UUID,
     body: InvoiceFieldsUpdate,
     session: SessionDep,
+    _actor: ActorContext = Depends(require_roles("admin", "compliance_officer", "controller")),
 ) -> InvoiceRead:
     """Oppdater ett eller flere headerfelt på en invoice manuelt.
 
@@ -168,6 +173,7 @@ async def update_invoice_line_endpoint(
     line_id: uuid.UUID,
     body: InvoiceLineUpdate,
     session: SessionDep,
+    _actor: ActorContext = Depends(require_roles("admin", "compliance_officer", "controller")),
 ) -> InvoiceLineRead:
     """Oppdater ett eller flere felt på en enkelt invoice-linje manuelt."""
     line = await invoice_service.update_invoice_line(session, invoice_id, line_id, body)
@@ -184,6 +190,7 @@ async def update_entity_endpoint(
     entity_id: uuid.UUID,
     body: EntityUpdate,
     session: SessionDep,
+    _actor: ActorContext = Depends(require_roles("admin", "compliance_officer", "controller")),
 ) -> EntityRead:
     """Oppdater ett eller flere felt på en entitet manuelt."""
     entity = await invoice_service.update_entity(session, invoice_id, entity_id, body)
@@ -199,6 +206,7 @@ async def reparse_invoice_endpoint(
     invoice_id: uuid.UUID,
     background_tasks: BackgroundTasks,
     session: SessionDep,
+    _actor: ActorContext = Depends(require_roles("admin", "compliance_officer", "controller")),
 ) -> InvoiceRead:
     """Nullstill raw_text og kjør Docling-parsing på nytt i bakgrunnen.
 
@@ -246,6 +254,7 @@ async def reparse_invoice_endpoint(
 async def delete_invoice_endpoint(
     invoice_id: uuid.UUID,
     session: SessionDep,
+    _actor: ActorContext = Depends(require_roles("admin", "compliance_officer", "controller")),
 ) -> Response:
     """Slett en invoice permanent (inkl. fil på disk og alle linjer/entiteter).
 
@@ -364,9 +373,10 @@ async def list_invoices_endpoint(
     items: list[InvoiceSummary] = []
     for inv in invoices:
         payload = InvoiceSummary.model_validate(inv)
-        payload.approval_state = invoice_service.derive_approval_state(
-            inv.status,
-            inv.compliance_score,
+        payload.approval_state = (
+            inv.approval_state
+            if inv.approval_state is not None
+            else compute_approval_state(inv.status, inv.compliance_score)
         )
         payload.llm_note_full = inv.comments
         items.append(payload)
@@ -515,7 +525,8 @@ async def review_invoice_endpoint(
     invoice_id: uuid.UUID,
     body: ReviewCreate,
     session: SessionDep,
-    actor: str = Query(default="system", description="Bruker-ID/navn for revisjonsloggen"),
+    actor_ctx: ActorContext = Depends(require_roles("admin", "compliance_officer")),
+    actor: str | None = Query(default=None, description="Bakoverkompatibilitet (ignoreres hvis ulik header)."),
 ) -> InvoiceRead:
     """Sett en manuell beslutning på en screenet invoice.
 
@@ -523,12 +534,17 @@ async def review_invoice_endpoint(
     - **reason**: Obligatorisk begrunnelse (min. 10 tegn)
     - **actor**: Brukeridentitet — sendes fra frontend med innlogget brukers navn
     """
+    if actor and actor.strip() and actor.strip() != actor_ctx.name:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="actor-query matcher ikke autentisert bruker.",
+        )
     invoice = await invoice_service.review_invoice(
         session,
         invoice_id,
         decision=body.decision,
         reason=body.reason,
-        actor=actor,
+        actor=actor_ctx.name,
     )
     return _to_invoice_read(invoice)
 
@@ -542,20 +558,26 @@ async def escalate_invoice_risk_endpoint(
     invoice_id: uuid.UUID,
     body: RiskEscalationCreate,
     session: SessionDep,
-    actor: str = Query(default="system", description="Bruker-ID/navn for revisjonsloggen"),
+    actor_ctx: ActorContext = Depends(require_roles("admin", "compliance_officer", "controller")),
+    actor: str | None = Query(default=None, description="Bakoverkompatibilitet (ignoreres hvis ulik header)."),
 ) -> InvoiceRead:
     """La controller eskalere en grønn invoice til gul/rød ved manuell observasjon.
 
     Eskalering setter status til 'screened' og nullstiller tidligere review-beslutning,
     slik at compliance/admin må godkjenne eller blokkere på nytt.
     """
+    if actor and actor.strip() and actor.strip() != actor_ctx.name:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="actor-query matcher ikke autentisert bruker.",
+        )
     target = ComplianceScore(body.target_score)
     invoice = await invoice_service.escalate_invoice_risk_for_review(
         session,
         invoice_id,
         target_score=target,
         reason=body.reason,
-        actor=actor,
+        actor=actor_ctx.name,
     )
     return _to_invoice_read(invoice)
 
@@ -567,6 +589,7 @@ async def escalate_invoice_risk_endpoint(
 )
 async def get_review_queue(
     session: SessionDep,
+    _actor: ActorContext = Depends(require_roles("admin", "compliance_officer")),
     limit: int = Query(default=100, ge=1, le=500),
     offset: int = Query(default=0, ge=0),
     score: ComplianceScore | None = Query(default=None, description="Filtrer på compliance_score"),

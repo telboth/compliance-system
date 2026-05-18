@@ -20,11 +20,12 @@ from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import httpx
-from fastapi import APIRouter, BackgroundTasks, HTTPException, Query, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, status
 
 from app.core.config import get_settings
 from app.core.database import SessionDep
 from app.core.logging import get_logger
+from app.core.security import ActorContext, require_roles
 from app.models.entity import Entity
 from app.models.invoice import Invoice, InvoiceStatus
 from app.models.screening import MatchStatus, ScreeningResult
@@ -367,6 +368,7 @@ async def start_screening(
     invoice_id: uuid.UUID,
     background_tasks: BackgroundTasks,
     session: SessionDep,
+    _actor: ActorContext = Depends(require_roles("admin", "compliance_officer", "controller")),
 ) -> dict[str, str]:
     """Start sanksjonsscreening for en invoice asynkront.
 
@@ -467,6 +469,7 @@ async def start_extended_screening(
     body: ExtendedScreenStartRequest,
     background_tasks: BackgroundTasks,
     session: SessionDep,
+    _actor: ActorContext = Depends(require_roles("admin", "compliance_officer", "controller")),
 ) -> ExtendedScreenRunRead:
     """Start MVP utvidet screening (nettverksdue-diligence) på en entitet."""
     try:
@@ -548,6 +551,7 @@ async def create_extended_screen_feedback(
     run_id: uuid.UUID,
     body: ExtendedScreenFeedbackCreate,
     session: SessionDep,
+    _actor: ActorContext = Depends(require_roles("admin", "compliance_officer", "controller")),
 ) -> ExtendedScreenFeedbackRead:
     try:
         row = await add_extended_screen_feedback(
@@ -958,7 +962,9 @@ async def get_sanctions_status() -> SanctionsStatusResponse:
     summary="Oppdater sanksjonslister",
     response_description="Datasett-nedlasting og reindeksering er trigget i yente.",
 )
-async def refresh_sanctions() -> SanctionsRefreshResponse:
+async def refresh_sanctions(
+    _actor: ActorContext = Depends(require_roles("admin", "compliance_officer")),
+) -> SanctionsRefreshResponse:
     """Trigger manuell oppdatering av yente-datasett.
 
     Yente laster ned og reindekserer alle datasett konfigurert i manifest.yml.
@@ -1014,7 +1020,9 @@ async def refresh_sanctions() -> SanctionsRefreshResponse:
     response_model=SanctionsRefreshResponse,
     summary="Oppdater eksterne screening-kilder",
 )
-async def refresh_external_sources() -> SanctionsRefreshResponse:
+async def refresh_external_sources(
+    _actor: ActorContext = Depends(require_roles("admin", "compliance_officer")),
+) -> SanctionsRefreshResponse:
     """Trigger manuell ingest av UK/WorldBank for utvidet screening."""
     result = await run_external_watchlist_ingest_cycle()
     if not bool(result.get("started")):
@@ -1041,6 +1049,7 @@ async def refresh_external_sources() -> SanctionsRefreshResponse:
 async def get_pipeline_metrics_endpoint(
     session: SessionDep,
     lookback_hours: int = Query(24, ge=1, le=24 * 14),
+    _actor: ActorContext = Depends(require_roles("admin", "compliance_officer")),
 ) -> PipelineMetricsResponse:
     """Aggreger driftstall for parsing/ekstraksjon/screening."""
     return await get_pipeline_metrics(
@@ -1058,6 +1067,7 @@ async def get_pipeline_recovery_endpoint(
     session: SessionDep,
     stale_minutes: int = Query(10, ge=1, le=24 * 60),
     limit: int = Query(100, ge=1, le=500),
+    _actor: ActorContext = Depends(require_roles("admin", "compliance_officer")),
 ) -> PipelineRecoveryResponse:
     """Returner stale/failed invoices for operativ oppfølging."""
     return await list_pipeline_recovery_candidates(
@@ -1100,6 +1110,7 @@ async def retry_pipeline_invoice(
         pattern="^(auto|parse|extract|screen)$",
         description="Steg å retry'e. auto velger fra nåværende status.",
     ),
+    _actor: ActorContext = Depends(require_roles("admin", "compliance_officer")),
 ) -> PipelineRecoveryActionResponse:
     invoice = await get_invoice_for_recovery(session, invoice_id)
     if invoice is None:

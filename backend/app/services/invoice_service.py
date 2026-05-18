@@ -25,7 +25,7 @@ from typing import TYPE_CHECKING
 
 import anyio
 from fastapi import UploadFile
-from sqlalchemy import case, func, literal, select
+from sqlalchemy import func, literal, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -34,7 +34,14 @@ from app.core.database import get_session_factory
 from app.core.errors import ApplicationError, NotFoundError, ParsingError
 from app.core.logging import get_logger
 from app.models.entity import Entity, EntityRole, EntityType
-from app.models.invoice import ComplianceScore, Invoice, InvoiceDirection, InvoiceStatus
+from app.models.invoice import (
+    ApprovalState,
+    ComplianceScore,
+    Invoice,
+    InvoiceDirection,
+    InvoiceStatus,
+    compute_approval_state,
+)
 from app.models.invoice_line import InvoiceLine
 from app.parsers import parse_pdf
 from app.services.invoice_note_service import apply_invoice_notes
@@ -56,30 +63,8 @@ def derive_approval_state(
     status: InvoiceStatus,
     compliance_score: ComplianceScore | None,
 ) -> str:
-    """Entydig approval-state for UI/filter/sort."""
-    if status == InvoiceStatus.APPROVED:
-        return "approved"
-    if status == InvoiceStatus.BLOCKED:
-        return "blocked"
-    if compliance_score in {ComplianceScore.YELLOW, ComplianceScore.RED}:
-        return "pending"
-    if compliance_score == ComplianceScore.GREEN:
-        return "not_required"
-    return "assessing"
-
-
-def approval_state_sql_expr():
-    """SQL-uttrykk som speiler derive_approval_state()."""
-    return case(
-        (Invoice.status == InvoiceStatus.APPROVED, literal("approved")),
-        (Invoice.status == InvoiceStatus.BLOCKED, literal("blocked")),
-        (
-            Invoice.compliance_score.in_([ComplianceScore.YELLOW, ComplianceScore.RED]),
-            literal("pending"),
-        ),
-        (Invoice.compliance_score == ComplianceScore.GREEN, literal("not_required")),
-        else_=literal("assessing"),
-    )
+    """Entydig approval-state for UI/filter/sort (streng for API)."""
+    return compute_approval_state(status, compliance_score).value
 
 # ── Faktura-gjenkjenning (Trinn 1: tekstsjekk etter parsing) ──────────────────
 
@@ -606,7 +591,7 @@ async def list_invoices(
         if approval_state:
             if approval_state not in APPROVAL_STATES:
                 return stmt.where(literal(False))
-            stmt = stmt.where(approval_state_sql_expr() == approval_state)
+            stmt = stmt.where(Invoice.approval_state == ApprovalState(approval_state))
         if destination_country is not None:
             country_filter = "".join(ch for ch in destination_country.upper() if ch.isalpha())[:2]
             if country_filter:
@@ -630,7 +615,7 @@ async def list_invoices(
         "compliance_score": Invoice.compliance_score,
         "vat_note_status": Invoice.vat_note_status,
         "email_note_status": Invoice.email_note_status,
-        "approval_state": approval_state_sql_expr(),
+        "approval_state": Invoice.approval_state,
         "llm_note_preview": Invoice.llm_note_preview,
         "original_filename": Invoice.original_filename,
     }

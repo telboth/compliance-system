@@ -10,6 +10,7 @@ import { useTranslation } from "react-i18next";
 import { useInvoiceSearch, useShipmentMap } from "@/hooks/useInvoices";
 import type { ShipmentMapRoute } from "@/api/types";
 import { resolveCountryToIso2 } from "@/lib/country";
+import { CountryAutocomplete } from "@/components/CountryAutocomplete";
 import {
   ALL_COUNTRY_RISKS,
   TIER_BG,
@@ -422,14 +423,14 @@ export function MapsPage() {
           </div>
           <div>
             <label className="mb-1 block text-xs text-xlent-muted">{t("shipments_map.destination_iso2")}</label>
-            <input
-              className={INPUT_CLS}
+            <CountryAutocomplete
               value={searchForm.destination_country}
-              onChange={(e) => {
-                updateSearchField("destination_country", e.target.value);
+              onChange={(next) => {
+                updateSearchField("destination_country", next);
                 setSearchCountryError(null);
               }}
               placeholder={t("shipments_map.example_fr")}
+              className={INPUT_CLS}
               maxLength={32}
             />
             {searchCountryError && (

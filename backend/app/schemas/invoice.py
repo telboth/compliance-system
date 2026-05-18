@@ -6,13 +6,10 @@ import re
 import uuid
 from datetime import date, datetime
 from decimal import Decimal, InvalidOperation
-from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from app.models.invoice import ComplianceScore, InvoiceDirection, InvoiceStatus
-
-ApprovalState = Literal["pending", "approved", "blocked", "not_required", "assessing"]
+from app.models.invoice import ApprovalState, ComplianceScore, InvoiceDirection, InvoiceStatus
 
 
 class InvoiceLineRead(BaseModel):
@@ -87,7 +84,7 @@ class InvoiceRead(BaseModel):
     currency: str | None
     invoice_date: date | None
     compliance_score: ComplianceScore | None
-    approval_state: ApprovalState = "assessing"
+    approval_state: ApprovalState = ApprovalState.ASSESSING
     created_at: datetime
     updated_at: datetime
 
@@ -132,7 +129,7 @@ class InvoiceSummary(BaseModel):
     direction: InvoiceDirection
     status: InvoiceStatus
     compliance_score: ComplianceScore | None
-    approval_state: ApprovalState = "assessing"
+    approval_state: ApprovalState = ApprovalState.ASSESSING
     total_amount: Decimal | None
     currency: str | None
     invoice_date: date | None

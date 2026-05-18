@@ -3,6 +3,12 @@ import { ALL_COUNTRY_RISKS } from "@/data/countryRisk";
 const LOCALES = ["en", "nb", "no"] as const;
 
 let lookupCache: Map<string, string> | null = null;
+const optionsByLocale = new Map<string, CountryOption[]>();
+
+export interface CountryOption {
+  code: string;
+  name: string;
+}
 
 function normalizeCountryName(raw: string): string {
   return raw
@@ -55,6 +61,29 @@ function getLookup(): Map<string, string> {
   return lookupCache;
 }
 
+export function getCountryAutocompleteOptions(locale: string): CountryOption[] {
+  const normalizedLocale = (locale || "en").toLowerCase();
+  const cached = optionsByLocale.get(normalizedLocale);
+  if (cached) return cached;
+
+  const codes = Object.keys(ALL_COUNTRY_RISKS).sort();
+  let dn: Intl.DisplayNames | null = null;
+  try {
+    dn = new Intl.DisplayNames([locale || "en"], { type: "region" });
+  } catch {
+    dn = null;
+  }
+  const options = codes
+    .map((code) => ({
+      code,
+      name: dn?.of(code) || code,
+    }))
+    .sort((a, b) => a.name.localeCompare(b.name));
+
+  optionsByLocale.set(normalizedLocale, options);
+  return options;
+}
+
 export function resolveCountryToIso2(raw: string): string {
   const trimmed = raw.trim();
   if (!trimmed) return "";
@@ -81,4 +110,3 @@ export function resolveCountryToIso2(raw: string): string {
   }
   return "";
 }
-

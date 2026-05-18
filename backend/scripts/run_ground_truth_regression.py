@@ -165,6 +165,34 @@ def main() -> int:
         action="store_true",
         help="Last alltid opp pa nytt i stedet for å gjenbruke siste invoice med samme filnavn.",
     )
+    parser.add_argument(
+        "--actor-role",
+        default="admin",
+        help="Rolle-header for backend auth (X-Actor-Role).",
+    )
+    parser.add_argument(
+        "--actor-name",
+        default="ground-truth-regression",
+        help="Navn-header for backend auth (X-Actor-Name).",
+    )
+    parser.add_argument(
+        "--min-precision",
+        type=float,
+        default=0.0,
+        help="Fail hvis precision havner under denne terskelen.",
+    )
+    parser.add_argument(
+        "--min-recall",
+        type=float,
+        default=0.0,
+        help="Fail hvis recall havner under denne terskelen.",
+    )
+    parser.add_argument(
+        "--min-accuracy",
+        type=float,
+        default=0.0,
+        help="Fail hvis accuracy havner under denne terskelen.",
+    )
     args = parser.parse_args()
 
     manifest_path = Path(args.manifest)
@@ -176,7 +204,13 @@ def main() -> int:
     tp = tn = fp = fn = 0
     completed = 0
     print(f"Starter regresjon: {len(rows)} invoices")
-    with httpx.Client(timeout=60) as client:
+    with httpx.Client(
+        timeout=60,
+        headers={
+            "X-Actor-Role": str(args.actor_role),
+            "X-Actor-Name": str(args.actor_name),
+        },
+    ) as client:
         for row in rows:
             invoice_path = invoices_dir / row.file_name
             if not invoice_path.exists():
@@ -230,7 +264,18 @@ def main() -> int:
     print(f"Kjørte: {completed}/{len(rows)}")
     print(f"TP={tp} FP={fp} TN={tn} FN={fn}")
     print(f"Precision={precision:.3f} Recall={recall:.3f} Accuracy={accuracy:.3f}")
-    return 0 if completed else 1
+    if completed == 0:
+        return 1
+    if precision < args.min_precision:
+        print(f"FAIL: precision {precision:.3f} < terskel {args.min_precision:.3f}")
+        return 1
+    if recall < args.min_recall:
+        print(f"FAIL: recall {recall:.3f} < terskel {args.min_recall:.3f}")
+        return 1
+    if accuracy < args.min_accuracy:
+        print(f"FAIL: accuracy {accuracy:.3f} < terskel {args.min_accuracy:.3f}")
+        return 1
+    return 0
 
 
 if __name__ == "__main__":

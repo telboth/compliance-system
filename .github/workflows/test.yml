@@ -65,6 +65,10 @@ jobs:
           APP_SECRET_KEY: test-secret
         run: pytest tests/test_invoice_rag_service.py -q
 
+      - name: Validate Ground-Truth test matrix
+        working-directory: backend
+        run: pytest tests/test_ground_truth_manifest.py -q
+
       - name: Run tests
         working-directory: backend
         env:

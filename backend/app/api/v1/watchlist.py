@@ -5,7 +5,7 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 
-from fastapi import APIRouter, HTTPException, Query, status
+from fastapi import APIRouter, HTTPException, Query, Response, status
 from pydantic import BaseModel
 
 from app.core.database import SessionDep
@@ -131,15 +131,20 @@ async def update_watchlist_entry(
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 
 
-@router.delete("/{entry_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete(
+    "/{entry_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    response_class=Response,
+)
 async def delete_watchlist_entry(
     entry_id: uuid.UUID,
     session: SessionDep,
-) -> None:
+) -> Response:
     """Slett en watchlist-oppføring permanent."""
     try:
         await wl_svc.delete_entry(session, entry_id)
         await session.commit()
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
     except NotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 

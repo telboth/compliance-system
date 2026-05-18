@@ -10,6 +10,7 @@ import { InvoiceUploader } from "@/components/InvoiceUploader";
 import { Pagination } from "@/components/Pagination";
 import { StatusBadge } from "@/components/StatusBadge";
 import { ComplianceChip } from "@/components/ComplianceBadge";
+import { CountryAutocomplete } from "@/components/CountryAutocomplete";
 import {
   useDeleteInvoice,
   useInvoiceList,
@@ -285,11 +286,10 @@ function FilterBar({ filters, onChange }: FilterBarProps) {
       </select>
 
       {/* Land */}
-      <input
-        type="text"
+      <CountryAutocomplete
         value={countryInput}
         onChange={(e) => {
-          const next = e.target.value;
+          const next = e;
           setCountryInput(next);
           const resolved = resolveCountryToIso2(next);
           set("destination_country", resolved);

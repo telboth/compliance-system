@@ -8,7 +8,7 @@ from datetime import date, datetime
 from decimal import Decimal
 from typing import TYPE_CHECKING
 
-from sqlalchemy import Date, DateTime, Enum, ForeignKey, Numeric, String, Text
+from sqlalchemy import Date, DateTime, Enum, ForeignKey, Numeric, String, Text, event
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -60,6 +60,31 @@ class ComplianceScore(str, enum.Enum):
     RED = "red"
 
 
+class ApprovalState(str, enum.Enum):
+    """Entydig godkjenningsstatus for review-flyt."""
+
+    PENDING = "pending"
+    APPROVED = "approved"
+    BLOCKED = "blocked"
+    NOT_REQUIRED = "not_required"
+    ASSESSING = "assessing"
+
+
+def compute_approval_state(
+    status: InvoiceStatus,
+    compliance_score: ComplianceScore | None,
+) -> ApprovalState:
+    if status == InvoiceStatus.APPROVED:
+        return ApprovalState.APPROVED
+    if status == InvoiceStatus.BLOCKED:
+        return ApprovalState.BLOCKED
+    if compliance_score in {ComplianceScore.YELLOW, ComplianceScore.RED}:
+        return ApprovalState.PENDING
+    if compliance_score == ComplianceScore.GREEN:
+        return ApprovalState.NOT_REQUIRED
+    return ApprovalState.ASSESSING
+
+
 class Invoice(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     """En invoice (faktura) lastet inn i systemet for compliance-kontroll.
 
@@ -103,6 +128,12 @@ class Invoice(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     compliance_score: Mapped[ComplianceScore | None] = mapped_column(
         Enum(ComplianceScore, name="compliance_score", values_callable=lambda e: [x.value for x in e]),
         nullable=True,
+        index=True,
+    )
+    approval_state: Mapped[ApprovalState] = mapped_column(
+        Enum(ApprovalState, name="approval_state", values_callable=lambda e: [x.value for x in e]),
+        nullable=False,
+        default=ApprovalState.ASSESSING,
         index=True,
     )
 
@@ -151,3 +182,13 @@ class Invoice(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         back_populates="invoice",
         cascade="all, delete-orphan",
     )
+
+
+@event.listens_for(Invoice, "before_insert")
+def _invoice_before_insert(_mapper: object, _connection: object, target: Invoice) -> None:
+    target.approval_state = compute_approval_state(target.status, target.compliance_score)
+
+
+@event.listens_for(Invoice, "before_update")
+def _invoice_before_update(_mapper: object, _connection: object, target: Invoice) -> None:
+    target.approval_state = compute_approval_state(target.status, target.compliance_score)

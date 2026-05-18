@@ -4,8 +4,9 @@ from __future__ import annotations
 
 from datetime import date
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Depends, Query
 
+from app.core.security import ActorContext, require_roles
 from app.schemas.search import (
     InvoiceSearchResponse,
     RAGSearchRequest,
@@ -103,7 +104,9 @@ async def search_invoices_endpoint(
     response_model=ReindexResponse,
     summary="Reindekser alle invoices i Elasticsearch",
 )
-async def reindex_endpoint() -> ReindexResponse:
+async def reindex_endpoint(
+    _actor: ActorContext = Depends(require_roles("admin", "compliance_officer")),
+) -> ReindexResponse:
     indexed, failed = await reindex_all_invoices()
     return ReindexResponse(
         message="Reindeksering fullført.",
@@ -128,7 +131,9 @@ async def rag_query_endpoint(body: RAGSearchRequest) -> RAGSearchResponse:
     response_model=ReindexResponse,
     summary="Reindekser RAG chunks for alle invoices",
 )
-async def rag_reindex_endpoint() -> ReindexResponse:
+async def rag_reindex_endpoint(
+    _actor: ActorContext = Depends(require_roles("admin", "compliance_officer")),
+) -> ReindexResponse:
     indexed_invoices, indexed_chunks, failed = await reindex_all_invoice_rag()
     return ReindexResponse(
         message=f"RAG reindeksering fullført. Chunks: {indexed_chunks}.",
