@@ -2,8 +2,11 @@ import { Suspense, lazy } from "react";
 import { NavLink, Navigate, Route, Routes } from "react-router-dom";
 import clsx from "clsx";
 
+import { useTranslation } from "react-i18next";
+
 import { ModelSelector } from "@/components/ModelSelector";
 import { NotificationBell } from "@/components/NotificationBell";
+import { LanguageSwitcher } from "@/components/LanguageSwitcher";
 import xlentLogoWhite from "@/assets/xlent-logo-white.svg";
 import { AuthProvider } from "@/auth/AuthContext";
 import { DevRoleSwitcher } from "@/auth/DevRoleSwitcher";
@@ -28,9 +31,9 @@ const CustomerList = lazy(async () => {
   const m = await import("@/pages/CustomerList");
   return { default: m.CustomerList };
 });
-const RiskMap = lazy(async () => {
-  const m = await import("@/pages/RiskMap");
-  return { default: m.RiskMap };
+const MapsPage = lazy(async () => {
+  const m = await import("@/pages/Maps");
+  return { default: m.MapsPage };
 });
 const SanctionedEntitiesPage = lazy(async () => {
   const m = await import("@/pages/SanctionedEntities");
@@ -39,10 +42,6 @@ const SanctionedEntitiesPage = lazy(async () => {
 const InvoiceSearchPage = lazy(async () => {
   const m = await import("@/pages/InvoiceSearch");
   return { default: m.InvoiceSearchPage };
-});
-const ShipmentsMapPage = lazy(async () => {
-  const m = await import("@/pages/ShipmentsMap");
-  return { default: m.ShipmentsMapPage };
 });
 const PipelineOpsPage = lazy(async () => {
   const m = await import("@/pages/PipelineOps");
@@ -70,7 +69,8 @@ const WatchlistPage = lazy(async () => {
 });
 
 function PageFallback() {
-  return <div className="p-6 text-sm text-xlent-muted">Laster side …</div>;
+  const { t } = useTranslation();
+  return <div className="p-6 text-sm text-xlent-muted">{t("loading_page")}</div>;
 }
 
 /**
@@ -100,6 +100,7 @@ function NavItem({
   badge?: number;
 }) {
   const { can } = useAuth();
+  const { t } = useTranslation();
 
   if (adminOnly && !can("system:admin")) return null;
 
@@ -108,7 +109,7 @@ function NavItem({
   if (!allowed) {
     return (
       <span
-        title="Du har ikke tilgang til denne siden med din nåværende rolle"
+        title={t("nav.no_access")}
         className="cursor-not-allowed text-sm text-gray-300 select-none"
       >
         {label}
@@ -151,6 +152,7 @@ function useReviewBadge(): number {
 function AppShell() {
   const reviewBadge = useReviewBadge();
   const { role } = useAuth();
+  const { t } = useTranslation();
 
   return (
     <div className="min-h-full">
@@ -160,8 +162,11 @@ function AppShell() {
             <NavLink to="/" className="inline-flex items-center" end>
               <img src={xlentLogoWhite} alt="XLENT" className="h-6 w-auto" />
             </NavLink>
-            <span className="text-base font-medium text-white/90">Compliance</span>
-            <div className="ml-auto">
+            <span className="text-base font-medium text-white/90">{t("header_title")}</span>
+            <div className="ml-auto flex items-center gap-2">
+              <DevRoleSwitcher />
+              <LanguageSwitcher variant="dark" />
+              <ModelSelector variant="dark" />
               <NotificationBell role={role} />
             </div>
           </div>
@@ -169,43 +174,34 @@ function AppShell() {
 
         <div className="mx-auto max-w-6xl px-6 py-3">
           <nav className="flex flex-wrap items-center gap-x-4 gap-y-2">
-            {/* Rollevelger alltid til venstre */}
-            <DevRoleSwitcher />
-
-            <span className="hidden h-4 w-px bg-gray-200 sm:block" aria-hidden />
-
             {/* Primære sider — synlig for alle */}
-            <NavItem to="/" label="Fakturaer" end />
-            <NavItem to="/dashboard" label="📊 Dashboard" />
-            <NavItem to="/customers" label="Kunder" />
+            <NavItem to="/" label={t("nav.invoices")} end />
+            <NavItem to="/dashboard" label={t("nav.dashboard")} />
+            <NavItem to="/customers" label={t("nav.customers")} />
 
             {/* Review-kø — synlig for compliance_officer og admin */}
             <NavItem
               to="/review-queue"
-              label="Review-kø"
+              label={t("nav.review_queue")}
               require="invoices:review"
               badge={reviewBadge}
             />
 
             {/* Compliance-verktøy */}
-            <NavItem to="/rules" label="Regler" require="rules:view" />
-            <NavItem to="/watchlist" label="🚫 Sperreliste" require="rules:edit" />
-            <NavItem to="/agreements" label="Rammeavtaler" />
+            <NavItem to="/rules" label={t("nav.rules")} require="rules:view" />
+            <NavItem to="/watchlist" label={t("nav.watchlist")} require="rules:edit" />
+            <NavItem to="/agreements" label={t("nav.agreements")} />
 
             {/* Kart og screening — synlig for alle */}
-            <NavItem to="/risk-map" label="🌍 Risikoland" />
-            <NavItem to="/sanctioned-entities" label="Sanksjonerte entiteter" />
+            <NavItem to="/maps" label={t("nav.maps")} />
+            <NavItem to="/sanctioned-entities" label={t("nav.sanctioned_entities")} />
 
-            {/* Søk og kart */}
-            <NavItem to="/invoice-search" label="Invoice-søk" />
-            <NavItem to="/shipments-map" label="Forsendelseskart" />
+            {/* Søk */}
+            <NavItem to="/invoice-search" label={t("nav.invoice_search")} />
 
             {/* Drift — skjules helt for ikke-admins */}
-            <NavItem to="/pipeline-ops" label="Pipeline drift" adminOnly />
+            <NavItem to="/pipeline-ops" label={t("nav.pipeline_ops")} adminOnly />
 
-            <div className="ml-auto">
-              <ModelSelector />
-            </div>
           </nav>
         </div>
       </header>
@@ -221,9 +217,10 @@ function AppShell() {
               element={<ExtendedScreeningRunPage />}
             />
             <Route path="/dashboard" element={<DashboardPage />} />
-            <Route path="/risk-map" element={<RiskMap />} />
+            <Route path="/maps" element={<MapsPage />} />
             <Route path="/invoice-search" element={<InvoiceSearchPage />} />
-            <Route path="/shipments-map" element={<ShipmentsMapPage />} />
+            <Route path="/risk-map" element={<Navigate to="/maps" replace />} />
+            <Route path="/shipments-map" element={<Navigate to="/maps" replace />} />
 
             {/* Kunder */}
             <Route

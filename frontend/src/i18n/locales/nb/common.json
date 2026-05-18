@@ -1,0 +1,68 @@
+{
+  "nav": {
+    "invoices": "Fakturaer",
+    "dashboard": "📊 Dashboard",
+    "customers": "Kunder",
+    "review_queue": "Review-kø",
+    "rules": "Regler",
+    "watchlist": "🚫 Sperreliste",
+    "agreements": "Rammeavtaler",
+    "maps": "Kart",
+    "risk_map": "🌍 Risikoland",
+    "sanctioned_entities": "Sanksjonerte entiteter",
+    "invoice_search": "Invoice-søk",
+    "shipments_map": "Forsendelseskart",
+    "pipeline_ops": "Pipeline drift",
+    "no_access": "Du har ikke tilgang til denne siden med din nåværende rolle"
+  },
+  "status": {
+    "uploaded": "Lastet opp",
+    "parsing": "Parser",
+    "parsed": "Parset",
+    "parsing_failed": "Parsing feilet",
+    "not_invoice": "Ikke faktura",
+    "extracting": "Ekstraherer",
+    "extraction_failed": "Ekstraksjon feilet",
+    "extracted": "Ekstrahert",
+    "screening": "Screening",
+    "screening_failed": "Screening feilet",
+    "screened": "Screenet",
+    "reviewed": "Reviewert",
+    "approved": "Godkjent",
+    "blocked": "Blokkert"
+  },
+  "action": {
+    "save": "Lagre",
+    "saving": "Lagrer…",
+    "cancel": "Avbryt",
+    "delete": "Slett",
+    "edit": "Rediger",
+    "add": "Legg til",
+    "create": "Opprett",
+    "close": "Lukk",
+    "toggle_active": "Aktiver",
+    "toggle_inactive": "Deaktiver"
+  },
+  "loading": "Laster …",
+  "loading_page": "Laster side …",
+  "error_generic": "Noe gikk galt. Prøv igjen.",
+  "error_api": "Sjekk at API-et kjører.",
+  "compliance": "Compliance",
+  "header_title": "Compliance",
+  "direction": {
+    "incoming": "Inn",
+    "outgoing": "Ut",
+    "incoming_full": "Innkommende",
+    "outgoing_full": "Utgående"
+  },
+  "pagination": {
+    "showing": "Viser {{from}}–{{to}} av {{total}}",
+    "prev": "← Forrige",
+    "next": "Neste →"
+  },
+  "language": {
+    "nb": "Norsk",
+    "en": "English",
+    "switch_aria": "Velg språk"
+  }
+}

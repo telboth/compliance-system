@@ -1,9 +1,9 @@
 """
 Lagring av opplastede invoice-dokumenter på disk.
 
-Støtter PDF, XLSX og bildefiler (PNG, JPEG). Vi bruker en UUID-basert sti for
-å unngå problemer med spesialtegn i originalt filnavn. Originalnavnet lagres
-i databasen.
+Støtter PDF, XLSX og bildefiler (PNG, JPEG, GIF). Vi bruker en UUID-basert sti
+for å unngå problemer med spesialtegn i originalt filnavn. Originalnavnet
+lagres i databasen.
 """
 
 from __future__ import annotations
@@ -29,10 +29,11 @@ _ALLOWED: dict[str, tuple[SourceFileType, str]] = {
     ),
     # Noen klienter sender denne eldre MIME-typen for .xlsx
     "application/vnd.ms-excel": (SourceFileType.XLSX, ".xlsx"),
-    # Bildefiler — PNG og JPEG er vanlig for scannede fakturaer
+    # Bildefiler — PNG/JPEG/GIF er vanlig for scannede fakturaer og bilder.
     "image/png": (SourceFileType.IMAGE, ".png"),
     "image/jpeg": (SourceFileType.IMAGE, ".jpg"),
     "image/jpg": (SourceFileType.IMAGE, ".jpg"),
+    "image/gif": (SourceFileType.IMAGE, ".gif"),
 }
 
 # Magic bytes for signatursjekk — en tuple med gyldige prefiks per filtype.
@@ -40,10 +41,11 @@ _ALLOWED: dict[str, tuple[SourceFileType, str]] = {
 # XLSX er en ZIP-fil og starter med PK\x03\x04 (ZIP local file header)
 # PNG starter alltid med 8-byte signaturen \x89PNG\r\n\x1a\n
 # JPEG starter alltid med FF D8 FF
+# GIF starter med "GIF87a" eller "GIF89a"
 _MAGIC: dict[SourceFileType, tuple[bytes, ...]] = {
     SourceFileType.PDF: (b"%PDF-",),
     SourceFileType.XLSX: (b"PK\x03\x04",),
-    SourceFileType.IMAGE: (b"\x89PNG", b"\xff\xd8\xff"),
+    SourceFileType.IMAGE: (b"\x89PNG", b"\xff\xd8\xff", b"GIF87a", b"GIF89a"),
 }
 
 
@@ -57,7 +59,7 @@ async def save_upload(upload: UploadFile) -> tuple[Path, int, SourceFileType]:
         (sti til lagret fil, filstørrelse i bytes, filtype-enum)
 
     Raises:
-        UnsupportedFileTypeError: Hvis filtypen ikke er PDF eller XLSX.
+        UnsupportedFileTypeError: Hvis filtypen ikke er støttet.
         FileTooLargeError: Hvis filen overskrider konfigurert maks-størrelse.
     """
     settings = get_settings()
@@ -65,7 +67,7 @@ async def save_upload(upload: UploadFile) -> tuple[Path, int, SourceFileType]:
 
     if content_type not in _ALLOWED:
         raise UnsupportedFileTypeError(
-            "Kun PDF og XLSX er støttet.",
+            "Kun PDF, XLSX, PNG, JPG/JPEG og GIF er støttet.",
             details={
                 "content_type": content_type,
                 "allowed": list(_ALLOWED.keys()),

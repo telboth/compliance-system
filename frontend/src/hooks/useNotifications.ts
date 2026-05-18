@@ -4,8 +4,8 @@
  * Poller hvert 30. sekund for nye varsler.
  * Read-tracking skjer i localStorage (Set av notification-IDs).
  */
-import { useCallback, useEffect, useState } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useCallback, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 
 import { listNotifications } from "@/api/notifications";
 import type { AppNotification } from "@/api/types";

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import clsx from "clsx";
+import { useTranslation } from "react-i18next";
 
 import { Pagination } from "@/components/Pagination";
 import {
@@ -13,18 +14,18 @@ import type { SanctionedEntityType } from "@/api/types";
 const selectCls =
   "rounded border border-gray-200 bg-white px-2 py-1 text-xs text-xlent-ink focus:outline-none focus:ring-1 focus:ring-xlent-primary";
 
-function refreshStatusText(status: string | undefined): string {
+function refreshStatusText(status: string | undefined, t: (key: string) => string): string {
   switch (status) {
     case "success":
-      return "Suksess";
+      return t("sanctioned_entities.status.success");
     case "failed":
-      return "Feilet";
+      return t("sanctioned_entities.status.failed");
     case "running":
-      return "Kjører";
+      return t("sanctioned_entities.status.running");
     case "skipped":
-      return "Hoppet over";
+      return t("sanctioned_entities.status.skipped");
     default:
-      return "Ukjent";
+      return t("sanctioned_entities.status.unknown");
   }
 }
 
@@ -44,6 +45,8 @@ function refreshStatusClass(status: string | undefined): string {
 }
 
 export function SanctionedEntitiesPage() {
+  const { t, i18n } = useTranslation("pages");
+  const locale = i18n.language === "en" ? "en-GB" : "nb-NO";
   const [searchInput, setSearchInput] = useState("");
   const [search, setSearch] = useState("");
   const [entityType, setEntityType] = useState<SanctionedEntityType>("all");
@@ -82,8 +85,8 @@ export function SanctionedEntitiesPage() {
   const relation = data?.total_relation ?? "eq";
   const resultText = useMemo(() => {
     if (!data) return "0";
-    return relation === "gte" ? `minst ${total.toLocaleString("nb-NO")}` : total.toLocaleString("nb-NO");
-  }, [data, relation, total]);
+    return relation === "gte" ? `${t("sanctioned_entities.at_least")} ${total.toLocaleString(locale)}` : total.toLocaleString(locale);
+  }, [data, relation, total, t, locale]);
   const latestUpdatedAt = useMemo(() => {
     const timestamps = (sanctionsStatus?.datasets ?? [])
       .map((dataset) => dataset.last_updated)
@@ -102,9 +105,9 @@ export function SanctionedEntitiesPage() {
   return (
     <div className="mx-auto max-w-5xl space-y-6 p-6">
       <header>
-        <h1 className="text-2xl font-semibold text-xlent-ink">Sanksjonerte entiteter</h1>
+        <h1 className="text-2xl font-semibold text-xlent-ink">{t("sanctioned_entities.title")}</h1>
         <p className="mt-1 text-sm text-xlent-muted">
-          Fuzzy søk i aktive sanksjonslister (Yente/OpenSanctions). Filtrer på personer eller selskaper.
+          {t("sanctioned_entities.subtitle")}
         </p>
       </header>
 
@@ -112,66 +115,66 @@ export function SanctionedEntitiesPage() {
         <div className="mb-3 flex flex-wrap items-center justify-between gap-3 rounded border border-gray-100 bg-gray-50 px-3 py-2 text-xs">
           <div className="space-y-1 text-xlent-muted">
             <div>
-              Yente:{" "}
+              {t("sanctioned_entities.yente")}:{" "}
               <span className={sanctionsStatus?.yente_available ? "text-green-700" : "text-red-700"}>
                 {sanctionsStatusLoading
-                  ? "Sjekker …"
+                  ? t("sanctioned_entities.checking")
                   : sanctionsStatus?.yente_available
-                    ? "oppe"
-                    : "nede"}
+                    ? t("sanctioned_entities.up")
+                    : t("sanctioned_entities.down")}
               </span>
               {" · "}
-              Elasticsearch:{" "}
+              {t("sanctioned_entities.elasticsearch")}:{" "}
               <span
                 className={
                   sanctionsStatus?.elasticsearch_available ? "text-green-700" : "text-red-700"
                 }
               >
                 {sanctionsStatusLoading
-                  ? "Sjekker …"
+                  ? t("sanctioned_entities.checking")
                   : sanctionsStatus?.elasticsearch_available
-                    ? "oppe"
-                    : "nede"}
+                    ? t("sanctioned_entities.up")
+                    : t("sanctioned_entities.down")}
               </span>
             </div>
             <div>
-              Siste listeoppdatering:{" "}
+              {t("sanctioned_entities.last_list_update")}:{" "}
               <span className="font-medium text-xlent-ink">
                 {latestUpdatedAt
-                  ? latestUpdatedAt.toLocaleString("nb-NO")
+                  ? latestUpdatedAt.toLocaleString(locale)
                   : sanctionsStatusLoading
-                    ? "Laster …"
-                    : "Ukjent"}
+                    ? t("sanctioned_entities.loading")
+                    : t("sanctioned_entities.unknown")}
               </span>
             </div>
             <div>
-              Planlagt refresh:{" "}
+              {t("sanctioned_entities.scheduled_refresh")}:{" "}
               <span className="font-medium text-xlent-ink">
                 {sanctionsStatus?.refresh_schedule_time ?? "07:40"}{" "}
                 {sanctionsStatus?.refresh_schedule_timezone ?? "Europe/Oslo"}
               </span>
             </div>
             <div>
-              Planlagt ekstern ingest:{" "}
+              {t("sanctioned_entities.scheduled_external_ingest")}:{" "}
               <span className="font-medium text-xlent-ink">
                 {sanctionsStatus?.external_refresh_schedule_time ?? "07:45"}{" "}
                 {sanctionsStatus?.refresh_schedule_timezone ?? "Europe/Oslo"}
               </span>
             </div>
             <div>
-              Siste refresh-jobb:{" "}
+              {t("sanctioned_entities.last_refresh_job")}:{" "}
               {!latestRun ? (
-                <span className="font-medium text-xlent-muted">Ingen kjøringer registrert ennå</span>
+                <span className="font-medium text-xlent-muted">{t("sanctioned_entities.no_runs")}</span>
               ) : (
                 <>
                   <span className={clsx("font-medium", refreshStatusClass(latestRun.status))}>
-                    {refreshStatusText(latestRun.status)}
+                    {refreshStatusText(latestRun.status, t)}
                   </span>
                   <span className="text-xlent-muted">
                     {" · "}
-                    {latestRun.trigger === "scheduled" ? "Daglig (cron)" : "Manuell"}
+                    {latestRun.trigger === "scheduled" ? t("sanctioned_entities.daily_cron") : t("sanctioned_entities.manual")}
                     {" · "}
-                    {new Date(latestRun.started_at).toLocaleString("nb-NO")}
+                    {new Date(latestRun.started_at).toLocaleString(locale)}
                   </span>
                   {latestRun.message && (
                     <span className="text-xlent-muted">
@@ -191,11 +194,11 @@ export function SanctionedEntitiesPage() {
                 refreshMutation.mutate(undefined, {
                   onSuccess: (response) => {
                     setRefreshInfo(
-                      `Oppdatering trigget for ${response.datasets_triggered.length} datasett.`,
+                      t("sanctioned_entities.refresh_triggered", { count: response.datasets_triggered.length }),
                     );
                   },
                   onError: () => {
-                    setRefreshError("Kunne ikke trigge oppdatering av sanksjonslister.");
+                    setRefreshError(t("sanctioned_entities.refresh_error"));
                   },
                 });
               }}
@@ -207,7 +210,7 @@ export function SanctionedEntitiesPage() {
                   : "border-xlent-primary/40 text-xlent-primary hover:bg-xlent-primary/5",
               )}
             >
-              {refreshMutation.isPending ? "Oppdaterer lister …" : "Oppdater sanksjonslister"}
+              {refreshMutation.isPending ? t("sanctioned_entities.refreshing_lists") : t("sanctioned_entities.refresh_lists")}
             </button>
             <button
               onClick={() => {
@@ -216,11 +219,11 @@ export function SanctionedEntitiesPage() {
                 externalRefreshMutation.mutate(undefined, {
                   onSuccess: (response) => {
                     setExternalRefreshInfo(
-                      `Ekstern ingest trigget for ${response.datasets_triggered.length} kilder.`,
+                      t("sanctioned_entities.external_triggered", { count: response.datasets_triggered.length }),
                     );
                   },
                   onError: () => {
-                    setExternalRefreshError("Kunne ikke trigge ekstern ingest.");
+                    setExternalRefreshError(t("sanctioned_entities.external_error"));
                   },
                 });
               }}
@@ -232,7 +235,7 @@ export function SanctionedEntitiesPage() {
                   : "border-indigo-300 bg-indigo-50 text-indigo-700 hover:bg-indigo-100",
               )}
             >
-              {externalRefreshMutation.isPending ? "Oppdaterer eksterne …" : "Oppdater eksterne kilder"}
+              {externalRefreshMutation.isPending ? t("sanctioned_entities.refreshing_external") : t("sanctioned_entities.refresh_external")}
             </button>
           </div>
         </div>
@@ -242,17 +245,17 @@ export function SanctionedEntitiesPage() {
         {externalRefreshError && <p className="mb-2 text-xs text-traffic-red">{externalRefreshError}</p>}
         {sanctionsStatusError && (
           <p className="mb-2 text-xs text-traffic-red">
-            Kunne ikke hente status for sanksjonsmotor.
+            {t("sanctioned_entities.status_fetch_error")}
           </p>
         )}
         {externalIssues.length > 0 && (
           <div className="mb-2 rounded border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
-            <div className="font-medium">Eksterne kilder har varsler</div>
+            <div className="font-medium">{t("sanctioned_entities.external_warnings")}</div>
             <ul className="mt-1 space-y-1">
               {externalIssues.map((row) => (
                 <li key={row.source}>
                   {row.source}: {row.status}
-                  {row.stale ? " (stale)" : ""}
+                  {row.stale ? ` (${t("sanctioned_entities.stale")})` : ""}
                   {row.error_message ? ` - ${row.error_message}` : ""}
                 </li>
               ))}
@@ -264,11 +267,11 @@ export function SanctionedEntitiesPage() {
             <table className="w-full min-w-[780px] text-left text-xs">
               <thead className="bg-gray-50 text-xlent-muted">
                 <tr>
-                  <th className="px-2 py-1.5">Kilde</th>
-                  <th className="px-2 py-1.5">Status</th>
-                  <th className="px-2 py-1.5">Entries</th>
-                  <th className="px-2 py-1.5">Sist oppdatert</th>
-                  <th className="px-2 py-1.5">Stale</th>
+                  <th className="px-2 py-1.5">{t("sanctioned_entities.col_source")}</th>
+                  <th className="px-2 py-1.5">{t("sanctioned_entities.col_status")}</th>
+                  <th className="px-2 py-1.5">{t("sanctioned_entities.col_entries")}</th>
+                  <th className="px-2 py-1.5">{t("sanctioned_entities.col_last_updated")}</th>
+                  <th className="px-2 py-1.5">{t("sanctioned_entities.col_stale")}</th>
                 </tr>
               </thead>
               <tbody>
@@ -279,12 +282,12 @@ export function SanctionedEntitiesPage() {
                       {row.status}
                     </td>
                     <td className="px-2 py-1.5">
-                      {row.entry_count != null ? row.entry_count.toLocaleString("nb-NO") : "—"}
+                      {row.entry_count != null ? row.entry_count.toLocaleString(locale) : "—"}
                     </td>
                     <td className="px-2 py-1.5">
-                      {row.last_updated ? new Date(row.last_updated).toLocaleString("nb-NO") : "—"}
+                      {row.last_updated ? new Date(row.last_updated).toLocaleString(locale) : "—"}
                     </td>
-                    <td className="px-2 py-1.5">{row.stale ? "Ja" : "Nei"}</td>
+                    <td className="px-2 py-1.5">{row.stale ? t("sanctioned_entities.yes") : t("sanctioned_entities.no")}</td>
                   </tr>
                 ))}
               </tbody>
@@ -296,7 +299,7 @@ export function SanctionedEntitiesPage() {
           <input
             value={searchInput}
             onChange={(e) => setSearchInput(e.target.value)}
-            placeholder="Søk navn, alias, selskap eller person …"
+            placeholder={t("sanctioned_entities.search_placeholder")}
             className={clsx(selectCls, "w-full min-w-[220px] flex-1 text-sm")}
           />
           <select
@@ -306,25 +309,25 @@ export function SanctionedEntitiesPage() {
               setEntityType(e.target.value as SanctionedEntityType);
             }}
             className={selectCls}
-            aria-label="Type entitet"
+            aria-label={t("sanctioned_entities.entity_type_aria")}
           >
-            <option value="all">Alle (person + selskap)</option>
-            <option value="company">Kun selskaper</option>
-            <option value="person">Kun personer</option>
+            <option value="all">{t("sanctioned_entities.entity_type_all")}</option>
+            <option value="company">{t("sanctioned_entities.entity_type_company")}</option>
+            <option value="person">{t("sanctioned_entities.entity_type_person")}</option>
           </select>
         </div>
 
         <div className="mt-2 text-xs text-xlent-muted">
-          Treffer: {resultText}
-          {isFetching && !isLoading && <span className="ml-2">Oppdaterer …</span>}
+          {t("sanctioned_entities.hits")}: {resultText}
+          {isFetching && !isLoading && <span className="ml-2">{t("sanctioned_entities.refreshing")}</span>}
         </div>
       </section>
 
       <section>
-        {isLoading && <p className="text-sm text-xlent-muted">Laster …</p>}
+        {isLoading && <p className="text-sm text-xlent-muted">{t("sanctioned_entities.loading")}</p>}
         {error && (
           <p className="text-sm text-traffic-red">
-            Kunne ikke hente sanksjonerte entiteter. Sjekk at Yente og Elasticsearch er oppe.
+            {t("sanctioned_entities.load_error")}
           </p>
         )}
 
@@ -334,18 +337,18 @@ export function SanctionedEntitiesPage() {
               <table className="min-w-full divide-y divide-gray-200 text-sm">
                 <thead className="bg-xlent-surface text-left text-xs uppercase text-xlent-muted">
                   <tr>
-                    <th className="px-3 py-2">Navn</th>
-                    <th className="px-3 py-2">Type</th>
-                    <th className="px-3 py-2">Datasett</th>
-                    <th className="px-3 py-2">Land</th>
-                    <th className="px-3 py-2">Sist sett</th>
+                    <th className="px-3 py-2">{t("sanctioned_entities.col_name")}</th>
+                    <th className="px-3 py-2">{t("sanctioned_entities.col_type")}</th>
+                    <th className="px-3 py-2">{t("sanctioned_entities.col_dataset")}</th>
+                    <th className="px-3 py-2">{t("sanctioned_entities.col_country")}</th>
+                    <th className="px-3 py-2">{t("sanctioned_entities.col_last_seen")}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
                   {data.items.length === 0 && (
                     <tr>
                       <td colSpan={5} className="px-3 py-6 text-center text-xlent-muted">
-                        Ingen treff for gjeldende søk/filter.
+                        {t("sanctioned_entities.no_hits")}
                       </td>
                     </tr>
                   )}
@@ -364,7 +367,7 @@ export function SanctionedEntitiesPage() {
                       </td>
                       <td className="px-3 py-2 text-xs text-xlent-muted">
                         {entity.last_seen
-                          ? new Date(entity.last_seen).toLocaleString("nb-NO", {
+                          ? new Date(entity.last_seen).toLocaleString(locale, {
                               dateStyle: "short",
                               timeStyle: "short",
                             })

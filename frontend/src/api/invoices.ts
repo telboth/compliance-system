@@ -13,6 +13,7 @@ import type {
   RAGSearchRequest,
   RAGSearchResponse,
   Invoice,
+  ApprovalState,
   InvoiceDirection,
   InvoiceListResponse,
   InvoiceUploadResponse,
@@ -62,6 +63,7 @@ export async function listInvoices(params: {
   status?: string | null;
   direction?: string | null;
   compliance_score?: string | null;
+  approval_state?: ApprovalState | null;
   vat_note_status?: string | null;
   email_note_status?: string | null;
   destination_country?: string | null;
@@ -407,6 +409,11 @@ export interface ReviewCreate {
   reason: string;
 }
 
+export interface RiskEscalationCreate {
+  target_score: "yellow" | "red";
+  reason: string;
+}
+
 export async function reviewInvoice(
   id: string,
   request: ReviewCreate,
@@ -416,6 +423,21 @@ export async function reviewInvoice(
   if (actor) params.actor = actor;
   const { data } = await apiClient.post<Invoice>(
     `/invoices/${id}/review`,
+    request,
+    { params },
+  );
+  return data;
+}
+
+export async function escalateInvoiceRisk(
+  id: string,
+  request: RiskEscalationCreate,
+  actor?: string,
+): Promise<Invoice> {
+  const params: Record<string, string> = {};
+  if (actor) params.actor = actor;
+  const { data } = await apiClient.post<Invoice>(
+    `/invoices/${id}/risk/escalate`,
     request,
     { params },
   );

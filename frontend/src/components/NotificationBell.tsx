@@ -10,6 +10,7 @@ import clsx from "clsx";
 
 import { useNotifications } from "@/hooks/useNotifications";
 import type { AppNotification } from "@/api/types";
+import { useTranslation } from "react-i18next";
 
 // ── Level-styling ─────────────────────────────────────────────────────────────
 
@@ -82,6 +83,7 @@ function NotifItem({
 // ── Bjellen ───────────────────────────────────────────────────────────────────
 
 export function NotificationBell({ role }: { role: string }) {
+  const { t } = useTranslation("components");
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
@@ -108,7 +110,7 @@ export function NotificationBell({ role }: { role: string }) {
       {/* Bjelle-knapp */}
       <button
         onClick={() => setOpen((o) => !o)}
-        title="Varsler"
+        title={t("notifications.title")}
         className="relative flex h-8 w-8 items-center justify-center rounded-full text-xlent-muted hover:bg-gray-100 hover:text-xlent-ink focus:outline-none"
       >
         <svg
@@ -140,10 +142,10 @@ export function NotificationBell({ role }: { role: string }) {
           {/* Header */}
           <div className="flex items-center justify-between border-b border-gray-100 px-3 py-2">
             <span className="text-xs font-semibold text-xlent-ink">
-              Varsler
+              {t("notifications.title")}
               {unreadCount > 0 && (
                 <span className="ml-1.5 rounded-full bg-red-100 px-1.5 py-0.5 text-[10px] font-bold text-red-700">
-                  {unreadCount} nye
+                  {t("notifications.new_count", { count: unreadCount })}
                 </span>
               )}
             </span>
@@ -152,7 +154,7 @@ export function NotificationBell({ role }: { role: string }) {
                 onClick={markAllRead}
                 className="text-[10px] text-xlent-primary hover:underline"
               >
-                Merk alle lest
+                {t("notifications.mark_all")}
               </button>
             )}
           </div>
@@ -161,12 +163,12 @@ export function NotificationBell({ role }: { role: string }) {
           <div className="max-h-80 overflow-y-auto divide-y divide-gray-50">
             {isLoading && (
               <p className="px-3 py-4 text-center text-xs text-xlent-muted">
-                Laster varsler …
+                {t("notifications.loading")}
               </p>
             )}
             {!isLoading && notifications.length === 0 && (
               <p className="px-3 py-6 text-center text-xs text-xlent-muted">
-                Ingen varsler ennå
+                {t("notifications.empty")}
               </p>
             )}
             {notifications.map((n) => (
@@ -186,7 +188,7 @@ export function NotificationBell({ role }: { role: string }) {
           {notifications.length > 0 && (
             <div className="border-t border-gray-100 px-3 py-2 text-center">
               <span className="text-[10px] text-xlent-muted">
-                Viser {notifications.length} siste
+                {t("notifications.showing", { count: notifications.length })}
               </span>
             </div>
           )}

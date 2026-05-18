@@ -1,5 +1,6 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import clsx from "clsx";
 
 import { apiClient } from "@/api/client";
@@ -15,14 +16,15 @@ import {
   useSanctionsStatus,
   type InvoiceListFilters,
 } from "@/hooks/useInvoices";
-import type { ComplianceScore, InvoiceDirection, InvoiceStatus } from "@/api/types";
-import { ALL_COUNTRY_RISKS } from "@/data/countryRisk";
+import type { ApprovalState, ComplianceScore, InvoiceDirection, InvoiceStatus } from "@/api/types";
+import { resolveCountryToIso2 } from "@/lib/country";
 
 type InvoiceTableColumnKey =
   | "signal"
   | "file"
   | "direction"
   | "status"
+  | "approval"
   | "vat"
   | "email"
   | "llm"
@@ -38,6 +40,7 @@ const DEFAULT_COL_WIDTHS: Record<InvoiceTableColumnKey, number> = {
   file: 220,
   direction: 90,
   status: 130,
+  approval: 170,
   vat: 220,
   email: 240,
   llm: 360,
@@ -52,6 +55,7 @@ const MIN_COL_WIDTHS: Record<InvoiceTableColumnKey, number> = {
   file: 140,
   direction: 70,
   status: 100,
+  approval: 130,
   vat: 160,
   email: 170,
   llm: 220,
@@ -74,6 +78,7 @@ function loadSavedColWidths(): Record<InvoiceTableColumnKey, number> {
       file: Number(parsed.file) || DEFAULT_COL_WIDTHS.file,
       direction: Number(parsed.direction) || DEFAULT_COL_WIDTHS.direction,
       status: Number(parsed.status) || DEFAULT_COL_WIDTHS.status,
+      approval: Number(parsed.approval) || DEFAULT_COL_WIDTHS.approval,
       vat: Number(parsed.vat) || DEFAULT_COL_WIDTHS.vat,
       email: Number(parsed.email) || DEFAULT_COL_WIDTHS.email,
       llm: Number(parsed.llm) || DEFAULT_COL_WIDTHS.llm,
@@ -89,14 +94,10 @@ function loadSavedColWidths(): Record<InvoiceTableColumnKey, number> {
 
 type NoteStatus = "ok" | "warn" | "error" | null;
 
-function noteBadge(status: NoteStatus): { label: string; cls: string } {
-  if (status === "error") {
-    return { label: "Feil", cls: "bg-red-100 text-red-800 border-red-200" };
-  }
-  if (status === "warn") {
-    return { label: "Varsel", cls: "bg-amber-100 text-amber-800 border-amber-200" };
-  }
-  return { label: "OK", cls: "bg-green-100 text-green-800 border-green-200" };
+function noteClass(status: NoteStatus): string {
+  if (status === "error") return "bg-red-100 text-red-800 border-red-200";
+  if (status === "warn") return "bg-amber-100 text-amber-800 border-amber-200";
+  return "bg-green-100 text-green-800 border-green-200";
 }
 
 function shortText(value: string | null | undefined, max = 90): string {
@@ -106,18 +107,30 @@ function shortText(value: string | null | undefined, max = 90): string {
   return `${text.slice(0, max - 1)}…`;
 }
 
+function approvalBadgeClass(
+  state: "pending" | "approved" | "blocked" | "not_required" | "assessing",
+): string {
+  if (state === "approved") return "bg-green-100 text-green-800 border-green-200";
+  if (state === "blocked") return "bg-red-100 text-red-800 border-red-200";
+  if (state === "pending") return "bg-amber-100 text-amber-800 border-amber-200";
+  if (state === "assessing") return "bg-blue-100 text-blue-800 border-blue-200";
+  return "bg-gray-100 text-gray-700 border-gray-200";
+}
+
 // ── CSV-eksport ───────────────────────────────────────────────────────────────
 
 function CsvExportButton({ filters }: { filters: InvoiceListFilters }) {
+  const { t } = useTranslation("invoices");
   const [busy, setBusy] = useState(false);
 
   async function handleExport() {
     setBusy(true);
     try {
       const params = new URLSearchParams();
-      if (filters.status) params.set("status_filter", filters.status);
+      if (filters.status) params.set("status", filters.status);
       if (filters.direction) params.set("direction", filters.direction);
       if (filters.compliance_score) params.set("compliance_score", filters.compliance_score);
+      if (filters.approval_state) params.set("approval_state", filters.approval_state);
       if (filters.destination_country) params.set("destination_country", filters.destination_country);
       if (filters.date_from) params.set("date_from", filters.date_from);
       if (filters.date_to) params.set("date_to", filters.date_to);
@@ -134,7 +147,7 @@ function CsvExportButton({ filters }: { filters: InvoiceListFilters }) {
       a.click();
       URL.revokeObjectURL(blobUrl);
     } catch {
-      alert("Kunne ikke eksportere CSV. Prøv igjen.");
+      alert(t("export.error"));
     } finally {
       setBusy(false);
     }
@@ -145,26 +158,13 @@ function CsvExportButton({ filters }: { filters: InvoiceListFilters }) {
       onClick={handleExport}
       disabled={busy}
       className="flex items-center gap-1.5 rounded border border-gray-200 bg-white px-3 py-1.5 text-xs text-xlent-muted hover:bg-gray-50 hover:text-xlent-ink disabled:opacity-50"
-      title="Eksporter fakturaliste som CSV (åpnes i Excel)"
     >
-      {busy ? "⏳ Eksporterer…" : "⬇ CSV"}
+      {busy ? t("export.busy") : t("export.button")}
     </button>
   );
 }
 
 // ── Filterrad ─────────────────────────────────────────────────────────────────
-
-const STATUS_OPTIONS: { value: InvoiceStatus; label: string }[] = [
-  { value: "uploaded", label: "Lastet opp" },
-  { value: "parsing", label: "Parser" },
-  { value: "parsed", label: "Parset" },
-  { value: "parsing_failed", label: "Parsing feilet" },
-  { value: "not_invoice", label: "⚠️ Ikke faktura" },
-  { value: "extracting", label: "Ekstraherer" },
-  { value: "extraction_failed", label: "Ekstraksjon feilet" },
-  { value: "extracted", label: "Ekstrahert" },
-  { value: "screening_failed", label: "Screening feilet" },
-];
 
 const selectCls =
   "rounded border border-gray-200 bg-white px-2 py-1 text-xs text-xlent-ink focus:outline-none focus:ring-1 focus:ring-xlent-primary";
@@ -174,81 +174,23 @@ interface FilterBarProps {
   onChange: (f: InvoiceListFilters) => void;
 }
 
-function _normalizeCountryName(raw: string): string {
-  return raw
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase()
-    .replace(/[^a-z]/g, "");
-}
-
-function _buildCountryNameLookup(): Map<string, string> {
-  const codes = new Set<string>(Object.keys(ALL_COUNTRY_RISKS));
-  const lookup = new Map<string, string>();
-  const locales = ["en", "nb", "no"] as const;
-
-  for (const code of codes) {
-    lookup.set(code.toLowerCase(), code);
-    for (const locale of locales) {
-      try {
-        const dn = new Intl.DisplayNames([locale], { type: "region" });
-        const name = dn.of(code);
-        if (!name) continue;
-        const key = _normalizeCountryName(name);
-        if (key) lookup.set(key, code);
-      } catch {
-        // Ignorer locale-feil i eldre nettlesere.
-      }
-    }
-  }
-
-  // Vanlige alias og skrivemåter.
-  lookup.set("usa", "US");
-  lookup.set("unitedstates", "US");
-  lookup.set("uk", "GB");
-  lookup.set("greatbritain", "GB");
-  lookup.set("storbritannia", "GB");
-  lookup.set("england", "GB");
-  lookup.set("northkorea", "KP");
-  lookup.set("nordkorea", "KP");
-  lookup.set("russia", "RU");
-  lookup.set("russland", "RU");
-  lookup.set("frankrike", "FR");
-  lookup.set("frankriket", "FR");
-  lookup.set("france", "FR");
-
-  return lookup;
-}
-
-function resolveCountryFilter(raw: string, lookup: Map<string, string>): string {
-  const trimmed = raw.trim();
-  if (!trimmed) return "";
-
-  const isoCandidate = trimmed.toUpperCase().replace(/[^A-Z]/g, "");
-  if (isoCandidate.length === 2) return isoCandidate;
-
-  const norm = _normalizeCountryName(trimmed);
-  if (!norm) return "";
-
-  const direct = lookup.get(norm);
-  if (direct) return direct;
-
-  // Norsk bestemt form/endinger ("-et", "-en", "-a") og enkel plural.
-  const suffixCandidates = [norm];
-  if (norm.endsWith("et") && norm.length > 4) suffixCandidates.push(norm.slice(0, -2));
-  if (norm.endsWith("en") && norm.length > 4) suffixCandidates.push(norm.slice(0, -2));
-  if (norm.endsWith("a") && norm.length > 4) suffixCandidates.push(norm.slice(0, -1));
-  if (norm.endsWith("s") && norm.length > 4) suffixCandidates.push(norm.slice(0, -1));
-
-  for (const key of suffixCandidates) {
-    const match = lookup.get(key);
-    if (match) return match;
-  }
-  return "";
-}
-
 function FilterBar({ filters, onChange }: FilterBarProps) {
-  const countryLookup = useMemo(_buildCountryNameLookup, []);
+  const { t } = useTranslation("invoices");
+  const tCommon = useTranslation("common").t;
+  const [countryInput, setCountryInput] = useState(filters.destination_country ?? "");
+
+  // STATUS_OPTIONS built here so labels update when language changes
+  const statusOptions: { value: InvoiceStatus; label: string }[] = [
+    { value: "uploaded", label: tCommon("status.uploaded") },
+    { value: "parsing", label: tCommon("status.parsing") },
+    { value: "parsed", label: tCommon("status.parsed") },
+    { value: "parsing_failed", label: tCommon("status.parsing_failed") },
+    { value: "not_invoice", label: `⚠️ ${tCommon("status.not_invoice")}` },
+    { value: "extracting", label: tCommon("status.extracting") },
+    { value: "extraction_failed", label: tCommon("status.extraction_failed") },
+    { value: "extracted", label: tCommon("status.extracted") },
+    { value: "screening_failed", label: tCommon("status.screening_failed") },
+  ];
 
   function set<K extends keyof InvoiceListFilters>(
     key: K,
@@ -257,8 +199,12 @@ function FilterBar({ filters, onChange }: FilterBarProps) {
     onChange({ ...filters, offset: 0, [key]: value || null });
   }
 
+  const countryResolved = resolveCountryToIso2(countryInput);
+  const countryInvalid = countryInput.trim().length > 0 && !countryResolved;
+
   const hasFilters =
     filters.status || filters.direction || filters.compliance_score ||
+    filters.approval_state ||
     filters.vat_note_status || filters.email_note_status ||
     filters.destination_country || filters.date_from || filters.date_to;
 
@@ -269,10 +215,10 @@ function FilterBar({ filters, onChange }: FilterBarProps) {
         value={filters.status ?? ""}
         onChange={(e) => set("status", e.target.value as InvoiceStatus)}
         className={selectCls}
-        aria-label="Filtrer status"
+        aria-label={t("filter.all_statuses")}
       >
-        <option value="">Alle statuser</option>
-        {STATUS_OPTIONS.map((o) => (
+        <option value="">{t("filter.all_statuses")}</option>
+        {statusOptions.map((o) => (
           <option key={o.value} value={o.value}>{o.label}</option>
         ))}
       </select>
@@ -282,11 +228,10 @@ function FilterBar({ filters, onChange }: FilterBarProps) {
         value={filters.direction ?? ""}
         onChange={(e) => set("direction", e.target.value as InvoiceDirection)}
         className={selectCls}
-        aria-label="Filtrer retning"
       >
-        <option value="">Innkommende + utgående</option>
-        <option value="incoming">Innkommende</option>
-        <option value="outgoing">Utgående</option>
+        <option value="">{t("filter.all_directions")}</option>
+        <option value="incoming">{tCommon("direction.incoming_full")}</option>
+        <option value="outgoing">{tCommon("direction.outgoing_full")}</option>
       </select>
 
       {/* Compliance */}
@@ -294,12 +239,25 @@ function FilterBar({ filters, onChange }: FilterBarProps) {
         value={filters.compliance_score ?? ""}
         onChange={(e) => set("compliance_score", e.target.value as ComplianceScore)}
         className={selectCls}
-        aria-label="Filtrer compliance"
       >
-        <option value="">Alle compliance-statuser</option>
-        <option value="green">🟢 Grønt</option>
-        <option value="yellow">🟡 Gult</option>
-        <option value="red">🔴 Rødt</option>
+        <option value="">{t("filter.all_compliance")}</option>
+        <option value="green">{t("filter.compliance_green")}</option>
+        <option value="yellow">{t("filter.compliance_yellow")}</option>
+        <option value="red">{t("filter.compliance_red")}</option>
+      </select>
+
+      {/* Godkjenning */}
+      <select
+        value={filters.approval_state ?? ""}
+        onChange={(e) => set("approval_state", e.target.value as ApprovalState)}
+        className={selectCls}
+      >
+        <option value="">{t("filter.all_approval")}</option>
+        <option value="pending">{t("table.approval_pending")}</option>
+        <option value="approved">{t("table.approval_approved")}</option>
+        <option value="blocked">{t("table.approval_blocked")}</option>
+        <option value="not_required">{t("table.approval_not_required")}</option>
+        <option value="assessing">{t("table.approval_assessing")}</option>
       </select>
 
       {/* Moms-merknad */}
@@ -307,12 +265,11 @@ function FilterBar({ filters, onChange }: FilterBarProps) {
         value={filters.vat_note_status ?? ""}
         onChange={(e) => set("vat_note_status", e.target.value as "ok" | "warn" | "error")}
         className={selectCls}
-        aria-label="Filtrer moms-merknad"
       >
-        <option value="">Alle moms-merknader</option>
-        <option value="ok">OK</option>
-        <option value="warn">Varsel</option>
-        <option value="error">Feil</option>
+        <option value="">{t("filter.all_vat")}</option>
+        <option value="ok">{t("note.ok")}</option>
+        <option value="warn">{t("note.warn")}</option>
+        <option value="error">{t("note.error")}</option>
       </select>
 
       {/* Epost-merknad */}
@@ -320,23 +277,29 @@ function FilterBar({ filters, onChange }: FilterBarProps) {
         value={filters.email_note_status ?? ""}
         onChange={(e) => set("email_note_status", e.target.value as "ok" | "warn" | "error")}
         className={selectCls}
-        aria-label="Filtrer epost-merknad"
       >
-        <option value="">Alle epost-merknader</option>
-        <option value="ok">OK</option>
-        <option value="warn">Varsel</option>
-        <option value="error">Feil</option>
+        <option value="">{t("filter.all_email")}</option>
+        <option value="ok">{t("note.ok")}</option>
+        <option value="warn">{t("note.warn")}</option>
+        <option value="error">{t("note.error")}</option>
       </select>
 
       {/* Land */}
       <input
         type="text"
-        value={filters.destination_country ?? ""}
-        onChange={(e) => set("destination_country", resolveCountryFilter(e.target.value, countryLookup))}
-        placeholder="Land (FR / France / Frankrike)"
+        value={countryInput}
+        onChange={(e) => {
+          const next = e.target.value;
+          setCountryInput(next);
+          const resolved = resolveCountryToIso2(next);
+          set("destination_country", resolved);
+        }}
+        placeholder={t("filter.country_placeholder")}
         className={clsx(selectCls, "w-48")}
-        aria-label="Filtrer destinasjonsland"
       />
+      {countryInvalid && (
+        <p className="text-xs text-traffic-red">{t("filter.country_invalid")}</p>
+      )}
 
       {/* Dato fra */}
       <input
@@ -344,8 +307,6 @@ function FilterBar({ filters, onChange }: FilterBarProps) {
         value={filters.date_from ?? ""}
         onChange={(e) => set("date_from", e.target.value)}
         className={selectCls}
-        aria-label="Fakturadato fra"
-        title="Fakturadato fra og med"
       />
 
       {/* Dato til */}
@@ -354,24 +315,23 @@ function FilterBar({ filters, onChange }: FilterBarProps) {
         value={filters.date_to ?? ""}
         onChange={(e) => set("date_to", e.target.value)}
         className={selectCls}
-        aria-label="Fakturadato til"
-        title="Fakturadato til og med"
       />
 
       {/* Nullstill */}
       {hasFilters && (
         <button
-          onClick={() =>
+          onClick={() => {
+            setCountryInput("");
             onChange({
               limit: filters.limit,
               offset: 0,
               sort_by: filters.sort_by ?? "created_at",
               sort_dir: filters.sort_dir ?? "desc",
-            })
-          }
+            });
+          }}
           className="rounded px-2 py-1 text-xs text-xlent-muted underline hover:text-xlent-ink"
         >
-          Nullstill
+          {t("filter.reset")}
         </button>
       )}
 
@@ -380,26 +340,25 @@ function FilterBar({ filters, onChange }: FilterBarProps) {
         value={filters.sort_by ?? "created_at"}
         onChange={(e) => set("sort_by", e.target.value)}
         className={selectCls}
-        aria-label="Sorter etter"
       >
-        <option value="created_at">Sorter: Opprettet</option>
-        <option value="invoice_date">Sorter: Fakturadato</option>
-        <option value="total_amount">Sorter: Beløp</option>
-        <option value="status">Sorter: Status</option>
-        <option value="compliance_score">Sorter: Compliance</option>
-        <option value="vat_note_status">Sorter: Moms-merknad</option>
-        <option value="email_note_status">Sorter: Epost-merknad</option>
-        <option value="llm_note_preview">Sorter: LLM-merknad</option>
-        <option value="original_filename">Sorter: Filnavn</option>
+        <option value="created_at">{t("sort.created_at")}</option>
+        <option value="invoice_date">{t("sort.invoice_date")}</option>
+        <option value="total_amount">{t("sort.amount")}</option>
+        <option value="status">{t("sort.status")}</option>
+        <option value="compliance_score">{t("sort.compliance")}</option>
+        <option value="approval_state">{t("sort.approval")}</option>
+        <option value="vat_note_status">{t("sort.vat")}</option>
+        <option value="email_note_status">{t("sort.email")}</option>
+        <option value="llm_note_preview">{t("sort.llm")}</option>
+        <option value="original_filename">{t("sort.filename")}</option>
       </select>
       <select
         value={filters.sort_dir ?? "desc"}
         onChange={(e) => set("sort_dir", e.target.value as "asc" | "desc")}
         className={selectCls}
-        aria-label="Sorteringsretning"
       >
-        <option value="desc">Nyeste først</option>
-        <option value="asc">Eldste først</option>
+        <option value="desc">{t("sort.desc")}</option>
+        <option value="asc">{t("sort.asc")}</option>
       </select>
     </div>
   );
@@ -409,6 +368,9 @@ function FilterBar({ filters, onChange }: FilterBarProps) {
 
 export function InvoiceList() {
   const { can } = useAuth();
+  const { t, i18n } = useTranslation("invoices");
+  const tCommon = useTranslation("common").t;
+
   const [filters, setFilters] = useState<InvoiceListFilters>({
     limit: 50,
     offset: 0,
@@ -494,12 +456,13 @@ export function InvoiceList() {
 
   function handleDelete(id: string, filename: string | null) {
     const label = filename ?? id;
-    if (!window.confirm(`Slett «${label}»?\n\nFilen og alle ekstraherte data fjernes permanent.`)) {
+    if (!window.confirm(t("table.delete_confirm", { name: label }))) {
       return;
     }
     deleteInvoice.mutate(id);
   }
 
+  const locale = i18n.language === "en" ? "en-GB" : "nb-NO";
   const limit = filters.limit ?? 50;
   const offset = filters.offset ?? 0;
   const total = data?.total ?? 0;
@@ -518,45 +481,43 @@ export function InvoiceList() {
   return (
     <div className="mx-auto max-w-5xl space-y-8 p-6">
       <header>
-        <h1 className="text-2xl font-semibold text-xlent-ink">Invoices</h1>
-        <p className="mt-1 text-sm text-xlent-muted">
-          Last opp en PDF, XLSX eller PNG. Parsing og LLM-ekstraksjon skjer automatisk
-          i bakgrunnen — du sendes til detaljsiden og ser status oppdatere seg løpende.
-        </p>
+        <h1 className="text-2xl font-semibold text-xlent-ink">{t("page.title")}</h1>
+        <p className="mt-1 text-sm text-xlent-muted">{t("page.subtitle")}</p>
       </header>
 
       <section className="rounded-lg border border-gray-200 bg-white p-3">
         <div className="flex items-center justify-between">
           <h2 className="text-xs font-semibold uppercase tracking-wide text-xlent-muted">
-            Ingest drift
+            {t("ingest.title")}
           </h2>
           <details className="relative">
             <summary
               className="list-none cursor-pointer rounded border border-gray-200 px-2 py-1 text-sm text-xlent-muted hover:bg-gray-50 hover:text-xlent-ink"
-              aria-label="Vis ingest drift detaljer"
-              title="Vis ingest drift"
+              title={t("ingest.title")}
             >
               ⋯
             </summary>
             <div className="absolute right-0 z-20 mt-2 w-[360px] rounded border border-gray-200 bg-white p-3 shadow-lg">
               <p className="text-xs text-xlent-muted">
-                Eksterne kilder:{" "}
+                {t("ingest.sources")}{" "}
                 <span className={driftSources.length === 0 ? "text-green-700" : "text-amber-700"}>
                   {sanctionsStatusLoading
-                    ? "Sjekker …"
-                    : `${okSources}/${externalSources.length || 0} ok`}
+                    ? t("ingest.checking")
+                    : t("ingest.ok_format", { ok: okSources, total: externalSources.length || 0 })}
                 </span>
                 {" · "}
-                Plan: {sanctionsStatus?.external_refresh_schedule_time ?? "07:45"}{" "}
+                {t("ingest.schedule")} {sanctionsStatus?.external_refresh_schedule_time ?? "07:45"}{" "}
                 {sanctionsStatus?.refresh_schedule_timezone ?? "Europe/Oslo"}
               </p>
               <p className="mt-1 text-xs text-xlent-muted">
-                Sist oppdatert:{" "}
-                {latestExternalUpdate ? latestExternalUpdate.toLocaleString("nb-NO") : "Ukjent"}
+                {t("ingest.last_updated")}{" "}
+                {latestExternalUpdate
+                  ? latestExternalUpdate.toLocaleString(locale)
+                  : t("ingest.unknown")}
               </p>
               {driftSources.length > 0 && (
                 <p className="mt-1 text-xs text-amber-800">
-                  Varsel: {driftSources.map((row) => row.source).join(", ")}
+                  {t("ingest.warning_prefix")} {driftSources.map((row) => row.source).join(", ")}
                 </p>
               )}
               <div className="mt-2">
@@ -564,7 +525,7 @@ export function InvoiceList() {
                   to="/sanctioned-entities"
                   className="rounded border border-gray-200 px-2 py-1 text-xs text-xlent-muted hover:bg-gray-50 hover:text-xlent-ink"
                 >
-                  Åpne detaljer
+                  {t("ingest.open_details")}
                 </Link>
               </div>
             </div>
@@ -579,48 +540,40 @@ export function InvoiceList() {
         )}
       >
         <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-xlent-muted">
-          Last opp invoice
+          {t("upload.section_title")}
           {!can("invoices:upload") && (
-            <span
-              className="ml-2 font-normal normal-case text-gray-400"
-              title="Du har ikke tilgang til å laste opp fakturaer med din nåværende rolle"
-            >
-              (ikke tilgjengelig for din rolle)
+            <span className="ml-2 font-normal normal-case text-gray-400">
+              {t("upload.unavailable")}
             </span>
           )}
         </h2>
         {can("invoices:upload") ? (
           <InvoiceUploader />
         ) : (
-          <p className="text-sm text-gray-400">
-            Bytt til controller-rollen eller høyere for å laste opp fakturaer.
-          </p>
+          <p className="text-sm text-gray-400">{t("upload.role_required")}</p>
         )}
       </section>
 
       <section>
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
           <h2 className="text-sm font-semibold uppercase tracking-wide text-xlent-muted">
-            Alle invoices
+            {t("table.section_title")}
             {total > 0 && (
               <span className="ml-2 font-normal normal-case text-xlent-muted/60">
-                ({total} totalt)
+                {t("table.total", { count: total })}
               </span>
             )}
           </h2>
           <CsvExportButton filters={filters} />
         </div>
 
-        {/* Filter-rad */}
         <div className="mb-3">
           <FilterBar filters={filters} onChange={setFilters} />
         </div>
 
-        {isLoading && <p className="text-sm text-xlent-muted">Laster …</p>}
+        {isLoading && <p className="text-sm text-xlent-muted">{tCommon("loading")}</p>}
         {error && (
-          <p className="text-sm text-traffic-red">
-            Kunne ikke laste invoices. Sjekk at API-et kjører.
-          </p>
+          <p className="text-sm text-traffic-red">{t("table.error")}</p>
         )}
 
         {data && (
@@ -628,7 +581,7 @@ export function InvoiceList() {
             {fixedScrollbarVisible && tableMaxScroll > 0 && (
               <div className="sticky top-2 z-20 mb-2 rounded border border-gray-200 bg-white/95 px-3 py-2 shadow-sm backdrop-blur">
                 <label className="mb-1 block text-[11px] text-xlent-muted">
-                  Horisontal tabellscroll
+                  {t("table.scroll_label")}
                 </label>
                 <input
                   type="range"
@@ -637,7 +590,7 @@ export function InvoiceList() {
                   value={tableScrollLeft}
                   onChange={(e) => handleFixedSliderChange(Number(e.target.value))}
                   className="w-full"
-                  aria-label="Horisontal tabellscroll"
+                  aria-label={t("table.scroll_label")}
                 />
               </div>
             )}
@@ -646,12 +599,13 @@ export function InvoiceList() {
               onScroll={handleTableScroll}
               className="overflow-x-auto overflow-y-hidden rounded-lg border border-gray-200 bg-white"
             >
-              <table className="min-w-[1760px] divide-y divide-gray-200 text-sm">
+              <table className="min-w-[1930px] divide-y divide-gray-200 text-sm">
                 <colgroup>
                   <col style={{ width: `${colWidths.signal}px` }} />
                   <col style={{ width: `${colWidths.file}px` }} />
                   <col style={{ width: `${colWidths.direction}px` }} />
                   <col style={{ width: `${colWidths.status}px` }} />
+                  <col style={{ width: `${colWidths.approval}px` }} />
                   <col style={{ width: `${colWidths.vat}px` }} />
                   <col style={{ width: `${colWidths.email}px` }} />
                   <col style={{ width: `${colWidths.llm}px` }} />
@@ -662,134 +616,110 @@ export function InvoiceList() {
                 </colgroup>
                 <thead className="bg-xlent-surface text-left text-xs uppercase text-xlent-muted">
                   <tr>
-                    <th className="group relative px-3 py-2" title="Compliance-score">
+                    <th className="group relative px-3 py-2" title={t("table.col_compliance")}>
                       <button
                         type="button"
-                        onMouseDown={(e) => {
-                          e.preventDefault();
-                          startColumnResize("signal", e.clientX);
-                        }}
+                        onMouseDown={(e) => { e.preventDefault(); startColumnResize("signal", e.clientX); }}
                         className="absolute top-0 right-0 h-full w-2 cursor-col-resize bg-gray-300/60 hover:bg-xlent-primary/40"
-                        aria-label="Juster bredde: compliance"
+                        aria-label={`${t("table.resize_prefix")}${t("table.col_compliance")}`}
                       />
                     </th>
                     <th className="group relative px-3 py-2">
-                      Fil
+                      {t("table.col_file")}
                       <button
                         type="button"
-                        onMouseDown={(e) => {
-                          e.preventDefault();
-                          startColumnResize("file", e.clientX);
-                        }}
+                        onMouseDown={(e) => { e.preventDefault(); startColumnResize("file", e.clientX); }}
                         className="absolute top-0 right-0 h-full w-2 cursor-col-resize bg-gray-300/60 hover:bg-xlent-primary/40"
-                        aria-label="Juster bredde: fil"
+                        aria-label={`${t("table.resize_prefix")}${t("table.col_file")}`}
                       />
                     </th>
                     <th className="group relative px-3 py-2">
-                      Retning
+                      {t("table.col_direction")}
                       <button
                         type="button"
-                        onMouseDown={(e) => {
-                          e.preventDefault();
-                          startColumnResize("direction", e.clientX);
-                        }}
+                        onMouseDown={(e) => { e.preventDefault(); startColumnResize("direction", e.clientX); }}
                         className="absolute top-0 right-0 h-full w-2 cursor-col-resize bg-gray-300/60 hover:bg-xlent-primary/40"
-                        aria-label="Juster bredde: retning"
+                        aria-label={`${t("table.resize_prefix")}${t("table.col_direction")}`}
                       />
                     </th>
                     <th className="group relative px-3 py-2">
-                      Status
+                      {t("table.col_status")}
                       <button
                         type="button"
-                        onMouseDown={(e) => {
-                          e.preventDefault();
-                          startColumnResize("status", e.clientX);
-                        }}
+                        onMouseDown={(e) => { e.preventDefault(); startColumnResize("status", e.clientX); }}
                         className="absolute top-0 right-0 h-full w-2 cursor-col-resize bg-gray-300/60 hover:bg-xlent-primary/40"
-                        aria-label="Juster bredde: status"
+                        aria-label={`${t("table.resize_prefix")}${t("table.col_status")}`}
                       />
                     </th>
                     <th className="group relative px-3 py-2">
-                      Moms-merknad
+                      {t("table.col_approval")}
                       <button
                         type="button"
-                        onMouseDown={(e) => {
-                          e.preventDefault();
-                          startColumnResize("vat", e.clientX);
-                        }}
+                        onMouseDown={(e) => { e.preventDefault(); startColumnResize("approval", e.clientX); }}
                         className="absolute top-0 right-0 h-full w-2 cursor-col-resize bg-gray-300/60 hover:bg-xlent-primary/40"
-                        aria-label="Juster bredde: moms-merknad"
+                        aria-label={`${t("table.resize_prefix")}${t("table.col_approval")}`}
                       />
                     </th>
                     <th className="group relative px-3 py-2">
-                      Epost-merknad
+                      {t("table.col_vat")}
                       <button
                         type="button"
-                        onMouseDown={(e) => {
-                          e.preventDefault();
-                          startColumnResize("email", e.clientX);
-                        }}
+                        onMouseDown={(e) => { e.preventDefault(); startColumnResize("vat", e.clientX); }}
                         className="absolute top-0 right-0 h-full w-2 cursor-col-resize bg-gray-300/60 hover:bg-xlent-primary/40"
-                        aria-label="Juster bredde: epost-merknad"
+                        aria-label={`${t("table.resize_prefix")}${t("table.col_vat")}`}
                       />
                     </th>
                     <th className="group relative px-3 py-2">
-                      LLM-merknad
+                      {t("table.col_email")}
                       <button
                         type="button"
-                        onMouseDown={(e) => {
-                          e.preventDefault();
-                          startColumnResize("llm", e.clientX);
-                        }}
+                        onMouseDown={(e) => { e.preventDefault(); startColumnResize("email", e.clientX); }}
                         className="absolute top-0 right-0 h-full w-2 cursor-col-resize bg-gray-300/60 hover:bg-xlent-primary/40"
-                        aria-label="Juster bredde: LLM-merknad"
+                        aria-label={`${t("table.resize_prefix")}${t("table.col_email")}`}
                       />
                     </th>
                     <th className="group relative px-3 py-2">
-                      Fakturadato
+                      {t("table.col_llm")}
                       <button
                         type="button"
-                        onMouseDown={(e) => {
-                          e.preventDefault();
-                          startColumnResize("invoice_date", e.clientX);
-                        }}
+                        onMouseDown={(e) => { e.preventDefault(); startColumnResize("llm", e.clientX); }}
                         className="absolute top-0 right-0 h-full w-2 cursor-col-resize bg-gray-300/60 hover:bg-xlent-primary/40"
-                        aria-label="Juster bredde: fakturadato"
+                        aria-label={`${t("table.resize_prefix")}${t("table.col_llm")}`}
                       />
                     </th>
                     <th className="group relative px-3 py-2">
-                      Beløp
+                      {t("table.col_invoice_date")}
                       <button
                         type="button"
-                        onMouseDown={(e) => {
-                          e.preventDefault();
-                          startColumnResize("amount", e.clientX);
-                        }}
+                        onMouseDown={(e) => { e.preventDefault(); startColumnResize("invoice_date", e.clientX); }}
                         className="absolute top-0 right-0 h-full w-2 cursor-col-resize bg-gray-300/60 hover:bg-xlent-primary/40"
-                        aria-label="Juster bredde: beløp"
+                        aria-label={`${t("table.resize_prefix")}${t("table.col_invoice_date")}`}
                       />
                     </th>
                     <th className="group relative px-3 py-2">
-                      Opprettet
+                      {t("table.col_amount")}
                       <button
                         type="button"
-                        onMouseDown={(e) => {
-                          e.preventDefault();
-                          startColumnResize("created_at", e.clientX);
-                        }}
+                        onMouseDown={(e) => { e.preventDefault(); startColumnResize("amount", e.clientX); }}
                         className="absolute top-0 right-0 h-full w-2 cursor-col-resize bg-gray-300/60 hover:bg-xlent-primary/40"
-                        aria-label="Juster bredde: opprettet"
+                        aria-label={`${t("table.resize_prefix")}${t("table.col_amount")}`}
+                      />
+                    </th>
+                    <th className="group relative px-3 py-2">
+                      {t("table.col_created_at")}
+                      <button
+                        type="button"
+                        onMouseDown={(e) => { e.preventDefault(); startColumnResize("created_at", e.clientX); }}
+                        className="absolute top-0 right-0 h-full w-2 cursor-col-resize bg-gray-300/60 hover:bg-xlent-primary/40"
+                        aria-label={`${t("table.resize_prefix")}${t("table.col_created_at")}`}
                       />
                     </th>
                     <th className="group relative px-3 py-2">
                       <button
                         type="button"
-                        onMouseDown={(e) => {
-                          e.preventDefault();
-                          startColumnResize("actions", e.clientX);
-                        }}
+                        onMouseDown={(e) => { e.preventDefault(); startColumnResize("actions", e.clientX); }}
                         className="absolute top-0 right-0 h-full w-2 cursor-col-resize bg-gray-300/60 hover:bg-xlent-primary/40"
-                        aria-label="Juster bredde: handlinger"
+                        aria-label={t("table.delete")}
                       />
                     </th>
                   </tr>
@@ -797,14 +727,13 @@ export function InvoiceList() {
                 <tbody className="divide-y divide-gray-100">
                   {data.items.length === 0 && (
                     <tr>
-                      <td colSpan={11} className="px-3 py-6 text-center text-xlent-muted">
-                        Ingen invoices matcher filteret. Last opp en PDF, XLSX eller PNG for å komme i gang.
+                      <td colSpan={12} className="px-3 py-6 text-center text-xlent-muted">
+                        {t("table.empty")}
                       </td>
                     </tr>
                   )}
                   {data.items.map((invoice) => (
                     <tr key={invoice.id} className="hover:bg-xlent-surface">
-                      {/* Compliance-chip */}
                       <td className="px-3 py-2">
                         <ComplianceChip invoice={invoice} />
                       </td>
@@ -823,20 +752,49 @@ export function InvoiceList() {
                         )}
                       </td>
                       <td className="px-3 py-2 capitalize text-xlent-muted text-xs">
-                        {invoice.direction === "incoming" ? "Inn" : "Ut"}
+                        {invoice.direction === "incoming"
+                          ? tCommon("direction.incoming")
+                          : tCommon("direction.outgoing")}
                       </td>
                       <td className="px-3 py-2">
                         <StatusBadge status={invoice.status} score={invoice.compliance_score} />
+                      </td>
+                      <td className="px-3 py-2">
+                        {(() => {
+                          let state: "pending" | "approved" | "blocked" | "not_required" | "assessing";
+                          let label: string;
+                          state = invoice.approval_state;
+                          if (state === "approved") label = t("table.approval_approved");
+                          else if (state === "blocked") label = t("table.approval_blocked");
+                          else if (state === "pending") label = t("table.approval_pending");
+                          else if (state === "not_required") label = t("table.approval_not_required");
+                          else label = t("table.approval_assessing");
+
+                          return (
+                            <span
+                              className={clsx(
+                                "inline-flex rounded border px-1.5 py-0.5 text-[11px] font-medium",
+                                approvalBadgeClass(state),
+                              )}
+                            >
+                              {label}
+                            </span>
+                          );
+                        })()}
                       </td>
                       <td className="px-3 py-2">
                         <div className="space-y-1">
                           <span
                             className={clsx(
                               "inline-flex rounded border px-1.5 py-0.5 text-[11px] font-medium",
-                              noteBadge(invoice.vat_note_status).cls,
+                              noteClass(invoice.vat_note_status),
                             )}
                           >
-                            {noteBadge(invoice.vat_note_status).label}
+                            {invoice.vat_note_status === "error"
+                              ? t("note.error")
+                              : invoice.vat_note_status === "warn"
+                                ? t("note.warn")
+                                : t("note.ok")}
                           </span>
                           <div className="max-w-[220px] text-xs text-xlent-muted" title={invoice.vat_note_text ?? ""}>
                             {shortText(invoice.vat_note_text)}
@@ -848,10 +806,14 @@ export function InvoiceList() {
                           <span
                             className={clsx(
                               "inline-flex rounded border px-1.5 py-0.5 text-[11px] font-medium",
-                              noteBadge(invoice.email_note_status).cls,
+                              noteClass(invoice.email_note_status),
                             )}
                           >
-                            {noteBadge(invoice.email_note_status).label}
+                            {invoice.email_note_status === "error"
+                              ? t("note.error")
+                              : invoice.email_note_status === "warn"
+                                ? t("note.warn")
+                                : t("note.ok")}
                           </span>
                           <div className="max-w-[220px] text-xs text-xlent-muted" title={invoice.email_note_text ?? ""}>
                             {shortText(invoice.email_note_text)}
@@ -872,7 +834,7 @@ export function InvoiceList() {
                           : "—"}
                       </td>
                       <td className="px-3 py-2 text-xlent-muted text-xs">
-                        {new Date(invoice.created_at).toLocaleString("nb-NO", {
+                        {new Date(invoice.created_at).toLocaleString(locale, {
                           dateStyle: "short",
                           timeStyle: "short",
                         })}
@@ -882,9 +844,9 @@ export function InvoiceList() {
                           onClick={() => handleDelete(invoice.id, invoice.original_filename)}
                           disabled={deleteInvoice.isPending}
                           className="rounded px-2 py-0.5 text-xs text-traffic-red hover:bg-red-50 disabled:opacity-40"
-                          title="Slett invoice"
+                          title={t("table.delete_title")}
                         >
-                          Slett
+                          {t("table.delete")}
                         </button>
                       </td>
                     </tr>
@@ -892,9 +854,7 @@ export function InvoiceList() {
                 </tbody>
               </table>
             </div>
-            <p className="mt-2 text-xs text-xlent-muted">
-              Tips: tabellen er bred. Bruk horisontal scrollbar nederst for å se alle kolonner.
-            </p>
+            <p className="mt-2 text-xs text-xlent-muted">{t("table.tip")}</p>
 
             <Pagination
               total={total}

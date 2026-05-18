@@ -6,6 +6,7 @@
  */
 import { Link } from "react-router-dom";
 import clsx from "clsx";
+import { useTranslation } from "react-i18next";
 
 import { StatusBadge } from "@/components/StatusBadge";
 import { useReviewQueue } from "@/hooks/useInvoices";
@@ -35,6 +36,8 @@ function ScoreChip({ score }: { score: ComplianceScore | null }) {
 
 function QueueRow({ item }: { item: ReviewQueueItem }) {
   const isPending = item.status === "screened";
+  const { t, i18n } = useTranslation("pages");
+  const { t: tCommon } = useTranslation();
   return (
     <tr className="border-t border-gray-100 hover:bg-xlent-surface/50">
       <td className="py-3 pl-4 pr-2">
@@ -52,14 +55,14 @@ function QueueRow({ item }: { item: ReviewQueueItem }) {
         )}
       </td>
       <td className="py-3 px-2 text-sm text-xlent-muted capitalize">
-        {item.direction === "outgoing" ? "Utgående" : "Innkommende"}
+        {tCommon(`direction.${item.direction}`)}
       </td>
       <td className="py-3 px-2 text-sm text-xlent-muted">
         {item.destination_country ?? "—"}
       </td>
       <td className="py-3 px-2 text-sm tabular-nums text-xlent-muted">
         {item.total_amount
-          ? `${Number(item.total_amount).toLocaleString("nb-NO")} ${item.currency ?? ""}`
+          ? `${Number(item.total_amount).toLocaleString(i18n.language === "en" ? "en-GB" : "nb-NO")} ${item.currency ?? ""}`
           : "—"}
       </td>
       <td className="py-3 px-2">
@@ -67,15 +70,15 @@ function QueueRow({ item }: { item: ReviewQueueItem }) {
       </td>
       <td className="py-3 px-2 text-xs text-xlent-muted">
         {isPending ? (
-          <span className="font-medium text-amber-700">Venter</span>
+          <span className="font-medium text-amber-700">{t("review_queue.decision_pending")}</span>
         ) : (
           <span className={item.review_decision === "approved" ? "text-green-700" : "text-red-700"}>
-            {item.review_decision === "approved" ? "✓ Godkjent" : "🔒 Blokkert"}
+            {item.review_decision === "approved" ? t("review_queue.decision_approved") : t("review_queue.decision_blocked")}
           </span>
         )}
       </td>
       <td className="py-3 pl-2 pr-4 text-xs text-xlent-muted">
-        {new Date(item.created_at).toLocaleDateString("nb-NO")}
+        {new Date(item.created_at).toLocaleDateString(i18n.language === "en" ? "en-GB" : "nb-NO")}
       </td>
     </tr>
   );
@@ -84,14 +87,15 @@ function QueueRow({ item }: { item: ReviewQueueItem }) {
 // ── Tom tilstand ──────────────────────────────────────────────────────────────
 
 function EmptyState() {
+  const { t } = useTranslation("pages");
   return (
     <div className="flex flex-col items-center justify-center py-16 text-center">
       <div className="mb-4 text-4xl">✅</div>
       <h3 className="mb-1 text-base font-semibold text-xlent-ink">
-        Ingen fakturaer venter på review
+        {t("review_queue.empty_title")}
       </h3>
       <p className="text-sm text-xlent-muted">
-        Fakturaer med yellow/red score dukker opp her etter sanksjonsscreening.
+        {t("review_queue.empty_subtitle")}
       </p>
     </div>
   );
@@ -100,6 +104,7 @@ function EmptyState() {
 // ── Hovedside ─────────────────────────────────────────────────────────────────
 
 export function ReviewQueuePage() {
+  const { t } = useTranslation("pages");
   const { data, isLoading, error } = useReviewQueue({ limit: 100 });
 
   const pending = data?.items.filter((i) => i.status === "screened") ?? [];
@@ -109,9 +114,9 @@ export function ReviewQueuePage() {
   return (
     <div className="mx-auto max-w-5xl space-y-6 p-6">
       <header>
-        <h1 className="text-2xl font-semibold text-xlent-ink">Review-kø</h1>
+        <h1 className="text-2xl font-semibold text-xlent-ink">{t("review_queue.title")}</h1>
         <p className="mt-1 text-sm text-xlent-muted">
-          Fakturaer med forhøyet compliance-risiko som krever manuell beslutning.
+          {t("review_queue.subtitle")}
         </p>
       </header>
 
@@ -120,26 +125,26 @@ export function ReviewQueuePage() {
         <div className="flex flex-wrap gap-4">
           <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-center">
             <div className="text-2xl font-bold text-amber-700">{pending.length}</div>
-            <div className="text-xs text-amber-800">Venter på beslutning</div>
+            <div className="text-xs text-amber-800">{t("review_queue.pending")}</div>
           </div>
           <div className="rounded-lg border border-gray-200 bg-white px-4 py-3 text-center">
             <div className="text-2xl font-bold text-xlent-ink">{decided.length}</div>
-            <div className="text-xs text-xlent-muted">Behandlet</div>
+            <div className="text-xs text-xlent-muted">{t("review_queue.decided")}</div>
           </div>
           <div className="rounded-lg border border-gray-200 bg-white px-4 py-3 text-center">
             <div className="text-2xl font-bold text-xlent-ink">{total}</div>
-            <div className="text-xs text-xlent-muted">Totalt</div>
+            <div className="text-xs text-xlent-muted">{t("review_queue.total")}</div>
           </div>
         </div>
       )}
 
       {isLoading && (
-        <p className="text-sm text-xlent-muted">Laster review-kø …</p>
+        <p className="text-sm text-xlent-muted">{t("review_queue.loading")}</p>
       )}
 
       {error && (
         <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-          Kunne ikke hente review-kø.
+          {t("review_queue.error")}
         </div>
       )}
 
@@ -150,14 +155,14 @@ export function ReviewQueuePage() {
           <table className="min-w-full">
             <thead>
               <tr className="bg-xlent-surface text-left text-xs font-semibold uppercase tracking-wide text-xlent-muted">
-                <th className="py-2 pl-4 pr-2">Score</th>
-                <th className="px-2 py-2">Faktura</th>
-                <th className="px-2 py-2">Retning</th>
-                <th className="px-2 py-2">Dest.</th>
-                <th className="px-2 py-2">Beløp</th>
-                <th className="px-2 py-2">Status</th>
-                <th className="px-2 py-2">Beslutning</th>
-                <th className="pl-2 pr-4 py-2">Dato</th>
+                <th className="py-2 pl-4 pr-2">{t("review_queue.col_score")}</th>
+                <th className="px-2 py-2">{t("review_queue.col_invoice")}</th>
+                <th className="px-2 py-2">{t("review_queue.col_direction")}</th>
+                <th className="px-2 py-2">{t("review_queue.col_dest")}</th>
+                <th className="px-2 py-2">{t("review_queue.col_amount")}</th>
+                <th className="px-2 py-2">{t("review_queue.col_status")}</th>
+                <th className="px-2 py-2">{t("review_queue.col_decision")}</th>
+                <th className="pl-2 pr-4 py-2">{t("review_queue.col_date")}</th>
               </tr>
             </thead>
             <tbody>
@@ -178,7 +183,7 @@ export function ReviewQueuePage() {
                         colSpan={8}
                         className="bg-gray-50 px-4 py-2 text-[11px] font-semibold uppercase tracking-wider text-xlent-muted"
                       >
-                        Behandlede
+                        {t("review_queue.section_decided")}
                       </td>
                     </tr>
                   )}

@@ -10,6 +10,7 @@ import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import clsx from "clsx";
 import { useAuth } from "@/auth/AuthContext";
+import { useTranslation } from "react-i18next";
 import {
   listRules,
   createRule,
@@ -55,7 +56,7 @@ function RuleRow({
   onToggle: (rule: Rule) => void;
   canEdit: boolean;
 }) {
-  const disabledTitle = "Du har ikke tilgang til å redigere regler med din nåværende rolle";
+  const { t } = useTranslation("rules");
 
   return (
     <div
@@ -78,7 +79,7 @@ function RuleRow({
           <span className="text-xs text-xlent-muted">v{rule.active_version}</span>
           {!rule.is_active && (
             <span className="rounded-full bg-gray-200 px-2 py-0.5 text-xs text-gray-500">
-              inaktiv
+              {t("rules.row.inactive_badge")}
             </span>
           )}
         </div>
@@ -90,7 +91,7 @@ function RuleRow({
         <button
           onClick={() => canEdit && onToggle(rule)}
           disabled={!canEdit}
-          title={!canEdit ? disabledTitle : undefined}
+          title={!canEdit ? t("rules.row.no_access") : undefined}
           className={clsx(
             "rounded border px-2 py-1 text-xs",
             canEdit
@@ -98,12 +99,12 @@ function RuleRow({
               : "cursor-not-allowed border-gray-100 text-gray-300",
           )}
         >
-          {rule.is_active ? "Deaktiver" : "Aktiver"}
+          {rule.is_active ? t("rules.row.deactivate") : t("rules.row.activate")}
         </button>
         <button
           onClick={() => canEdit && onEdit(rule)}
           disabled={!canEdit}
-          title={!canEdit ? disabledTitle : undefined}
+          title={!canEdit ? t("rules.row.no_access") : undefined}
           className={clsx(
             "rounded border px-2 py-1 text-xs",
             canEdit
@@ -111,7 +112,7 @@ function RuleRow({
               : "cursor-not-allowed border-gray-100 text-gray-300",
           )}
         >
-          Rediger
+          {t("rules.row.edit")}
         </button>
       </div>
     </div>
@@ -127,6 +128,7 @@ interface EditorProps {
 }
 
 function RuleEditor({ rule, onClose, onSaved }: EditorProps) {
+  const { t } = useTranslation("rules");
   const isNew = rule === null;
   const [yaml, setYaml] = useState(
     isNew ? DEFAULT_YAML : (rule.versions.find((v) => v.version === rule.active_version)?.rule_yaml ?? DEFAULT_YAML),
@@ -179,14 +181,14 @@ function RuleEditor({ rule, onClose, onSaved }: EditorProps) {
       <div className="flex w-full max-w-3xl flex-col gap-4 rounded-xl bg-white p-6 shadow-2xl max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between">
           <h2 className="text-lg font-semibold text-xlent-ink">
-            {isNew ? "Ny regel" : `Rediger: ${rule.name}`}
+            {isNew ? t("rules.editor.new_title") : t("rules.editor.edit_title", { name: rule.name })}
           </h2>
           <button onClick={onClose} className="text-xlent-muted hover:text-xlent-ink">✕</button>
         </div>
 
         {/* YAML-editor */}
         <div>
-          <label className="mb-1 block text-xs font-semibold text-xlent-muted">YAML-definisjon</label>
+          <label className="mb-1 block text-xs font-semibold text-xlent-muted">{t("rules.editor.yaml_label")}</label>
           <textarea
             value={yaml}
             onChange={(e) => setYaml(e.target.value)}
@@ -198,11 +200,11 @@ function RuleEditor({ rule, onClose, onSaved }: EditorProps) {
 
         {/* Endringskommentar */}
         <div>
-          <label className="mb-1 block text-xs font-semibold text-xlent-muted">Endringskommentar (valgfri)</label>
+          <label className="mb-1 block text-xs font-semibold text-xlent-muted">{t("rules.editor.comment_label")}</label>
           <input
             value={comment}
             onChange={(e) => setComment(e.target.value)}
-            placeholder="Hva ble endret og hvorfor?"
+            placeholder={t("rules.editor.comment_placeholder")}
             className="w-full rounded border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-xlent-primary/30"
           />
         </div>
@@ -210,9 +212,9 @@ function RuleEditor({ rule, onClose, onSaved }: EditorProps) {
         {/* Test-seksjon */}
         <div className="rounded-lg border border-blue-100 bg-blue-50 p-4">
           <p className="mb-2 text-xs font-semibold text-blue-800">
-            🧪 Test mot eksempeldata (kjøres ikke mot database)
+            {t("rules.editor.test_title")}
           </p>
-          <label className="mb-1 block text-xs text-blue-700">Kontekst (JSON)</label>
+          <label className="mb-1 block text-xs text-blue-700">{t("rules.editor.test_context_label")}</label>
           <textarea
             value={testContext}
             onChange={(e) => setTestContext(e.target.value)}
@@ -223,7 +225,7 @@ function RuleEditor({ rule, onClose, onSaved }: EditorProps) {
             onClick={handleTest}
             className="mt-2 rounded bg-blue-600 px-3 py-1 text-xs font-medium text-white hover:bg-blue-700"
           >
-            Kjør test
+            {t("rules.editor.test_run")}
           </button>
           {testError && <p className="mt-2 text-xs text-red-600">{testError}</p>}
           {testResult && (
@@ -236,8 +238,8 @@ function RuleEditor({ rule, onClose, onSaved }: EditorProps) {
               )}
             >
               {testResult.triggered
-                ? "⚡ Regelen trigges på disse dataene"
-                : "✓ Regelen trigges IKKE på disse dataene"}
+                ? t("rules.editor.test_triggered")
+                : t("rules.editor.test_not_triggered")}
               {testResult.error && <p className="mt-1 text-red-600">{testResult.error}</p>}
             </div>
           )}
@@ -245,7 +247,7 @@ function RuleEditor({ rule, onClose, onSaved }: EditorProps) {
 
         {saveError && (
           <p className="text-sm text-traffic-red">
-            Feil: {String((saveError as Error)?.message ?? saveError)}
+            {t("rules.editor.error_prefix")}{String((saveError as Error)?.message ?? saveError)}
           </p>
         )}
 
@@ -254,14 +256,14 @@ function RuleEditor({ rule, onClose, onSaved }: EditorProps) {
             onClick={onClose}
             className="rounded border border-gray-200 px-4 py-2 text-sm text-xlent-muted hover:bg-gray-50"
           >
-            Avbryt
+            {t("rules.editor.cancel")}
           </button>
           <button
             onClick={handleSave}
             disabled={isSaving}
             className="rounded bg-xlent-primary px-4 py-2 text-sm font-medium text-white hover:bg-xlent-primary/90 disabled:opacity-50"
           >
-            {isSaving ? "Lagrer…" : "Lagre regel"}
+            {isSaving ? t("rules.editor.saving") : t("rules.editor.save")}
           </button>
         </div>
       </div>
@@ -272,6 +274,7 @@ function RuleEditor({ rule, onClose, onSaved }: EditorProps) {
 // ── Hovedelement ──────────────────────────────────────────────────────────────
 
 export function RulesPage() {
+  const { t } = useTranslation("rules");
   const { can } = useAuth();
   const canEdit = can("rules:edit");
 
@@ -295,7 +298,7 @@ export function RulesPage() {
   });
 
   const handleRerun = async () => {
-    if (!window.confirm("Kjør alle aktive regler mot eksisterende fakturaer?\n\nCompliance-score kan eskaleres, men vil ikke senkes.")) return;
+    if (!window.confirm(t("rules.rerun_confirm"))) return;
     setRerunBusy(true);
     setRerunResult(null);
     setRerunError(null);
@@ -303,7 +306,7 @@ export function RulesPage() {
       const res = await rerunRules(500);
       setRerunResult(res);
     } catch {
-      setRerunError("Re-evaluering feilet. Prøv igjen.");
+      setRerunError(t("rules.rerun_error"));
     } finally {
       setRerunBusy(false);
     }
@@ -333,10 +336,9 @@ export function RulesPage() {
     <div className="mx-auto max-w-4xl space-y-4 p-6">
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-semibold text-xlent-ink">Regelmotor</h1>
+          <h1 className="text-2xl font-semibold text-xlent-ink">{t("rules.title")}</h1>
           <p className="mt-1 text-sm text-xlent-muted">
-            Definer compliance-regler i YAML med AND/OR/NOT-logikk. Alle triggede
-            regler logges automatisk i revisjonsloggen.
+            {t("rules.subtitle")}
           </p>
         </div>
         <div className="flex shrink-0 gap-2">
@@ -347,13 +349,13 @@ export function RulesPage() {
               title="Re-evaluer alle aktive regler mot eksisterende fakturaer"
               className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-xlent-muted hover:bg-gray-50 disabled:opacity-50"
             >
-              {rerunBusy ? "⏳ Kjører…" : "🔄 Re-evaluer fakturaer"}
+              {rerunBusy ? t("rules.rerun_running") : t("rules.rerun_button")}
             </button>
           )}
           <button
             onClick={canEdit ? openNew : undefined}
             disabled={!canEdit}
-            title={!canEdit ? "Du har ikke tilgang til å opprette regler med din nåværende rolle" : undefined}
+            title={!canEdit ? t("rules.no_access_create") : undefined}
             className={clsx(
               "rounded-lg px-4 py-2 text-sm font-medium",
               canEdit
@@ -361,7 +363,7 @@ export function RulesPage() {
                 : "cursor-not-allowed bg-gray-100 text-gray-400",
             )}
           >
-            + Ny regel
+            {t("rules.new_button")}
           </button>
         </div>
       </div>
@@ -374,9 +376,9 @@ export function RulesPage() {
       )}
       {rerunResult && (
         <div className="rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800">
-          <p className="font-medium">✓ Re-evaluering fullført</p>
+          <p className="font-medium">{t("rules.rerun_success")}</p>
           <p className="mt-1 text-xs">
-            {rerunResult.evaluated} fakturaer evaluert — {rerunResult.score_changed} fikk eskalert score.
+            {t("rules.rerun_detail", { evaluated: rerunResult.evaluated, changed: rerunResult.score_changed })}
           </p>
           {rerunResult.details.length > 0 && (
             <ul className="mt-2 space-y-0.5 text-xs text-green-700">
@@ -386,7 +388,7 @@ export function RulesPage() {
                 </li>
               ))}
               {rerunResult.details.length > 10 && (
-                <li>… og {rerunResult.details.length - 10} til</li>
+                <li>{t("rules.rerun_more", { count: rerunResult.details.length - 10 })}</li>
               )}
             </ul>
           )}
@@ -395,12 +397,12 @@ export function RulesPage() {
 
       {/* Info-boks */}
       <div className="rounded-lg border border-gray-100 bg-gray-50 p-4 text-xs text-xlent-muted">
-        <p className="font-semibold">Støttede operatorer</p>
+        <p className="font-semibold">{t("rules.operators_title")}</p>
         <p className="mt-1">
           <code className="rounded bg-white px-1">eq, neq, in, not_in, contains, not_contains, regex, gt, gte, lt, lte, exists</code>
         </p>
         <p className="mt-1">
-          <span className="font-semibold">Felt:</span>{" "}
+          <span className="font-semibold">{t("rules.fields_label")}</span>{" "}
           <code className="rounded bg-white px-1">destination_country, compliance_score, total_amount, currency, incoterms</code>
           {" | "}
           <code className="rounded bg-white px-1">entities.name, entities.country, entities.email, entities.role</code>
@@ -409,18 +411,18 @@ export function RulesPage() {
         </p>
       </div>
 
-      {isLoading && <p className="py-8 text-center text-sm text-xlent-muted">Laster regler …</p>}
-      {error && <p className="py-4 text-sm text-traffic-red">Kunne ikke laste regler.</p>}
+      {isLoading && <p className="py-8 text-center text-sm text-xlent-muted">{t("rules.loading")}</p>}
+      {error && <p className="py-4 text-sm text-traffic-red">{t("rules.error")}</p>}
 
       {rules && rules.length === 0 && (
         <div className="rounded-lg border border-dashed border-gray-200 py-16 text-center">
-          <p className="text-sm text-xlent-muted">Ingen regler definert ennå.</p>
+          <p className="text-sm text-xlent-muted">{t("rules.empty")}</p>
           {canEdit && (
             <button
               onClick={openNew}
               className="mt-3 rounded-lg bg-xlent-primary px-4 py-2 text-sm font-medium text-white hover:bg-xlent-primary/90"
             >
-              Opprett første regel
+              {t("rules.empty_button")}
             </button>
           )}
         </div>
@@ -429,7 +431,7 @@ export function RulesPage() {
       {activeRules.length > 0 && (
         <div className="space-y-2">
           <p className="text-xs font-semibold uppercase tracking-wide text-xlent-muted">
-            Aktive ({activeRules.length})
+            {t("rules.active", { count: activeRules.length })}
           </p>
           {activeRules.map((rule) => (
             <RuleRow key={rule.id} rule={rule} onEdit={openEdit} onToggle={handleToggle} canEdit={canEdit} />
@@ -440,7 +442,7 @@ export function RulesPage() {
       {inactiveRules.length > 0 && (
         <div className="space-y-2">
           <p className="text-xs font-semibold uppercase tracking-wide text-xlent-muted">
-            Inaktive ({inactiveRules.length})
+            {t("rules.inactive", { count: inactiveRules.length })}
           </p>
           {inactiveRules.map((rule) => (
             <RuleRow key={rule.id} rule={rule} onEdit={openEdit} onToggle={handleToggle} canEdit={canEdit} />

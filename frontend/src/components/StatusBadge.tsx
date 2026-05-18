@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import clsx from "clsx";
 
 import type { ComplianceScore, InvoiceStatus } from "@/api/types";
@@ -7,24 +8,9 @@ interface StatusBadgeProps {
   score?: ComplianceScore | null;
 }
 
-const STATUS_LABEL: Record<InvoiceStatus, string> = {
-  uploaded: "Lastet opp",
-  parsing: "Parser",
-  parsed: "Parset",
-  parsing_failed: "Parsing feilet",
-  not_invoice: "Ikke faktura",
-  extracting: "Ekstraherer",
-  extraction_failed: "Ekstraksjon feilet",
-  extracted: "Ekstrahert",
-  screening: "Screening",
-  screening_failed: "Screening feilet",
-  screened: "Screenet",
-  reviewed: "Reviewert",
-  approved: "Godkjent",
-  blocked: "Blokkert",
-};
-
 export function StatusBadge({ status, score }: StatusBadgeProps) {
+  const { t } = useTranslation();
+
   const isFailed =
     status === "parsing_failed" ||
     status === "extraction_failed" ||
@@ -53,12 +39,15 @@ export function StatusBadge({ status, score }: StatusBadgeProps) {
                   : "bg-gray-100 text-xlent-muted",
   );
 
+  // t("status.uploaded") osv. — faller tilbake til nøkkelen dersom oversettelse mangler
+  const label = t(`status.${status}`, { defaultValue: status });
+
   return (
     <span className={className}>
       {isNotInvoice && <span aria-hidden>⚠️</span>}
       {isApproved && <span aria-hidden>✓</span>}
       {isBlocked && <span aria-hidden>🔒</span>}
-      {STATUS_LABEL[status] ?? status}
+      {label}
     </span>
   );
 }

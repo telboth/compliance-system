@@ -15,6 +15,7 @@
  */
 
 import clsx from "clsx";
+import { useTranslation } from "react-i18next";
 import type { ComplianceScore, Invoice } from "@/api/types";
 import { getCountryRisk, isNatoCountry, TIER_LABELS } from "@/data/countryRisk";
 
@@ -42,9 +43,9 @@ export type OverallRisk = "green" | "yellow" | "orange" | "red";
 
 export function computeOverallRisk(invoice: Partial<Invoice>): {
   risk: OverallRisk;
-  reasons: string[];
+  reasonKeys: Array<{ key: string; params?: Record<string, string | number> }>;
 } {
-  const reasons: string[] = [];
+  const reasonKeys: Array<{ key: string; params?: Record<string, string | number> }> = [];
 
   const score: ComplianceScore | null | undefined = invoice.compliance_score;
   const countryInfo = getCountryRisk(invoice.destination_country);
@@ -53,87 +54,73 @@ export function computeOverallRisk(invoice: Partial<Invoice>): {
 
   // Tier 4-land eller bekreftet sanksjons-treff → RØD
   if (score === "red" || countryInfo.tier === 4) {
-    if (score === "red") reasons.push("Bekreftet sanksjons-treff");
+    if (score === "red") reasonKeys.push({ key: "compliance.reason_sanctions_red" });
     if (countryInfo.tier === 4) {
-      reasons.push(
-        `Destinasjonsland (${invoice.destination_country}) er klassifisert som høy-risikoland`
-      );
+      reasonKeys.push({ key: "compliance.reason_country_tier4", params: { country: invoice.destination_country ?? "" } });
     }
-    return { risk: "red", reasons };
+    return { risk: "red", reasonKeys };
   }
 
   // Sanksjons-gult eller Tier 3-land → ORANSJE
   if (score === "yellow" || countryInfo.tier === 3) {
-    if (score === "yellow") reasons.push("Potensielt sanksjons-treff");
+    if (score === "yellow") reasonKeys.push({ key: "compliance.reason_sanctions_yellow" });
     if (countryInfo.tier === 3) {
-      reasons.push(
-        `Destinasjonsland (${invoice.destination_country}) er klassifisert som forhøyet risiko`
-      );
+      reasonKeys.push({ key: "compliance.reason_country_tier3", params: { country: invoice.destination_country ?? "" } });
     }
-    if (hasDualUse) reasons.push("LLM-analyse indikerer dual-use / eksportkontroll-relevans");
-    return { risk: "orange", reasons };
+    if (hasDualUse) reasonKeys.push({ key: "compliance.reason_dual_use" });
+    return { risk: "orange", reasonKeys };
   }
 
   // Dual-use uten sanksjonssignal:
   // Lav-risiko NATO-destinasjon (tier 1) demper til GUL (moderat), ellers ORANSJE.
   if (hasDualUse) {
-    reasons.push("LLM-analyse indikerer dual-use / eksportkontroll-relevans");
+    reasonKeys.push({ key: "compliance.reason_dual_use" });
     if (natoDestination && countryInfo.tier === 1) {
-      reasons.push(
-        `Destinasjonsland (${invoice.destination_country}) er NATO-medlem og demper totalrisiko`
-      );
-      return { risk: "yellow", reasons };
+      reasonKeys.push({ key: "compliance.reason_nato", params: { country: invoice.destination_country ?? "" } });
+      return { risk: "yellow", reasonKeys };
     }
-    return { risk: "orange", reasons };
+    return { risk: "orange", reasonKeys };
   }
 
   // Tier 2-land → GUL
   if (countryInfo.tier === 2) {
-    reasons.push(
-      `Destinasjonsland (${invoice.destination_country ?? "ukjent"}) krever normal aktsomhet`
-    );
-    return { risk: "yellow", reasons };
+    reasonKeys.push({ key: "compliance.reason_country_tier2", params: { country: invoice.destination_country ?? "ukjent" } });
+    return { risk: "yellow", reasonKeys };
   }
 
   // Alt klart → GRØNN
-  if (score === "green") reasons.push("Godkjent sanksjonsscreening");
+  if (score === "green") reasonKeys.push({ key: "compliance.reason_sanctions_green" });
   if (countryInfo.tier === 1) {
-    reasons.push(
-      `Destinasjonsland (${invoice.destination_country}) er lav-risikoland`
-    );
+    reasonKeys.push({ key: "compliance.reason_country_tier1", params: { country: invoice.destination_country ?? "" } });
   }
-  return { risk: "green", reasons };
+  return { risk: "green", reasonKeys };
 }
 
 // ── Visuelle definisjoner ─────────────────────────────────────────────────────
 
 const RISK_CONFIG: Record<
   OverallRisk,
-  { label: string; emoji: string; bg: string; border: string; text: string }
+  { emoji: string; bg: string; border: string; text: string }
 > = {
   green: {
-    label: "Lav risiko",
     emoji: "😊",
     bg: "bg-green-50",
     border: "border-green-200",
     text: "text-green-800",
   },
   yellow: {
-    label: "Normal aktsomhet",
     emoji: "🙂",
     bg: "bg-yellow-50",
     border: "border-yellow-200",
     text: "text-yellow-800",
   },
   orange: {
-    label: "Forhøyet risiko",
     emoji: "😐",
     bg: "bg-orange-50",
     border: "border-orange-200",
     text: "text-orange-800",
   },
   red: {
-    label: "Høy risiko",
     emoji: "🚨",
     bg: "bg-red-50",
     border: "border-red-200",
@@ -149,9 +136,11 @@ interface ComplianceBadgeProps {
 }
 
 export function ComplianceBadge({ invoice, showReasons = true }: ComplianceBadgeProps) {
-  const { risk, reasons } = computeOverallRisk(invoice);
+  const { t } = useTranslation("components");
+  const { risk, reasonKeys } = computeOverallRisk(invoice);
   const cfg = RISK_CONFIG[risk];
   const countryInfo = getCountryRisk(invoice.destination_country);
+  const riskLabel = t(`compliance.${risk}_label`);
 
   return (
     <div
@@ -163,13 +152,13 @@ export function ComplianceBadge({ invoice, showReasons = true }: ComplianceBadge
     >
       {/* Hoved-indikator */}
       <div className="flex items-center gap-3">
-        <span className="text-3xl leading-none" role="img" aria-label={cfg.label}>
+        <span className="text-3xl leading-none" role="img" aria-label={riskLabel}>
           {cfg.emoji}
         </span>
         <div>
-          <div className={clsx("text-base font-semibold", cfg.text)}>{cfg.label}</div>
+          <div className={clsx("text-base font-semibold", cfg.text)}>{riskLabel}</div>
           <div className="text-xs text-xlent-muted">
-            Samlet risikovurdering basert på screening, destinasjonsland og LLM-analyse
+            {t("compliance.subtitle")}
           </div>
         </div>
         {/* Landrisiko-chip */}
@@ -197,12 +186,12 @@ export function ComplianceBadge({ invoice, showReasons = true }: ComplianceBadge
       </div>
 
       {/* Begrunnelse */}
-      {showReasons && reasons.length > 0 && (
+      {showReasons && reasonKeys.length > 0 && (
         <ul className="mt-3 space-y-1 border-t border-current/10 pt-3">
-          {reasons.map((r, i) => (
+          {reasonKeys.map((r, i) => (
             <li key={i} className={clsx("text-xs", cfg.text)}>
               <span className="mr-1.5">›</span>
-              {r}
+              {t(r.key, r.params)}
             </li>
           ))}
         </ul>
@@ -213,8 +202,10 @@ export function ComplianceBadge({ invoice, showReasons = true }: ComplianceBadge
 
 /** Liten inline-chip (f.eks. i tabeller). */
 export function ComplianceChip({ invoice }: { invoice: Partial<Invoice> }) {
+  const { t } = useTranslation("components");
   const { risk } = computeOverallRisk(invoice);
   const cfg = RISK_CONFIG[risk];
+  const riskLabel = t(`compliance.${risk}_label`);
   return (
     <span
       className={clsx(
@@ -225,7 +216,7 @@ export function ComplianceChip({ invoice }: { invoice: Partial<Invoice> }) {
       )}
     >
       <span>{cfg.emoji}</span>
-      <span>{cfg.label}</span>
+      <span>{riskLabel}</span>
     </span>
   );
 }

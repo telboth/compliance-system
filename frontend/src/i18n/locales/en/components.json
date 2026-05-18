@@ -1,0 +1,69 @@
+{
+  "uploader": {
+    "type_label": "Type:",
+    "direction_incoming": "Incoming",
+    "direction_outgoing": "Outgoing",
+    "customer_label": "Customer:",
+    "customer_none": "— None —",
+    "loading": "Uploading…",
+    "drop_active": "Drop the file here",
+    "drop_hint": "Drag and drop one or more invoices (PDF, XLSX, PNG, JPG, GIF), or click to select",
+    "size_hint": "Max 25 MB per file. PDF, XLSX, PNG, JPG, GIF.",
+    "loading_batch": "Uploading file {{current}} of {{total}}…",
+    "error": "Upload failed. Check that the file is valid and try again."
+  },
+  "pagination": {
+    "showing": "Showing {{from}}–{{to}} of {{total}}",
+    "prev": "← Previous",
+    "next": "Next →"
+  },
+  "notifications": {
+    "title": "Notifications",
+    "new_count": "{{count}} new",
+    "mark_all": "Mark all as read",
+    "loading": "Loading notifications…",
+    "empty": "No notifications yet",
+    "showing": "Showing last {{count}}"
+  },
+  "editable": {
+    "save_error": "Save failed",
+    "click_to_edit": "Click to edit"
+  },
+  "audit": {
+    "title": "Audit log",
+    "subtitle": "Hash-chained, append-only audit log — cannot be modified or deleted.",
+    "hide_hashes": "Hide hashes",
+    "show_hashes": "Show hashes",
+    "verifying": "Verifying…",
+    "verify": "Verify chain",
+    "chain_ok": "✓ Hash chain is intact — no entries have been modified.",
+    "chain_broken": "Chain break detected!",
+    "loading": "Loading audit log…",
+    "error": "Could not load log.",
+    "empty": "No audit entries yet for this invoice.",
+    "total": "{{total}} entries total"
+  },
+  "compliance": {
+    "green_label": "Low risk",
+    "yellow_label": "Normal diligence",
+    "orange_label": "Elevated risk",
+    "red_label": "High risk",
+    "subtitle": "Overall risk assessment based on screening, destination country and LLM analysis",
+    "reason_sanctions_red": "Confirmed sanctions match",
+    "reason_country_tier4": "Destination country ({{country}}) is classified as high-risk",
+    "reason_sanctions_yellow": "Potential sanctions match",
+    "reason_country_tier3": "Destination country ({{country}}) is classified as elevated risk",
+    "reason_dual_use": "LLM analysis indicates dual-use / export control relevance",
+    "reason_country_tier2": "Destination country ({{country}}) requires normal diligence",
+    "reason_nato": "Destination country ({{country}}) is a NATO member and reduces overall risk",
+    "reason_sanctions_green": "Approved sanctions screening",
+    "reason_country_tier1": "Destination country ({{country}}) is low-risk"
+  },
+  "model_selector": {
+    "loading": "Loading models…",
+    "label": "Model:",
+    "missing_key_title": "Add API key in .secrets to use {{provider}}",
+    "missing_key_badge": "⚠ No key",
+    "no_key": "no key"
+  }
+}

@@ -6,39 +6,65 @@ import clsx from "clsx";
 import { useUploadInvoice } from "@/hooks/useInvoices";
 import { useCustomerList } from "@/hooks/useCustomers";
 import type { InvoiceDirection } from "@/api/types";
+import { useTranslation } from "react-i18next";
 
 export function InvoiceUploader() {
   const [direction, setDirection] = useState<InvoiceDirection>("incoming");
   const [customerId, setCustomerId] = useState<string>("");
   const [error, setError] = useState<string | null>(null);
+  const [batchProgress, setBatchProgress] = useState<{
+    current: number;
+    total: number;
+  } | null>(null);
   const upload = useUploadInvoice();
   const navigate = useNavigate();
 
   // Hent kunder for dropdown — maks 200 uten paginering
   const { data: customerData } = useCustomerList({ limit: 200 });
+  const { t } = useTranslation("components");
 
   const onDrop = useCallback(
     async (acceptedFiles: File[]) => {
       setError(null);
-      const file = acceptedFiles[0];
-      if (!file) return;
+      setBatchProgress(null);
+      if (acceptedFiles.length === 0) return;
 
-      try {
-        const result = await upload.mutateAsync({
-          file,
-          direction,
-          customerId: customerId || null,
-        });
-        // Gå til detaljsiden — den poller automatisk til parsing er ferdig
-        navigate(`/invoices/${result.invoice.id}`);
-      } catch (err) {
-        const message =
-          (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail ??
-          "Opplasting feilet. Sjekk at filen er gyldig og prøv igjen.";
-        setError(message);
+      const failures: string[] = [];
+      let lastInvoiceId: string | null = null;
+
+      for (let i = 0; i < acceptedFiles.length; i += 1) {
+        const file = acceptedFiles[i];
+        if (!file) continue;
+        setBatchProgress({ current: i + 1, total: acceptedFiles.length });
+        try {
+          const result = await upload.mutateAsync({
+            file,
+            direction,
+            customerId: customerId || null,
+          });
+          lastInvoiceId = result.invoice.id;
+        } catch (err) {
+          const message =
+            (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail ??
+            t("uploader.error");
+          failures.push(`${file.name}: ${message}`);
+        }
+      }
+
+      setBatchProgress(null);
+      if (failures.length > 0) {
+        setError(failures.join(" | "));
+      }
+
+      if (lastInvoiceId) {
+        if (acceptedFiles.length === 1) {
+          navigate(`/invoices/${lastInvoiceId}`);
+        } else {
+          navigate("/");
+        }
       }
     },
-    [direction, customerId, navigate, upload],
+    [direction, customerId, navigate, upload, t],
   );
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
@@ -47,9 +73,11 @@ export function InvoiceUploader() {
       "application/pdf": [".pdf"],
       "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": [".xlsx"],
       "image/png": [".png"],
+      "image/jpeg": [".jpg", ".jpeg"],
+      "image/gif": [".gif"],
     },
-    maxFiles: 1,
-    disabled: upload.isPending,
+    multiple: true,
+    disabled: upload.isPending || batchProgress !== null,
   });
 
   const selectCls =
@@ -60,29 +88,29 @@ export function InvoiceUploader() {
       <div className="flex flex-wrap items-center gap-4 text-sm">
         {/* Retning */}
         <div className="flex items-center gap-2">
-          <label className="font-medium text-xlent-ink">Type:</label>
+          <label className="font-medium text-xlent-ink">{t("uploader.type_label")}</label>
           <select
             value={direction}
             onChange={(e) => setDirection(e.target.value as InvoiceDirection)}
             className={selectCls}
-            disabled={upload.isPending}
+            disabled={upload.isPending || batchProgress !== null}
           >
-            <option value="incoming">Innkommende</option>
-            <option value="outgoing">Utgående</option>
+            <option value="incoming">{t("uploader.direction_incoming")}</option>
+            <option value="outgoing">{t("uploader.direction_outgoing")}</option>
           </select>
         </div>
 
         {/* Kunde */}
         {customerData && customerData.items.length > 0 && (
           <div className="flex items-center gap-2">
-            <label className="font-medium text-xlent-ink">Kunde:</label>
+            <label className="font-medium text-xlent-ink">{t("uploader.customer_label")}</label>
             <select
               value={customerId}
               onChange={(e) => setCustomerId(e.target.value)}
               className={selectCls}
-              disabled={upload.isPending}
+              disabled={upload.isPending || batchProgress !== null}
             >
-              <option value="">— Ingen —</option>
+              <option value="">{t("uploader.customer_none")}</option>
               {customerData.items.map((c) => (
                 <option key={c.id} value={c.id}>
                   {c.name}
@@ -101,23 +129,30 @@ export function InvoiceUploader() {
           isDragActive
             ? "border-xlent-accent bg-orange-50"
             : "border-gray-300 hover:border-xlent-primary",
-          upload.isPending && "cursor-not-allowed opacity-60",
+          (upload.isPending || batchProgress !== null) && "cursor-not-allowed opacity-60",
         )}
       >
         <input {...getInputProps()} />
-        {upload.isPending ? (
+        {upload.isPending || batchProgress !== null ? (
           <div className="flex items-center gap-2">
             <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-xlent-primary border-t-transparent" />
-            <p className="text-sm text-xlent-muted">Laster opp …</p>
+            <p className="text-sm text-xlent-muted">
+              {batchProgress
+                ? t("uploader.loading_batch", {
+                    current: batchProgress.current,
+                    total: batchProgress.total,
+                  })
+                : t("uploader.loading")}
+            </p>
           </div>
         ) : isDragActive ? (
-          <p className="text-sm text-xlent-primary">Slipp filen her</p>
+          <p className="text-sm text-xlent-primary">{t("uploader.drop_active")}</p>
         ) : (
           <div>
             <p className="text-sm font-medium text-xlent-ink">
-              Dra og slipp en invoice (PDF, XLSX eller PNG), eller klikk for å velge
+              {t("uploader.drop_hint")}
             </p>
-            <p className="mt-1 text-xs text-xlent-muted">Maks 25 MB. PDF, XLSX eller PNG.</p>
+            <p className="mt-1 text-xs text-xlent-muted">{t("uploader.size_hint")}</p>
           </div>
         )}
       </div>

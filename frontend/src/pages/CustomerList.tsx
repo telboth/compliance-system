@@ -1,5 +1,6 @@
 import { useState } from "react";
 import clsx from "clsx";
+import { useTranslation } from "react-i18next";
 
 import { Pagination } from "@/components/Pagination";
 import {
@@ -19,14 +20,8 @@ const RISK_COLORS: Record<string, string> = {
   critical: "bg-red-100 text-red-800",
 };
 
-const RISK_LABELS: Record<string, string> = {
-  low: "Lav",
-  normal: "Normal",
-  high: "Høy",
-  critical: "Kritisk",
-};
-
 function RiskBadge({ level }: { level: string }) {
+  const { t } = useTranslation("pages");
   return (
     <span
       className={clsx(
@@ -34,19 +29,12 @@ function RiskBadge({ level }: { level: string }) {
         RISK_COLORS[level] ?? RISK_COLORS.normal,
       )}
     >
-      {RISK_LABELS[level] ?? level}
+      {t(`customers.risk.${level}`, { defaultValue: level })}
     </span>
   );
 }
 
 // ── Opprett/rediger-skjema ────────────────────────────────────────────────────
-
-const RISK_OPTIONS = [
-  { value: "low", label: "Lav" },
-  { value: "normal", label: "Normal" },
-  { value: "high", label: "Høy" },
-  { value: "critical", label: "Kritisk" },
-];
 
 const inputCls =
   "w-full rounded border border-gray-300 bg-white px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-xlent-primary";
@@ -59,17 +47,25 @@ interface CustomerFormProps {
 }
 
 function CustomerForm({ initial, onSubmit, onCancel, isPending }: CustomerFormProps) {
+  const { t } = useTranslation("pages");
   const [name, setName] = useState(initial?.name ?? "");
   const [country, setCountry] = useState(initial?.country ?? "");
   const [orgNumber, setOrgNumber] = useState(initial?.org_number ?? "");
   const [riskLevel, setRiskLevel] = useState(initial?.risk_level ?? "normal");
   const [error, setError] = useState<string | null>(null);
 
+  const riskOptions = [
+    { value: "low", label: t("customers.risk.low") },
+    { value: "normal", label: t("customers.risk.normal") },
+    { value: "high", label: t("customers.risk.high") },
+    { value: "critical", label: t("customers.risk.critical") },
+  ];
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
     if (!name.trim()) {
-      setError("Navn er påkrevd.");
+      setError(t("customers.form.name_required"));
       return;
     }
     try {
@@ -80,7 +76,7 @@ function CustomerForm({ initial, onSubmit, onCancel, isPending }: CustomerFormPr
         risk_level: riskLevel,
       });
     } catch {
-      setError("Lagring feilet. Prøv igjen.");
+      setError(t("customers.form.save_error"));
     }
   }
 
@@ -89,20 +85,20 @@ function CustomerForm({ initial, onSubmit, onCancel, isPending }: CustomerFormPr
       <div className="grid grid-cols-2 gap-3">
         <div className="col-span-2">
           <label className="mb-1 block text-xs font-medium text-xlent-muted">
-            Navn *
+            {t("customers.form.name")}
           </label>
           <input
             value={name}
             onChange={(e) => setName(e.target.value)}
             className={inputCls}
-            placeholder="Kundennavn"
+            placeholder={t("customers.form.name_placeholder")}
             required
           />
         </div>
 
         <div>
           <label className="mb-1 block text-xs font-medium text-xlent-muted">
-            Land (ISO-2)
+            {t("customers.form.country")}
           </label>
           <input
             value={country}
@@ -115,7 +111,7 @@ function CustomerForm({ initial, onSubmit, onCancel, isPending }: CustomerFormPr
 
         <div>
           <label className="mb-1 block text-xs font-medium text-xlent-muted">
-            Org.nummer
+            {t("customers.form.org_number")}
           </label>
           <input
             value={orgNumber}
@@ -127,14 +123,14 @@ function CustomerForm({ initial, onSubmit, onCancel, isPending }: CustomerFormPr
 
         <div className="col-span-2">
           <label className="mb-1 block text-xs font-medium text-xlent-muted">
-            Risikonivå
+            {t("customers.form.risk_level")}
           </label>
           <select
             value={riskLevel}
             onChange={(e) => setRiskLevel(e.target.value)}
             className={inputCls}
           >
-            {RISK_OPTIONS.map((o) => (
+            {riskOptions.map((o) => (
               <option key={o.value} value={o.value}>
                 {o.label}
               </option>
@@ -151,14 +147,14 @@ function CustomerForm({ initial, onSubmit, onCancel, isPending }: CustomerFormPr
           onClick={onCancel}
           className="rounded border border-gray-300 px-3 py-1.5 text-sm text-xlent-muted hover:bg-xlent-surface"
         >
-          Avbryt
+          {t("customers.form.cancel")}
         </button>
         <button
           type="submit"
           disabled={isPending}
           className="rounded bg-xlent-primary px-3 py-1.5 text-sm font-medium text-white hover:bg-xlent-primary/90 disabled:opacity-50"
         >
-          {isPending ? "Lagrer …" : initial ? "Oppdater" : "Opprett"}
+          {isPending ? t("customers.form.saving") : initial ? t("customers.form.update") : t("customers.form.create")}
         </button>
       </div>
     </form>
@@ -178,6 +174,7 @@ function CustomerRow({
   onDelete: (id: string) => void;
   isDeleting: boolean;
 }) {
+  const { t, i18n } = useTranslation("pages");
   return (
     <tr className="hover:bg-xlent-surface">
       <td className="px-3 py-2 font-medium text-xlent-ink">{customer.name}</td>
@@ -191,7 +188,7 @@ function CustomerRow({
         <RiskBadge level={customer.risk_level} />
       </td>
       <td className="px-3 py-2 text-xs text-xlent-muted">
-        {new Date(customer.created_at).toLocaleDateString("nb-NO")}
+        {new Date(customer.created_at).toLocaleDateString(i18n.language === "en" ? "en-GB" : "nb-NO")}
       </td>
       <td className="px-3 py-2 text-right">
         <div className="flex justify-end gap-2">
@@ -199,14 +196,14 @@ function CustomerRow({
             onClick={() => onEdit(customer)}
             className="rounded px-2 py-0.5 text-xs text-xlent-primary hover:bg-blue-50"
           >
-            Rediger
+            {t("customers.row.edit")}
           </button>
           <button
             onClick={() => onDelete(customer.id)}
             disabled={isDeleting}
             className="rounded px-2 py-0.5 text-xs text-traffic-red hover:bg-red-50 disabled:opacity-40"
           >
-            Slett
+            {t("customers.row.delete")}
           </button>
         </div>
       </td>
@@ -217,6 +214,7 @@ function CustomerRow({
 // ── Hoved-komponent ───────────────────────────────────────────────────────────
 
 export function CustomerList() {
+  const { t } = useTranslation("pages");
   const [search, setSearch] = useState("");
   const [offset, setOffset] = useState(0);
   const limit = 50;
@@ -239,7 +237,7 @@ export function CustomerList() {
   function handleDelete(id: string) {
     const customer = data?.items.find((c) => c.id === id);
     const label = customer?.name ?? id;
-    if (!window.confirm(`Slett «${label}»?\n\nKunden fjernes permanent.`)) return;
+    if (!window.confirm(t("customers.delete_confirm", { name: label }))) return;
     deleteCustomer.mutate(id);
   }
 
@@ -257,16 +255,16 @@ export function CustomerList() {
   return (
     <div className="mx-auto max-w-5xl space-y-8 p-6">
       <header>
-        <h1 className="text-2xl font-semibold text-xlent-ink">Kunder</h1>
+        <h1 className="text-2xl font-semibold text-xlent-ink">{t("customers.title")}</h1>
         <p className="mt-1 text-sm text-xlent-muted">
-          Administrer kunder og risikonivå. Kunder kan kobles til invoices ved opplasting.
+          {t("customers.subtitle")}
         </p>
       </header>
 
       {/* Opprett ny kunde */}
       {showCreateForm ? (
         <section className="rounded-lg border border-xlent-primary/30 bg-white p-4">
-          <h2 className="mb-3 text-sm font-semibold text-xlent-ink">Ny kunde</h2>
+          <h2 className="mb-3 text-sm font-semibold text-xlent-ink">{t("customers.new_title")}</h2>
           <CustomerForm
             onSubmit={handleCreate}
             onCancel={() => setShowCreateForm(false)}
@@ -278,7 +276,7 @@ export function CustomerList() {
           onClick={() => setShowCreateForm(true)}
           className="rounded bg-xlent-primary px-4 py-2 text-sm font-medium text-white hover:bg-xlent-primary/90"
         >
-          + Ny kunde
+          {t("customers.new_button")}
         </button>
       )}
 
@@ -286,7 +284,7 @@ export function CustomerList() {
       {editingCustomer && (
         <section className="rounded-lg border border-yellow-300 bg-yellow-50 p-4">
           <h2 className="mb-3 text-sm font-semibold text-xlent-ink">
-            Rediger: {editingCustomer.name}
+            {t("customers.edit_title", { name: editingCustomer.name })}
           </h2>
           <CustomerForm
             initial={editingCustomer}
@@ -301,10 +299,10 @@ export function CustomerList() {
       <section>
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
           <h2 className="text-sm font-semibold uppercase tracking-wide text-xlent-muted">
-            Alle kunder
+            {t("customers.table.title")}
             {total > 0 && (
               <span className="ml-2 font-normal normal-case text-xlent-muted/60">
-                ({total} totalt)
+                {t("customers.table.total", { total })}
               </span>
             )}
           </h2>
@@ -312,15 +310,15 @@ export function CustomerList() {
             type="search"
             value={search}
             onChange={(e) => { setSearch(e.target.value); setOffset(0); }}
-            placeholder="Søk på navn…"
+            placeholder={t("customers.table.search_placeholder")}
             className="rounded border border-gray-200 bg-white px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-xlent-primary"
           />
         </div>
 
-        {isLoading && <p className="text-sm text-xlent-muted">Laster …</p>}
+        {isLoading && <p className="text-sm text-xlent-muted">{t("customers.table.loading")}</p>}
         {error && (
           <p className="text-sm text-traffic-red">
-            Kunne ikke laste kunder. Sjekk at API-et kjører.
+            {t("customers.table.error")}
           </p>
         )}
 
@@ -330,11 +328,11 @@ export function CustomerList() {
               <table className="min-w-full divide-y divide-gray-200 text-sm">
                 <thead className="bg-xlent-surface text-left text-xs uppercase text-xlent-muted">
                   <tr>
-                    <th className="px-3 py-2">Navn</th>
-                    <th className="px-3 py-2">Land</th>
-                    <th className="px-3 py-2">Org.nr</th>
-                    <th className="px-3 py-2">Risiko</th>
-                    <th className="px-3 py-2">Opprettet</th>
+                    <th className="px-3 py-2">{t("customers.table.col_name")}</th>
+                    <th className="px-3 py-2">{t("customers.table.col_country")}</th>
+                    <th className="px-3 py-2">{t("customers.table.col_org")}</th>
+                    <th className="px-3 py-2">{t("customers.table.col_risk")}</th>
+                    <th className="px-3 py-2">{t("customers.table.col_created")}</th>
                     <th className="px-3 py-2" />
                   </tr>
                 </thead>
@@ -346,8 +344,8 @@ export function CustomerList() {
                         className="px-3 py-6 text-center text-xlent-muted"
                       >
                         {search
-                          ? "Ingen kunder matcher søket."
-                          : 'Ingen kunder ennå — klikk «+ Ny kunde» for å komme i gang.'}
+                          ? t("customers.table.empty_search")
+                          : t("customers.table.empty")}
                       </td>
                     </tr>
                   )}

@@ -69,7 +69,7 @@ export function DevRoleSwitcher() {
 
       {/* Dropdown */}
       {open && (
-        <div className="absolute left-0 top-full z-50 mt-1 w-56 rounded-lg border border-amber-200 bg-white shadow-lg">
+        <div className="absolute left-0 top-full z-50 mt-1 w-56 rounded-lg border border-amber-200 bg-white text-gray-900 shadow-lg">
           {/* Header */}
           <div className="border-b border-amber-100 bg-amber-50 px-3 py-2">
             <p className="text-[10px] font-semibold uppercase tracking-wide text-amber-700">
@@ -93,7 +93,7 @@ export function DevRoleSwitcher() {
                       setOpen(false);
                     }}
                     className={clsx(
-                      "flex w-full items-center gap-3 px-3 py-2 text-left text-sm",
+                      "flex w-full items-center gap-3 px-3 py-2 text-left text-sm text-gray-800",
                       "hover:bg-gray-50 focus:outline-none",
                       isActive && "bg-xlent-surface",
                     )}

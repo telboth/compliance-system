@@ -20,6 +20,12 @@ export type InvoiceStatus =
   | "blocked";
 
 export type ComplianceScore = "green" | "yellow" | "red";
+export type ApprovalState =
+  | "pending"
+  | "approved"
+  | "blocked"
+  | "not_required"
+  | "assessing";
 
 export interface InvoiceLine {
   id: string;
@@ -101,6 +107,7 @@ export interface Invoice {
   currency: string | null;
   invoice_date: string | null;
   compliance_score: ComplianceScore | null;
+  approval_state: ApprovalState;
   created_at: string;
   updated_at: string;
   // Forsendelse og transport
@@ -136,6 +143,7 @@ export interface InvoiceSummary {
   direction: InvoiceDirection;
   status: InvoiceStatus;
   compliance_score: ComplianceScore | null;
+  approval_state: ApprovalState;
   total_amount: string | null;
   currency: string | null;
   invoice_date: string | null;

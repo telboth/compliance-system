@@ -6,10 +6,13 @@ import re
 import uuid
 from datetime import date, datetime
 from decimal import Decimal, InvalidOperation
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from app.models.invoice import ComplianceScore, InvoiceDirection, InvoiceStatus
+
+ApprovalState = Literal["pending", "approved", "blocked", "not_required", "assessing"]
 
 
 class InvoiceLineRead(BaseModel):
@@ -84,6 +87,7 @@ class InvoiceRead(BaseModel):
     currency: str | None
     invoice_date: date | None
     compliance_score: ComplianceScore | None
+    approval_state: ApprovalState = "assessing"
     created_at: datetime
     updated_at: datetime
 
@@ -128,6 +132,7 @@ class InvoiceSummary(BaseModel):
     direction: InvoiceDirection
     status: InvoiceStatus
     compliance_score: ComplianceScore | None
+    approval_state: ApprovalState = "assessing"
     total_amount: Decimal | None
     currency: str | None
     invoice_date: date | None
@@ -194,6 +199,29 @@ class ReviewCreate(BaseModel):
     def validate_decision(cls, v: str) -> str:
         if v not in ("approved", "blocked"):
             raise ValueError("decision må være 'approved' eller 'blocked'")
+        return v
+
+    @field_validator("reason")
+    @classmethod
+    def validate_reason(cls, v: str) -> str:
+        if not v or len(v.strip()) < 10:
+            raise ValueError("reason må være minst 10 tegn")
+        return v.strip()
+
+
+class RiskEscalationCreate(BaseModel):
+    """Payload for manuell eskalering av risikonivå (controller -> review-kø)."""
+
+    target_score: str
+    """Må være 'yellow' eller 'red'."""
+    reason: str
+    """Obligatorisk begrunnelse — minimum 10 tegn."""
+
+    @field_validator("target_score")
+    @classmethod
+    def validate_target_score(cls, v: str) -> str:
+        if v not in ("yellow", "red"):
+            raise ValueError("target_score må være 'yellow' eller 'red'")
         return v
 
     @field_validator("reason")

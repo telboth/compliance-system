@@ -26,6 +26,7 @@ from app.schemas.invoice import (
     InvoiceRead,
     InvoiceSummary,
     InvoiceUploadResponse,
+    RiskEscalationCreate,
     ReviewCreate,
     ReviewQueueItem,
     ReviewQueueResponse,
@@ -42,6 +43,10 @@ logger = get_logger(__name__)
 def _to_invoice_read(invoice: Invoice) -> InvoiceRead:
     payload = InvoiceRead.model_validate(invoice)
     payload.vat_mismatch_check = evaluate_invoice_vat_mismatch(invoice).to_dict()
+    payload.approval_state = invoice_service.derive_approval_state(
+        invoice.status,
+        invoice.compliance_score,
+    )
     return payload
 
 
@@ -49,12 +54,12 @@ def _to_invoice_read(invoice: Invoice) -> InvoiceRead:
     "/upload",
     response_model=InvoiceUploadResponse,
     status_code=status.HTTP_201_CREATED,
-    summary="Last opp en invoice (PDF, XLSX eller PNG)",
+    summary="Last opp en invoice (PDF, XLSX, PNG, JPG eller GIF)",
 )
 async def upload_invoice(
     background_tasks: BackgroundTasks,
     session: SessionDep,
-    file: UploadFile = File(..., description="PDF, XLSX eller PNG med invoice"),
+    file: UploadFile = File(..., description="PDF, XLSX, PNG, JPG/JPEG eller GIF med invoice"),
     direction: InvoiceDirection = Form(
         InvoiceDirection.INCOMING,
         description="Innkommende (kjøp) eller utgående (salg) faktura.",
@@ -70,7 +75,8 @@ async def upload_invoice(
     og deretter 'parsed' (eller 'parsing_failed') når den er ferdig.
     Frontend poller GET /invoices/{id} til status er ferdig.
 
-    LLM-ekstraksjon startes separat via POST /invoices/{id}/extract.
+    Hvis auto-ekstraksjon er aktivert i settings, starter LLM-ekstraksjon
+    automatisk etter vellykket parsing.
     """
     invoice = await invoice_service.upload_invoice_only(
         session=session,
@@ -311,6 +317,11 @@ async def list_invoices_endpoint(
         description="Filtrer på epost-merknad status (ok/warn/error).",
         pattern="^(ok|warn|error)$",
     ),
+    approval_state: str | None = Query(
+        None,
+        description="Filtrer på godkjenningsstatus (pending/approved/blocked/not_required/assessing).",
+        pattern="^(pending|approved|blocked|not_required|assessing)$",
+    ),
     destination_country: str | None = Query(None, description="ISO-landkode (f.eks. RU, DE)"),
     date_from: str | None = Query(None, description="Fakturadato fra og med (YYYY-MM-DD)"),
     date_to: str | None = Query(None, description="Fakturadato til og med (YYYY-MM-DD)"),
@@ -318,7 +329,8 @@ async def list_invoices_endpoint(
         "created_at",
         description=(
             "Sorter på felt: created_at, invoice_date, total_amount, status, "
-            "compliance_score, vat_note_status, email_note_status, llm_note_preview, original_filename."
+            "compliance_score, approval_state, vat_note_status, email_note_status, "
+            "llm_note_preview, original_filename."
         ),
     ),
     sort_dir: str = Query(
@@ -342,6 +354,7 @@ async def list_invoices_endpoint(
         compliance_score=compliance_score,
         vat_note_status=vat_note_status,
         email_note_status=email_note_status,
+        approval_state=approval_state,
         destination_country=destination_country,
         date_from=_parse_date(date_from),
         date_to=_parse_date(date_to),
@@ -351,6 +364,10 @@ async def list_invoices_endpoint(
     items: list[InvoiceSummary] = []
     for inv in invoices:
         payload = InvoiceSummary.model_validate(inv)
+        payload.approval_state = invoice_service.derive_approval_state(
+            inv.status,
+            inv.compliance_score,
+        )
         payload.llm_note_full = inv.comments
         items.append(payload)
     return InvoiceListResponse(
@@ -510,6 +527,33 @@ async def review_invoice_endpoint(
         session,
         invoice_id,
         decision=body.decision,
+        reason=body.reason,
+        actor=actor,
+    )
+    return _to_invoice_read(invoice)
+
+
+@router.post(
+    "/{invoice_id}/risk/escalate",
+    response_model=InvoiceRead,
+    summary="Eskalér grønn invoice til gul/rød for manuell review",
+)
+async def escalate_invoice_risk_endpoint(
+    invoice_id: uuid.UUID,
+    body: RiskEscalationCreate,
+    session: SessionDep,
+    actor: str = Query(default="system", description="Bruker-ID/navn for revisjonsloggen"),
+) -> InvoiceRead:
+    """La controller eskalere en grønn invoice til gul/rød ved manuell observasjon.
+
+    Eskalering setter status til 'screened' og nullstiller tidligere review-beslutning,
+    slik at compliance/admin må godkjenne eller blokkere på nytt.
+    """
+    target = ComplianceScore(body.target_score)
+    invoice = await invoice_service.escalate_invoice_risk_for_review(
+        session,
+        invoice_id,
+        target_score=target,
         reason=body.reason,
         actor=actor,
     )

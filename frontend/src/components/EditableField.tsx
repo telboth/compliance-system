@@ -10,6 +10,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import clsx from "clsx";
+import { useTranslation } from "react-i18next";
 
 export interface EditableFieldOption {
   value: string;
@@ -53,6 +54,7 @@ export function EditableField({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement & HTMLSelectElement>(null);
+  const { t } = useTranslation("components");
 
   function startEdit() {
     if (!editable) return;
@@ -76,7 +78,7 @@ export function EditableField({
       await onSave(valueToSave);
       setEditing(false);
     } catch {
-      setError("Lagring feilet");
+      setError(t("editable.save_error"));
     } finally {
       setSaving(false);
     }
@@ -160,7 +162,7 @@ export function EditableField({
   return (
     <button
       onClick={startEdit}
-      title="Klikk for å redigere"
+      title={t("editable.click_to_edit")}
       className={clsx(
         "group inline-flex items-center gap-1 text-left transition-colors hover:text-xlent-primary",
         className,

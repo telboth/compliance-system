@@ -25,13 +25,13 @@ from typing import TYPE_CHECKING
 
 import anyio
 from fastapi import UploadFile
-from sqlalchemy import func, select
+from sqlalchemy import case, func, literal, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.core.config import get_settings
 from app.core.database import get_session_factory
-from app.core.errors import NotFoundError, ParsingError
+from app.core.errors import ApplicationError, NotFoundError, ParsingError
 from app.core.logging import get_logger
 from app.models.entity import Entity, EntityRole, EntityType
 from app.models.invoice import ComplianceScore, Invoice, InvoiceDirection, InvoiceStatus
@@ -48,6 +48,38 @@ if TYPE_CHECKING:
 logger = get_logger(__name__)
 
 RAW_TEXT_PREVIEW_LENGTH = 500
+
+APPROVAL_STATES = {"pending", "approved", "blocked", "not_required", "assessing"}
+
+
+def derive_approval_state(
+    status: InvoiceStatus,
+    compliance_score: ComplianceScore | None,
+) -> str:
+    """Entydig approval-state for UI/filter/sort."""
+    if status == InvoiceStatus.APPROVED:
+        return "approved"
+    if status == InvoiceStatus.BLOCKED:
+        return "blocked"
+    if compliance_score in {ComplianceScore.YELLOW, ComplianceScore.RED}:
+        return "pending"
+    if compliance_score == ComplianceScore.GREEN:
+        return "not_required"
+    return "assessing"
+
+
+def approval_state_sql_expr():
+    """SQL-uttrykk som speiler derive_approval_state()."""
+    return case(
+        (Invoice.status == InvoiceStatus.APPROVED, literal("approved")),
+        (Invoice.status == InvoiceStatus.BLOCKED, literal("blocked")),
+        (
+            Invoice.compliance_score.in_([ComplianceScore.YELLOW, ComplianceScore.RED]),
+            literal("pending"),
+        ),
+        (Invoice.compliance_score == ComplianceScore.GREEN, literal("not_required")),
+        else_=literal("assessing"),
+    )
 
 # ── Faktura-gjenkjenning (Trinn 1: tekstsjekk etter parsing) ──────────────────
 
@@ -346,6 +378,88 @@ async def parse_invoice_in_background(invoice_id: uuid.UUID, storage_path: Path)
 
 # ── Review-beslutning ─────────────────────────────────────────────────────────
 
+async def escalate_invoice_risk_for_review(
+    session: AsyncSession,
+    invoice_id: uuid.UUID,
+    *,
+    target_score: ComplianceScore,
+    reason: str,
+    actor: str = "system",
+) -> Invoice:
+    """Eskalér en grønn invoice til gul/rød og send den til manuell review."""
+    invoice = await get_invoice(session, invoice_id)
+
+    if target_score not in {ComplianceScore.YELLOW, ComplianceScore.RED}:
+        raise ApplicationError(
+            "target_score må være yellow eller red.",
+            details={"invoice_id": str(invoice_id), "target_score": target_score.value},
+        )
+
+    if invoice.compliance_score != ComplianceScore.GREEN:
+        raise ApplicationError(
+            "Kun grønne invoices kan eskaleres manuelt.",
+            details={
+                "invoice_id": str(invoice_id),
+                "current_score": invoice.compliance_score.value if invoice.compliance_score else None,
+            },
+        )
+
+    if invoice.status in {
+        InvoiceStatus.UPLOADED,
+        InvoiceStatus.PARSING,
+        InvoiceStatus.EXTRACTING,
+        InvoiceStatus.SCREENING,
+        InvoiceStatus.NOT_INVOICE,
+    }:
+        raise ApplicationError(
+            f"Kan ikke eskalere invoice i status '{invoice.status.value}'.",
+            details={"invoice_id": str(invoice_id), "status": invoice.status.value},
+        )
+
+    prev_status = invoice.status.value
+    prev_score = invoice.compliance_score.value if invoice.compliance_score else None
+
+    invoice.compliance_score = target_score
+    invoice.status = InvoiceStatus.SCREENED
+    invoice.review_decision = None
+    invoice.review_reason = None
+    invoice.reviewed_by = None
+    invoice.reviewed_at = None
+
+    await audit_service.log(
+        session,
+        action="invoice.risk_escalated",
+        actor=actor,
+        invoice_id=invoice.id,
+        details={
+            "from_score": prev_score,
+            "to_score": target_score.value,
+            "from_status": prev_status,
+            "to_status": InvoiceStatus.SCREENED.value,
+            "reason": reason,
+        },
+    )
+
+    from app.services import notification_service
+
+    inv_label = invoice.original_filename or invoice.invoice_number or str(invoice.id)[:8]
+    await notification_service.create(
+        session,
+        message=f"⚠ {inv_label} ble manuelt eskalert til {target_score.value} av {actor}. Krever review.",
+        level="warn",
+        invoice_id=invoice.id,
+        target_roles=["compliance_officer", "admin"],
+    )
+
+    await session.commit()
+    logger.info(
+        "invoice_risk_escalated",
+        invoice_id=str(invoice_id),
+        actor=actor,
+        target_score=target_score.value,
+    )
+    return await get_invoice(session, invoice_id)
+
 async def review_invoice(
     session: AsyncSession,
     invoice_id: uuid.UUID,
@@ -369,7 +483,6 @@ async def review_invoice(
         InvoiceStatus.BLOCKED,
     }
     if invoice.status not in allowed_statuses:
-        from app.core.errors import ApplicationError
         raise ApplicationError(
             f"Kan ikke reviewe en invoice med status '{invoice.status.value}'. "
             "Invoicen må være screenet først.",
@@ -468,6 +581,7 @@ async def list_invoices(
     compliance_score: ComplianceScore | None = None,
     vat_note_status: str | None = None,
     email_note_status: str | None = None,
+    approval_state: str | None = None,
     destination_country: str | None = None,
     date_from: date | None = None,
     date_to: date | None = None,
@@ -489,6 +603,10 @@ async def list_invoices(
             stmt = stmt.where(Invoice.vat_note_status == vat_note_status)
         if email_note_status:
             stmt = stmt.where(Invoice.email_note_status == email_note_status)
+        if approval_state:
+            if approval_state not in APPROVAL_STATES:
+                return stmt.where(literal(False))
+            stmt = stmt.where(approval_state_sql_expr() == approval_state)
         if destination_country is not None:
             country_filter = "".join(ch for ch in destination_country.upper() if ch.isalpha())[:2]
             if country_filter:
@@ -512,6 +630,7 @@ async def list_invoices(
         "compliance_score": Invoice.compliance_score,
         "vat_note_status": Invoice.vat_note_status,
         "email_note_status": Invoice.email_note_status,
+        "approval_state": approval_state_sql_expr(),
         "llm_note_preview": Invoice.llm_note_preview,
         "original_filename": Invoice.original_filename,
     }

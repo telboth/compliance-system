@@ -8,6 +8,7 @@
 
 import { useQuery } from "@tanstack/react-query";
 import clsx from "clsx";
+import { useTranslation } from "react-i18next";
 import { getDashboard } from "@/api/dashboard";
 import type { WeeklyTrendPoint } from "@/api/dashboard";
 
@@ -49,19 +50,20 @@ interface ScoreDistProps {
 }
 
 function ScoreDistribution({ green, yellow, red, unknown }: ScoreDistProps) {
+  const { t } = useTranslation("pages");
   const total = green + yellow + red + unknown || 1;
   const pct = (n: number) => Math.round((n / total) * 100);
 
   const bars = [
-    { label: "Grønn", count: green, pct: pct(green), color: "bg-green-500" },
-    { label: "Gul", count: yellow, pct: pct(yellow), color: "bg-yellow-400" },
-    { label: "Rød", count: red, pct: pct(red), color: "bg-red-500" },
-    { label: "Ukjent", count: unknown, pct: pct(unknown), color: "bg-gray-300" },
+    { label: t("dashboard.score_green"), count: green, pct: pct(green), color: "bg-green-500" },
+    { label: t("dashboard.score_yellow"), count: yellow, pct: pct(yellow), color: "bg-yellow-400" },
+    { label: t("dashboard.score_red"), count: red, pct: pct(red), color: "bg-red-500" },
+    { label: t("dashboard.score_unknown"), count: unknown, pct: pct(unknown), color: "bg-gray-300" },
   ];
 
   return (
     <div className="rounded-lg border border-gray-200 bg-white p-4">
-      <p className="mb-3 text-sm font-semibold text-xlent-ink">Score-fordeling</p>
+      <p className="mb-3 text-sm font-semibold text-xlent-ink">{t("dashboard.score_dist")}</p>
       <div className="flex h-4 w-full overflow-hidden rounded-full">
         {bars.map((b) => (
           <div
@@ -88,11 +90,12 @@ function ScoreDistribution({ green, yellow, red, unknown }: ScoreDistProps) {
 // ── Ukentlig trend (stacked bar) ──────────────────────────────────────────────
 
 function WeeklyTrend({ data }: { data: WeeklyTrendPoint[] }) {
+  const { t } = useTranslation("pages");
   if (data.length === 0) {
     return (
       <div className="rounded-lg border border-gray-200 bg-white p-4">
-        <p className="text-sm font-semibold text-xlent-ink">Ukentlig trend</p>
-        <p className="mt-4 text-center text-sm text-xlent-muted">Ingen data ennå</p>
+        <p className="text-sm font-semibold text-xlent-ink">{t("dashboard.weekly_trend")}</p>
+        <p className="mt-4 text-center text-sm text-xlent-muted">{t("dashboard.weekly_no_data")}</p>
       </div>
     );
   }
@@ -101,7 +104,7 @@ function WeeklyTrend({ data }: { data: WeeklyTrendPoint[] }) {
 
   return (
     <div className="rounded-lg border border-gray-200 bg-white p-4">
-      <p className="mb-3 text-sm font-semibold text-xlent-ink">Ukentlig trend (invoices)</p>
+      <p className="mb-3 text-sm font-semibold text-xlent-ink">{t("dashboard.weekly_label")}</p>
       <div className="flex items-end gap-2" style={{ height: "120px" }}>
         {data.map((week, i) => {
           const heightPct = (week.total / maxTotal) * 100;
@@ -110,7 +113,7 @@ function WeeklyTrend({ data }: { data: WeeklyTrendPoint[] }) {
           const greenPct = 100 - redPct - yellowPct;
           const label = week.week_start
             ? new Date(week.week_start).toLocaleDateString("nb-NO", { day: "numeric", month: "short" })
-            : `Uke ${i + 1}`;
+            : t("dashboard.week_n", { n: i + 1 });
           return (
             <div key={i} className="group flex flex-1 flex-col items-center gap-1">
               <div
@@ -133,9 +136,9 @@ function WeeklyTrend({ data }: { data: WeeklyTrendPoint[] }) {
         })}
       </div>
       <div className="mt-2 flex gap-4 text-xs text-xlent-muted">
-        <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-sm bg-green-400" /> Grønn</span>
-        <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-sm bg-yellow-400" /> Gul</span>
-        <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-sm bg-red-500" /> Rød</span>
+        <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-sm bg-green-400" /> {t("dashboard.score_green")}</span>
+        <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-sm bg-yellow-400" /> {t("dashboard.score_yellow")}</span>
+        <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-sm bg-red-500" /> {t("dashboard.score_red")}</span>
       </div>
     </div>
   );
@@ -144,14 +147,15 @@ function WeeklyTrend({ data }: { data: WeeklyTrendPoint[] }) {
 // ── Topp-kunder med flagg ─────────────────────────────────────────────────────
 
 function TopCustomers({ customers }: { customers: { customer_name: string; flag_count: number }[] }) {
+  const { t } = useTranslation("pages");
   const max = Math.max(...customers.map((c) => c.flag_count), 1);
   return (
     <div className="rounded-lg border border-gray-200 bg-white p-4">
       <p className="mb-3 text-sm font-semibold text-xlent-ink">
-        Topp 5 kunder med flagg (siste 30 dager)
+        {t("dashboard.top_customers")}
       </p>
       {customers.length === 0 ? (
-        <p className="text-center text-sm text-xlent-muted">Ingen flaggede kunder</p>
+        <p className="text-center text-sm text-xlent-muted">{t("dashboard.no_flagged_customers")}</p>
       ) : (
         <div className="space-y-2">
           {customers.map((c, i) => (
@@ -180,14 +184,15 @@ function TopCustomers({ customers }: { customers: { customer_name: string; flag_
 // ── Audit-aktivitet ───────────────────────────────────────────────────────────
 
 function AuditActivity({ actions }: { actions: { action: string; count: number }[] }) {
+  const { t } = useTranslation("pages");
   const max = Math.max(...actions.map((a) => a.count), 1);
   return (
     <div className="rounded-lg border border-gray-200 bg-white p-4">
       <p className="mb-3 text-sm font-semibold text-xlent-ink">
-        Audit-aktivitet (siste 7 dager)
+        {t("dashboard.audit_activity")}
       </p>
       {actions.length === 0 ? (
-        <p className="text-center text-sm text-xlent-muted">Ingen aktivitet</p>
+        <p className="text-center text-sm text-xlent-muted">{t("dashboard.no_activity")}</p>
       ) : (
         <div className="space-y-2">
           {actions.map((a, i) => (
@@ -217,6 +222,7 @@ function AuditActivity({ actions }: { actions: { action: string; count: number }
 // ── Hovedelement ──────────────────────────────────────────────────────────────
 
 export function DashboardPage() {
+  const { t, i18n } = useTranslation("pages");
   const { data, isLoading, error, dataUpdatedAt } = useQuery({
     queryKey: ["dashboard"],
     queryFn: getDashboard,
@@ -225,20 +231,23 @@ export function DashboardPage() {
   });
 
   const updatedAt = dataUpdatedAt
-    ? new Date(dataUpdatedAt).toLocaleTimeString("nb-NO", { hour: "2-digit", minute: "2-digit" })
+    ? new Date(dataUpdatedAt).toLocaleTimeString(
+        i18n.language === "en" ? "en-GB" : "nb-NO",
+        { hour: "2-digit", minute: "2-digit" },
+      )
     : null;
 
   return (
     <div className="mx-auto max-w-6xl space-y-6 p-6">
       <div className="flex items-end justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-semibold text-xlent-ink">Compliance-dashboard</h1>
+          <h1 className="text-2xl font-semibold text-xlent-ink">{t("dashboard.title")}</h1>
           <p className="mt-1 text-sm text-xlent-muted">
-            Nøkkeltall og trender for compliance-offiseren. Oppdateres automatisk hvert 2. minutt.
+            {t("dashboard.subtitle")}
           </p>
         </div>
         {updatedAt && (
-          <p className="shrink-0 text-xs text-xlent-muted">Sist oppdatert {updatedAt}</p>
+          <p className="shrink-0 text-xs text-xlent-muted">{t("dashboard.updated_at", { time: updatedAt })}</p>
         )}
       </div>
 
@@ -250,7 +259,7 @@ export function DashboardPage() {
 
       {error && (
         <div className="rounded-lg border border-red-100 bg-red-50 p-4 text-sm text-traffic-red">
-          Kunne ikke laste dashboard. Sjekk at backend kjører.
+          {t("dashboard.loading_error")}
         </div>
       )}
 
@@ -259,52 +268,52 @@ export function DashboardPage() {
           {/* KPI-kort */}
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
             <StatCard
-              label="Totalt behandlet"
+              label={t("dashboard.kpi_total")}
               value={data.totals.invoices_total.toLocaleString("nb-NO")}
-              sub="fakturaer"
+              sub={t("dashboard.kpi_total_sub")}
               color="blue"
             />
             <StatCard
-              label="Siste 7 dager"
+              label={t("dashboard.kpi_week")}
               value={data.totals.invoices_this_week}
-              sub="nye fakturaer"
+              sub={t("dashboard.kpi_week_sub")}
             />
             <StatCard
-              label="Siste 30 dager"
+              label={t("dashboard.kpi_month")}
               value={data.totals.invoices_this_month}
-              sub="nye fakturaer"
+              sub={t("dashboard.kpi_month_sub")}
             />
             <StatCard
-              label="Åpne flagg"
+              label={t("dashboard.kpi_flags")}
               value={data.totals.open_flags}
-              sub="krever gjennomgang"
+              sub={t("dashboard.kpi_flags_sub")}
               color={data.totals.open_flags > 0 ? "red" : "green"}
             />
             <StatCard
-              label="Snitt behandlingstid"
+              label={t("dashboard.kpi_processing")}
               value={
                 data.totals.avg_processing_seconds < 60
                   ? `${Math.round(data.totals.avg_processing_seconds)}s`
                   : `${Math.round(data.totals.avg_processing_seconds / 60)}min`
               }
-              sub="upload → screenet"
+              sub={t("dashboard.kpi_processing_sub")}
             />
           </div>
 
           {/* Sanksjonsstatistikk */}
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
             <StatCard
-              label="Sanksjonssjekker (30 dager)"
+              label={t("dashboard.sanctions_total")}
               value={data.sanctions.total_screenings_this_month.toLocaleString("nb-NO")}
               color="blue"
             />
             <StatCard
-              label="Bekreftede treff"
+              label={t("dashboard.confirmed_matches")}
               value={data.sanctions.confirmed_matches}
               color={data.sanctions.confirmed_matches > 0 ? "red" : "green"}
             />
             <StatCard
-              label="Potensielle treff"
+              label={t("dashboard.potential_matches")}
               value={data.sanctions.potential_matches}
               color={data.sanctions.potential_matches > 0 ? "yellow" : "green"}
             />
@@ -328,7 +337,7 @@ export function DashboardPage() {
 
           {/* Status-fordeling */}
           <div className="rounded-lg border border-gray-200 bg-white p-4">
-            <p className="mb-3 text-sm font-semibold text-xlent-ink">Pipeline-status</p>
+            <p className="mb-3 text-sm font-semibold text-xlent-ink">{t("dashboard.pipeline_status")}</p>
             <div className="flex flex-wrap gap-2">
               {Object.entries(data.status_distribution)
                 .sort(([, a], [, b]) => b - a)

@@ -5,6 +5,7 @@ import { BrowserRouter } from "react-router-dom";
 
 import { App } from "@/App";
 import "@/index.css";
+import "@/i18n"; // initialiser i18next før React renderer
 
 const Devtools = import.meta.env.DEV
   ? lazy(async () => {

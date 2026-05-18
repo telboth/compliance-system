@@ -10,6 +10,7 @@ import { useQuery } from "@tanstack/react-query";
 import clsx from "clsx";
 import { getAuditLog, verifyAuditChain } from "@/api/audit";
 import type { AuditLogEntry } from "@/api/audit";
+import { useTranslation } from "react-i18next";
 
 // ── Ikon per handling ─────────────────────────────────────────────────────────
 
@@ -103,6 +104,8 @@ export function AuditTimeline({ invoiceId }: AuditTimelineProps) {
   const [verifying, setVerifying] = useState(false);
   const [verifyResult, setVerifyResult] = useState<{ ok: boolean; errors: string[] } | null>(null);
 
+  const { t } = useTranslation("components");
+
   const { data, isLoading, error } = useQuery({
     queryKey: ["audit-log", invoiceId],
     queryFn: () => getAuditLog(invoiceId),
@@ -125,9 +128,9 @@ export function AuditTimeline({ invoiceId }: AuditTimelineProps) {
     <section className="rounded-lg border border-gray-200 bg-white p-6">
       <div className="mb-4 flex items-center justify-between gap-4">
         <div>
-          <h2 className="text-base font-semibold text-xlent-ink">Revisjonslogg</h2>
+          <h2 className="text-base font-semibold text-xlent-ink">{t("audit.title")}</h2>
           <p className="text-xs text-xlent-muted">
-            Hash-kjedet, append-only sporlogg — alle hendelser for denne fakturaen.
+            {t("audit.subtitle")}
           </p>
         </div>
         <div className="flex shrink-0 gap-2">
@@ -135,14 +138,14 @@ export function AuditTimeline({ invoiceId }: AuditTimelineProps) {
             onClick={() => setShowHashes((s) => !s)}
             className="rounded border border-gray-200 px-2 py-1 text-xs text-xlent-muted hover:bg-gray-50"
           >
-            {showHashes ? "Skjul hashes" : "Vis hashes"}
+            {showHashes ? t("audit.hide_hashes") : t("audit.show_hashes")}
           </button>
           <button
             onClick={handleVerify}
             disabled={verifying}
             className="rounded border border-gray-200 px-2 py-1 text-xs text-xlent-muted hover:bg-gray-50 disabled:opacity-50"
           >
-            {verifying ? "Verifiserer…" : "Verifiser kjede"}
+            {verifying ? t("audit.verifying") : t("audit.verify")}
           </button>
         </div>
       </div>
@@ -157,10 +160,10 @@ export function AuditTimeline({ invoiceId }: AuditTimelineProps) {
           )}
         >
           {verifyResult.ok ? (
-            "✓ Hash-kjeden er intakt — ingen innslag har blitt endret."
+            t("audit.chain_ok")
           ) : (
             <>
-              <p className="font-medium">Kjede-brudd oppdaget!</p>
+              <p className="font-medium">{t("audit.chain_broken")}</p>
               {verifyResult.errors.map((e, i) => (
                 <p key={i} className="mt-0.5">
                   {e}
@@ -172,15 +175,15 @@ export function AuditTimeline({ invoiceId }: AuditTimelineProps) {
       )}
 
       {isLoading && (
-        <p className="py-8 text-center text-sm text-xlent-muted">Laster revisjonslogg …</p>
+        <p className="py-8 text-center text-sm text-xlent-muted">{t("audit.loading")}</p>
       )}
       {error && (
-        <p className="py-4 text-center text-sm text-traffic-red">Kunne ikke laste logg.</p>
+        <p className="py-4 text-center text-sm text-traffic-red">{t("audit.error")}</p>
       )}
 
       {data && data.items.length === 0 && (
         <p className="py-8 text-center text-sm text-xlent-muted">
-          Ingen audit-innslag ennå for denne fakturaen.
+          {t("audit.empty")}
         </p>
       )}
 
@@ -190,7 +193,7 @@ export function AuditTimeline({ invoiceId }: AuditTimelineProps) {
             <AuditEntry key={entry.id} entry={entry} showHash={showHashes} />
           ))}
           <p className="mt-2 text-xs text-gray-400">
-            {data.total} innslag totalt
+            {t("audit.total", { total: data.total })}
           </p>
         </div>
       )}

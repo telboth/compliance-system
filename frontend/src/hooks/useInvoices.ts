@@ -26,6 +26,7 @@ import {
   listExtendedScreenFeedback,
   reparseInvoice,
   reviewInvoice,
+  escalateInvoiceRisk,
   startExtendedScreening,
   startScreening,
   searchInvoices,
@@ -38,8 +39,10 @@ import {
   type InvoiceFieldsUpdate,
   type InvoiceLineUpdate,
   type ReviewCreate,
+  type RiskEscalationCreate,
 } from "@/api/invoices";
 import type {
+  ApprovalState,
   ComplianceScore,
   ExtendedScreenClaim,
   ExtendedScreenFeedback,
@@ -74,6 +77,7 @@ export interface InvoiceListFilters {
   status?: InvoiceStatus | null;
   direction?: InvoiceDirection | null;
   compliance_score?: ComplianceScore | null;
+  approval_state?: ApprovalState | null;
   vat_note_status?: "ok" | "warn" | "error" | null;
   email_note_status?: "ok" | "warn" | "error" | null;
   destination_country?: string | null;
@@ -252,6 +256,23 @@ export function useReviewInvoice(invoiceId: string) {
       actor,
     }: ReviewCreate & { actor?: string }) =>
       reviewInvoice(invoiceId, { decision, reason }, actor),
+    onSuccess: (data) => {
+      queryClient.setQueryData(invoiceKeys.detail(invoiceId), data);
+      void queryClient.invalidateQueries({ queryKey: invoiceKeys.lists() });
+      void queryClient.invalidateQueries({ queryKey: reviewQueueKeys.all });
+    },
+  });
+}
+
+export function useEscalateInvoiceRisk(invoiceId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      target_score,
+      reason,
+      actor,
+    }: RiskEscalationCreate & { actor?: string }) =>
+      escalateInvoiceRisk(invoiceId, { target_score, reason }, actor),
     onSuccess: (data) => {
       queryClient.setQueryData(invoiceKeys.detail(invoiceId), data);
       void queryClient.invalidateQueries({ queryKey: invoiceKeys.lists() });

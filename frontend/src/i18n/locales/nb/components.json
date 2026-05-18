@@ -1,0 +1,69 @@
+{
+  "uploader": {
+    "type_label": "Type:",
+    "direction_incoming": "Innkommende",
+    "direction_outgoing": "Utgående",
+    "customer_label": "Kunde:",
+    "customer_none": "— Ingen —",
+    "loading": "Laster opp …",
+    "drop_active": "Slipp filen her",
+    "drop_hint": "Dra og slipp en eller flere invoices (PDF, XLSX, PNG, JPG, GIF), eller klikk for å velge",
+    "size_hint": "Maks 25 MB per fil. PDF, XLSX, PNG, JPG, GIF.",
+    "loading_batch": "Laster opp fil {{current}} av {{total}} …",
+    "error": "Opplasting feilet. Sjekk at filen er gyldig og prøv igjen."
+  },
+  "pagination": {
+    "showing": "Viser {{from}}–{{to}} av {{total}}",
+    "prev": "← Forrige",
+    "next": "Neste →"
+  },
+  "notifications": {
+    "title": "Varsler",
+    "new_count": "{{count}} nye",
+    "mark_all": "Merk alle lest",
+    "loading": "Laster varsler …",
+    "empty": "Ingen varsler ennå",
+    "showing": "Viser {{count}} siste"
+  },
+  "editable": {
+    "save_error": "Lagring feilet",
+    "click_to_edit": "Klikk for å redigere"
+  },
+  "audit": {
+    "title": "Revisjonslogg",
+    "subtitle": "Hash-kjedet, append-only sporlogg — kan ikke endres eller slettes.",
+    "hide_hashes": "Skjul hashes",
+    "show_hashes": "Vis hashes",
+    "verifying": "Verifiserer…",
+    "verify": "Verifiser kjede",
+    "chain_ok": "✓ Hash-kjeden er intakt — ingen innslag har blitt endret.",
+    "chain_broken": "Kjede-brudd oppdaget!",
+    "loading": "Laster revisjonslogg …",
+    "error": "Kunne ikke laste logg.",
+    "empty": "Ingen audit-innslag ennå for denne fakturaen.",
+    "total": "{{total}} innslag totalt"
+  },
+  "compliance": {
+    "green_label": "Lav risiko",
+    "yellow_label": "Normal aktsomhet",
+    "orange_label": "Forhøyet risiko",
+    "red_label": "Høy risiko",
+    "subtitle": "Samlet risikovurdering basert på screening, destinasjonsland og LLM-analyse",
+    "reason_sanctions_red": "Bekreftet sanksjons-treff",
+    "reason_country_tier4": "Destinasjonsland ({{country}}) er klassifisert som høy-risikoland",
+    "reason_sanctions_yellow": "Potensielt sanksjons-treff",
+    "reason_country_tier3": "Destinasjonsland ({{country}}) er klassifisert som forhøyet risiko",
+    "reason_dual_use": "LLM-analyse indikerer dual-use / eksportkontroll-relevans",
+    "reason_country_tier2": "Destinasjonsland ({{country}}) krever normal aktsomhet",
+    "reason_nato": "Destinasjonsland ({{country}}) er NATO-medlem og demper totalrisiko",
+    "reason_sanctions_green": "Godkjent sanksjonsscreening",
+    "reason_country_tier1": "Destinasjonsland ({{country}}) er lav-risikoland"
+  },
+  "model_selector": {
+    "loading": "Laster modeller…",
+    "label": "Modell:",
+    "missing_key_title": "Legg til API-nøkkel i .secrets for å bruke {{provider}}",
+    "missing_key_badge": "⚠ Ingen nøkkel",
+    "no_key": "ingen nøkkel"
+  }
+}

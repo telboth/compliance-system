@@ -8,6 +8,7 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import clsx from "clsx";
+import { useTranslation } from "react-i18next";
 import { useAuth } from "@/auth/AuthContext";
 import {
   listAgreements,
@@ -17,9 +18,9 @@ import type { Agreement } from "@/api/agreements";
 
 // ── Hjelpere ──────────────────────────────────────────────────────────────────
 
-function formatDate(dateStr: string | null): string {
+function formatDate(dateStr: string | null, locale: string): string {
   if (!dateStr) return "—";
-  return new Date(dateStr).toLocaleDateString("nb-NO", {
+  return new Date(dateStr).toLocaleDateString(locale, {
     day: "numeric",
     month: "short",
     year: "numeric",
@@ -41,6 +42,7 @@ function TermChip({ label, value }: { label: string; value: unknown }) {
 
 function AgreementCard({ agreement }: { agreement: Agreement }) {
   const [expanded, setExpanded] = useState(false);
+  const { t, i18n } = useTranslation("pages");
   const terms = agreement.extracted_terms;
   const isExpired =
     agreement.valid_to !== null && new Date(agreement.valid_to) < new Date();
@@ -65,12 +67,12 @@ function AgreementCard({ agreement }: { agreement: Agreement }) {
             )}
             {isExpired && (
               <span className="rounded-full bg-orange-100 px-2 py-0.5 text-xs font-medium text-orange-800">
-                Utløpt
+                {t("agreements.card.expired")}
               </span>
             )}
             {!agreement.is_active && !isExpired && (
               <span className="rounded-full bg-gray-200 px-2 py-0.5 text-xs text-gray-500">
-                Inaktiv
+                {t("agreements.card.inactive")}
               </span>
             )}
           </div>
@@ -80,13 +82,13 @@ function AgreementCard({ agreement }: { agreement: Agreement }) {
           )}
 
           <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-xlent-muted">
-            <span>Gyldig: {formatDate(agreement.valid_from)} → {formatDate(agreement.valid_to)}</span>
+            <span>{t("agreements.card.valid", { from: formatDate(agreement.valid_from, i18n.language === "en" ? "en-GB" : "nb-NO"), to: formatDate(agreement.valid_to, i18n.language === "en" ? "en-GB" : "nb-NO") })}</span>
             {agreement.original_filename && (
               <span>📄 {agreement.original_filename}</span>
             )}
             {agreement.extraction_model && (
               <span className="rounded bg-gray-100 px-1">
-                Ekstrahert med {agreement.extraction_model}
+                {t("agreements.card.extracted_with", { model: agreement.extraction_model })}
               </span>
             )}
           </div>
@@ -96,31 +98,31 @@ function AgreementCard({ agreement }: { agreement: Agreement }) {
           onClick={() => setExpanded((e) => !e)}
           className="shrink-0 rounded border border-gray-200 px-2 py-1 text-xs text-xlent-muted hover:bg-gray-50"
         >
-          {expanded ? "Lukk ▲" : "Vis vilkår ▼"}
+          {expanded ? t("agreements.card.collapse") : t("agreements.card.expand")}
         </button>
       </div>
 
       {expanded && terms && (
         <div className="mt-4 rounded-lg bg-gray-50 p-3">
-          <p className="mb-2 text-xs font-semibold text-xlent-muted">Ekstraherte vilkår</p>
+          <p className="mb-2 text-xs font-semibold text-xlent-muted">{t("agreements.card.terms_title")}</p>
           <div className="grid grid-cols-1 gap-1 sm:grid-cols-2">
-            <TermChip label="Tillatte land" value={terms.allowed_countries} />
-            <TermChip label="Blokkerte land" value={terms.blocked_countries} />
-            <TermChip label="HS-koder" value={terms.allowed_hs_codes} />
-            <TermChip label="ECCN" value={terms.allowed_eccn} />
-            <TermChip label="Max enhetspris" value={terms.max_unit_price} />
-            <TermChip label="Max totalverdi" value={terms.max_total_value} />
-            <TermChip label="Valuta" value={terms.currency} />
-            <TermChip label="Incoterms" value={terms.allowed_incoterms} />
+            <TermChip label={t("agreements.card.term_allowed_countries")} value={terms.allowed_countries} />
+            <TermChip label={t("agreements.card.term_blocked_countries")} value={terms.blocked_countries} />
+            <TermChip label={t("agreements.card.term_hs_codes")} value={terms.allowed_hs_codes} />
+            <TermChip label={t("agreements.card.term_eccn")} value={terms.allowed_eccn} />
+            <TermChip label={t("agreements.card.term_max_unit")} value={terms.max_unit_price} />
+            <TermChip label={t("agreements.card.term_max_total")} value={terms.max_total_value} />
+            <TermChip label={t("agreements.card.term_currency")} value={terms.currency} />
+            <TermChip label={t("agreements.card.term_incoterms")} value={terms.allowed_incoterms} />
             {Boolean(terms.customer_names) && (
-              <TermChip label="Kunder" value={terms.customer_names} />
+              <TermChip label={t("agreements.card.term_customers")} value={terms.customer_names} />
             )}
           </div>
           {Boolean(terms.notes) && (
             <p className="mt-2 text-xs text-xlent-muted">{String(terms.notes)}</p>
           )}
           {Boolean(terms.error) && (
-            <p className="mt-2 text-xs text-traffic-red">Ekstraksjonsfeil: {String(terms.error)}</p>
+            <p className="mt-2 text-xs text-traffic-red">{t("agreements.card.extraction_error", { error: String(terms.error) })}</p>
           )}
         </div>
       )}
@@ -135,6 +137,7 @@ interface UploadFormProps {
 }
 
 function UploadForm({ onClose }: UploadFormProps) {
+  const { t } = useTranslation("pages");
   const [name, setName] = useState("");
   const [reference, setReference] = useState("");
   const [description, setDescription] = useState("");
@@ -164,13 +167,13 @@ function UploadForm({ onClose }: UploadFormProps) {
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4">
       <div className="w-full max-w-lg rounded-xl bg-white p-6 shadow-2xl">
         <div className="mb-4 flex items-center justify-between">
-          <h2 className="text-lg font-semibold text-xlent-ink">Last opp rammeavtale</h2>
+          <h2 className="text-lg font-semibold text-xlent-ink">{t("agreements.upload.title")}</h2>
           <button onClick={onClose} className="text-xlent-muted hover:text-xlent-ink">✕</button>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="mb-1 block text-xs font-semibold text-xlent-muted">Navn *</label>
+            <label className="mb-1 block text-xs font-semibold text-xlent-muted">{t("agreements.upload.name_label")}</label>
             <input
               required
               value={name}
@@ -180,7 +183,7 @@ function UploadForm({ onClose }: UploadFormProps) {
             />
           </div>
           <div>
-            <label className="mb-1 block text-xs font-semibold text-xlent-muted">Referanse</label>
+            <label className="mb-1 block text-xs font-semibold text-xlent-muted">{t("agreements.upload.reference_label")}</label>
             <input
               value={reference}
               onChange={(e) => setReference(e.target.value)}
@@ -189,7 +192,7 @@ function UploadForm({ onClose }: UploadFormProps) {
             />
           </div>
           <div>
-            <label className="mb-1 block text-xs font-semibold text-xlent-muted">Beskrivelse</label>
+            <label className="mb-1 block text-xs font-semibold text-xlent-muted">{t("agreements.upload.description_label")}</label>
             <textarea
               value={description}
               onChange={(e) => setDescription(e.target.value)}
@@ -199,7 +202,7 @@ function UploadForm({ onClose }: UploadFormProps) {
           </div>
           <div>
             <label className="mb-1 block text-xs font-semibold text-xlent-muted">
-              PDF-fil (valgfri — LLM ekstraherer vilkår automatisk)
+              {t("agreements.upload.file_label")}
             </label>
             <input
               type="file"
@@ -211,7 +214,7 @@ function UploadForm({ onClose }: UploadFormProps) {
 
           {mutation.isError && (
             <p className="text-sm text-traffic-red">
-              Feil: {String((mutation.error as Error)?.message ?? mutation.error)}
+              {t("agreements.upload.error_prefix")}{String((mutation.error as Error)?.message ?? mutation.error)}
             </p>
           )}
 
@@ -221,14 +224,14 @@ function UploadForm({ onClose }: UploadFormProps) {
               onClick={onClose}
               className="rounded border border-gray-200 px-4 py-2 text-sm text-xlent-muted hover:bg-gray-50"
             >
-              Avbryt
+              {t("agreements.upload.cancel")}
             </button>
             <button
               type="submit"
               disabled={mutation.isPending}
               className="rounded bg-xlent-primary px-4 py-2 text-sm font-medium text-white hover:bg-xlent-primary/90 disabled:opacity-50"
             >
-              {mutation.isPending ? "Laster opp…" : "Last opp"}
+              {mutation.isPending ? t("agreements.upload.uploading") : t("agreements.upload.submit")}
             </button>
           </div>
         </form>
@@ -240,6 +243,7 @@ function UploadForm({ onClose }: UploadFormProps) {
 // ── Hovedelement ──────────────────────────────────────────────────────────────
 
 export function AgreementsPage() {
+  const { t } = useTranslation("pages");
   const { can } = useAuth();
   const canEdit = can("agreements:edit");
 
@@ -258,17 +262,15 @@ export function AgreementsPage() {
     <div className="mx-auto max-w-4xl space-y-4 p-6">
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-semibold text-xlent-ink">Rammeavtaler</h1>
+          <h1 className="text-2xl font-semibold text-xlent-ink">{t("agreements.title")}</h1>
           <p className="mt-1 text-sm text-xlent-muted">
-            Last opp rammeavtaler som PDF. LLM ekstraherer automatisk vilkår som
-            tillatte land, produkter, priser og gyldighetsperiode. Invoices kan
-            sjekkes mot disse vilkårene.
+            {t("agreements.subtitle")}
           </p>
         </div>
         <button
           onClick={canEdit ? () => setShowForm(true) : undefined}
           disabled={!canEdit}
-          title={!canEdit ? "Du har ikke tilgang til å laste opp avtaler med din nåværende rolle" : undefined}
+          title={!canEdit ? t("agreements.no_access_tooltip") : undefined}
           className={clsx(
             "shrink-0 rounded-lg px-4 py-2 text-sm font-medium",
             canEdit
@@ -276,22 +278,22 @@ export function AgreementsPage() {
               : "cursor-not-allowed bg-gray-100 text-gray-400",
           )}
         >
-          + Ny avtale
+          {t("agreements.new_button")}
         </button>
       </div>
 
-      {isLoading && <p className="py-8 text-center text-sm text-xlent-muted">Laster avtaler …</p>}
-      {error && <p className="py-4 text-sm text-traffic-red">Kunne ikke laste avtaler.</p>}
+      {isLoading && <p className="py-8 text-center text-sm text-xlent-muted">{t("agreements.loading")}</p>}
+      {error && <p className="py-4 text-sm text-traffic-red">{t("agreements.error")}</p>}
 
       {agreements && agreements.length === 0 && (
         <div className="rounded-lg border border-dashed border-gray-200 py-16 text-center">
-          <p className="text-sm text-xlent-muted">Ingen rammeavtaler lastet opp ennå.</p>
+          <p className="text-sm text-xlent-muted">{t("agreements.empty")}</p>
           {canEdit && (
             <button
               onClick={() => setShowForm(true)}
               className="mt-3 rounded-lg bg-xlent-primary px-4 py-2 text-sm font-medium text-white hover:bg-xlent-primary/90"
             >
-              Last opp første avtale
+              {t("agreements.empty_button")}
             </button>
           )}
         </div>
@@ -300,7 +302,7 @@ export function AgreementsPage() {
       {active.length > 0 && (
         <div className="space-y-3">
           <p className="text-xs font-semibold uppercase tracking-wide text-xlent-muted">
-            Aktive avtaler ({active.length})
+            {t("agreements.active", { count: active.length })}
           </p>
           {active.map((ag) => (
             <AgreementCard key={ag.id} agreement={ag} />
@@ -311,7 +313,7 @@ export function AgreementsPage() {
       {inactive.length > 0 && (
         <div className="space-y-3">
           <p className="text-xs font-semibold uppercase tracking-wide text-xlent-muted">
-            Inaktive ({inactive.length})
+            {t("agreements.inactive", { count: inactive.length })}
           </p>
           {inactive.map((ag) => (
             <AgreementCard key={ag.id} agreement={ag} />

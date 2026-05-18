@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import type { AxiosError } from "axios";
+import { useTranslation } from "react-i18next";
 
 import { Pagination } from "@/components/Pagination";
 import {
@@ -9,6 +10,7 @@ import {
   useReindexInvoiceRAG,
   useReindexInvoiceSearch,
 } from "@/hooks/useInvoices";
+import { resolveCountryToIso2 } from "@/lib/country";
 
 interface SearchFormState {
   q: string;
@@ -40,8 +42,8 @@ function stripMarkTags(snippet: string): string {
   return snippet.replaceAll("<mark>", "").replaceAll("</mark>", "");
 }
 
-function formatRagError(error: unknown): string {
-  const fallback = "RAG-søk feilet.";
+function formatRagError(error: unknown, t: (key: string) => string): string {
+  const fallback = t("invoice_search.rag_error_generic");
   const ax = error as AxiosError<{
     detail?: unknown;
     message?: string;
@@ -49,7 +51,7 @@ function formatRagError(error: unknown): string {
   const status = ax?.response?.status;
   const data = ax?.response?.data;
   if (status === 422) {
-    return "RAG-request ble avvist (422). Sjekk query/dato-felt.";
+    return t("invoice_search.rag_error_422");
   }
   if (typeof data?.message === "string" && data.message.trim()) {
     return `${fallback} ${data.message.trim()}`;
@@ -61,6 +63,7 @@ function formatRagError(error: unknown): string {
 }
 
 export function InvoiceSearchPage() {
+  const { t } = useTranslation("pages");
   const [mode, setMode] = useState<SearchMode>("classic");
 
   const [form, setForm] = useState<SearchFormState>({
@@ -74,6 +77,7 @@ export function InvoiceSearchPage() {
   });
   const [submitted, setSubmitted] = useState<SearchFormState>(form);
   const [offset, setOffset] = useState(0);
+  const [classicCountryError, setClassicCountryError] = useState<string | null>(null);
   const limit = 30;
   const reindexClassic = useReindexInvoiceSearch();
 
@@ -89,6 +93,7 @@ export function InvoiceSearchPage() {
   });
   const [ragSubmitted, setRagSubmitted] = useState<RAGFormState | null>(null);
   const [ragValidationError, setRagValidationError] = useState<string | null>(null);
+  const [ragCountryError, setRagCountryError] = useState<string | null>(null);
   const [ragEvidenceOnly, setRagEvidenceOnly] = useState<boolean>(false);
   const reindexRag = useReindexInvoiceRAG();
 
@@ -129,13 +134,19 @@ export function InvoiceSearchPage() {
   }
 
   function submitClassic() {
+    const resolvedCountry = resolveCountryToIso2(form.destination_country);
+    if (form.destination_country.trim() && !resolvedCountry) {
+      setClassicCountryError(t("invoice_search.country_invalid"));
+      return;
+    }
+    setClassicCountryError(null);
     setOffset(0);
     setSubmitted({
       q: form.q.trim(),
       entity_q: form.entity_q.trim(),
       line_q: form.line_q.trim(),
       serial_number: form.serial_number.trim(),
-      destination_country: form.destination_country.trim().toUpperCase(),
+      destination_country: resolvedCountry,
       date_from: form.date_from.trim(),
       date_to: form.date_to.trim(),
     });
@@ -154,25 +165,32 @@ export function InvoiceSearchPage() {
     setForm(empty);
     setSubmitted(empty);
     setOffset(0);
+    setClassicCountryError(null);
   }
 
   function submitRag() {
     const query = ragForm.query.trim();
     if (!query) {
-      setRagValidationError("Spørsmål kan ikke være tomt.");
+      setRagValidationError(t("invoice_search.question_empty"));
       return;
     }
     if (query.length < 2) {
-      setRagValidationError("Spørsmål må ha minst 2 tegn.");
+      setRagValidationError(t("invoice_search.question_too_short"));
+      return;
+    }
+    const resolvedCountry = resolveCountryToIso2(ragForm.destination_country);
+    if (ragForm.destination_country.trim() && !resolvedCountry) {
+      setRagCountryError(t("invoice_search.country_invalid"));
       return;
     }
     setRagValidationError(null);
+    setRagCountryError(null);
     setRagSubmitted({
       query,
       entity_q: ragForm.entity_q.trim(),
       line_q: ragForm.line_q.trim(),
       serial_number: ragForm.serial_number.trim(),
-      destination_country: ragForm.destination_country.trim().toUpperCase(),
+      destination_country: resolvedCountry,
       date_from: ragForm.date_from.trim(),
       date_to: ragForm.date_to.trim(),
       with_answer: ragForm.with_answer,
@@ -193,6 +211,7 @@ export function InvoiceSearchPage() {
     setRagForm(empty);
     setRagSubmitted(null);
     setRagValidationError(null);
+    setRagCountryError(null);
     setRagEvidenceOnly(false);
   }
 
@@ -202,9 +221,9 @@ export function InvoiceSearchPage() {
     <div className="mx-auto max-w-6xl space-y-6 p-6">
       <header className="flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-semibold text-xlent-ink">Søk i invoices</h1>
+          <h1 className="text-2xl font-semibold text-xlent-ink">{t("invoice_search.title")}</h1>
           <p className="mt-1 text-sm text-xlent-muted">
-            Klassisk søk og hybrid RAG over hele invoice-teksten.
+            {t("invoice_search.subtitle")}
           </p>
           <div className="mt-3 inline-flex rounded border border-gray-200 bg-white p-1 text-xs">
             <button
@@ -213,7 +232,7 @@ export function InvoiceSearchPage() {
                 mode === "classic" ? "bg-xlent-primary text-white" : "text-xlent-muted"
               }`}
             >
-              Klassisk
+              {t("invoice_search.mode_classic")}
             </button>
             <button
               onClick={() => setMode("rag")}
@@ -221,7 +240,7 @@ export function InvoiceSearchPage() {
                 mode === "rag" ? "bg-xlent-primary text-white" : "text-xlent-muted"
               }`}
             >
-              Hybrid RAG
+              {t("invoice_search.mode_rag")}
             </button>
           </div>
         </div>
@@ -229,13 +248,13 @@ export function InvoiceSearchPage() {
           onClick={() => activeReindex.mutate()}
           disabled={activeReindex.isPending}
           className="rounded border border-gray-200 px-3 py-1.5 text-xs text-xlent-muted hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
-          title="Bygg søkeindeks på nytt fra databasen"
+          title={t("invoice_search.reindex_title")}
         >
           {activeReindex.isPending
-            ? "Reindekserer …"
+            ? t("invoice_search.reindexing")
             : mode === "classic"
-              ? "Reindekser klassisk søk"
-              : "Reindekser RAG"}
+              ? t("invoice_search.reindex_classic")
+              : t("invoice_search.reindex_rag")}
         </button>
       </header>
 
@@ -243,59 +262,65 @@ export function InvoiceSearchPage() {
         <>
           <section className="rounded-lg border border-gray-200 bg-white p-4">
             <h2 className="mb-3 text-xs font-semibold uppercase tracking-wide text-xlent-muted">
-              Søkekriterier
+              {t("invoice_search.criteria")}
             </h2>
             <div className="grid gap-3 md:grid-cols-2">
               <div className="md:col-span-2">
-                <label className="mb-1 block text-xs text-xlent-muted">Globalt søk</label>
+                <label className="mb-1 block text-xs text-xlent-muted">{t("invoice_search.global_search")}</label>
                 <input
                   className={INPUT_CLS}
                   value={form.q}
                   onChange={(e) => update("q", e.target.value)}
-                  placeholder="Entitet, varenavn, notater, dokumenttekst …"
+                  placeholder={t("invoice_search.global_placeholder")}
                 />
               </div>
               <div>
-                <label className="mb-1 block text-xs text-xlent-muted">Entitet (fuzzy)</label>
+                <label className="mb-1 block text-xs text-xlent-muted">{t("invoice_search.entity_fuzzy")}</label>
                 <input
                   className={INPUT_CLS}
                   value={form.entity_q}
                   onChange={(e) => update("entity_q", e.target.value)}
-                  placeholder="F.eks. Rosneft"
+                  placeholder={t("invoice_search.example_rosneft")}
                 />
               </div>
               <div>
-                <label className="mb-1 block text-xs text-xlent-muted">Varelinje (fuzzy)</label>
+                <label className="mb-1 block text-xs text-xlent-muted">{t("invoice_search.line_fuzzy")}</label>
                 <input
                   className={INPUT_CLS}
                   value={form.line_q}
                   onChange={(e) => update("line_q", e.target.value)}
-                  placeholder="F.eks. navigation module"
+                  placeholder={t("invoice_search.example_navigation")}
                 />
               </div>
               <div>
-                <label className="mb-1 block text-xs text-xlent-muted">Serienummer (eksakt)</label>
+                <label className="mb-1 block text-xs text-xlent-muted">{t("invoice_search.serial_exact")}</label>
                 <input
                   className={INPUT_CLS}
                   value={form.serial_number}
                   onChange={(e) => update("serial_number", e.target.value)}
-                  placeholder="F.eks. SN-7781-A"
+                  placeholder={t("invoice_search.example_serial")}
                 />
               </div>
               <div>
                 <label className="mb-1 block text-xs text-xlent-muted">
-                  Destinasjonsland (ISO2)
+                  {t("invoice_search.destination_iso2")}
                 </label>
                 <input
                   className={INPUT_CLS}
                   value={form.destination_country}
-                  onChange={(e) => update("destination_country", e.target.value.toUpperCase())}
-                  placeholder="F.eks. FR"
-                  maxLength={2}
+                  onChange={(e) => {
+                    update("destination_country", e.target.value);
+                    setClassicCountryError(null);
+                  }}
+                  placeholder={t("invoice_search.example_fr")}
+                  maxLength={32}
                 />
+                {classicCountryError && (
+                  <p className="mt-1 text-xs text-traffic-red">{classicCountryError}</p>
+                )}
               </div>
               <div>
-                <label className="mb-1 block text-xs text-xlent-muted">Fakturadato fra</label>
+                <label className="mb-1 block text-xs text-xlent-muted">{t("invoice_search.date_from")}</label>
                 <input
                   type="date"
                   className={INPUT_CLS}
@@ -304,7 +329,7 @@ export function InvoiceSearchPage() {
                 />
               </div>
               <div>
-                <label className="mb-1 block text-xs text-xlent-muted">Fakturadato til</label>
+                <label className="mb-1 block text-xs text-xlent-muted">{t("invoice_search.date_to")}</label>
                 <input
                   type="date"
                   className={INPUT_CLS}
@@ -318,13 +343,13 @@ export function InvoiceSearchPage() {
                 onClick={submitClassic}
                 className="rounded bg-xlent-primary px-3 py-1.5 text-sm font-medium text-white hover:bg-xlent-primary/90"
               >
-                Søk
+                {t("invoice_search.search_button")}
               </button>
               <button
                 onClick={resetClassic}
                 className="rounded border border-gray-200 px-3 py-1.5 text-sm text-xlent-muted hover:bg-gray-50"
               >
-                Nullstill
+                {t("invoice_search.reset_button")}
               </button>
             </div>
             {ragValidationError && (
@@ -335,47 +360,47 @@ export function InvoiceSearchPage() {
           <section className="rounded-lg border border-gray-200 bg-white p-4">
             <div className="mb-3 flex items-center justify-between">
               <h2 className="text-xs font-semibold uppercase tracking-wide text-xlent-muted">
-                Treff
+                {t("invoice_search.hits_title")}
               </h2>
               {classicSearch.data?.took_ms != null && (
                 <span className="text-xs text-xlent-muted">
-                  ES tid: {classicSearch.data.took_ms} ms
+                  {t("invoice_search.es_time")}: {classicSearch.data.took_ms} ms
                 </span>
               )}
             </div>
 
             {!hasClassicQuery && (
-              <p className="text-sm text-xlent-muted">Skriv søkekriterier og trykk Søk.</p>
+              <p className="text-sm text-xlent-muted">{t("invoice_search.write_criteria")}</p>
             )}
             {hasClassicQuery && classicSearch.isLoading && (
-              <p className="text-sm text-xlent-muted">Søker …</p>
+              <p className="text-sm text-xlent-muted">{t("invoice_search.searching")}</p>
             )}
             {hasClassicQuery && classicSearch.error && (
               <p className="text-sm text-traffic-red">
-                Søket feilet. Sjekk at Elasticsearch er oppe og at indeksen finnes.
+                {t("invoice_search.search_failed")}
               </p>
             )}
 
             {hasClassicQuery && classicSearch.data && (
               <>
-                <p className="mb-2 text-xs text-xlent-muted">{classicSearch.data.total} treff</p>
+                <p className="mb-2 text-xs text-xlent-muted">{classicSearch.data.total} {t("invoice_search.hits")}</p>
                 <div className="overflow-x-auto">
                   <table className="min-w-full divide-y divide-gray-200 text-sm">
                     <thead className="bg-xlent-surface text-left text-xs uppercase text-xlent-muted">
                       <tr>
-                        <th className="px-3 py-2">Score</th>
-                        <th className="px-3 py-2">Invoice</th>
-                        <th className="px-3 py-2">Land</th>
-                        <th className="px-3 py-2">Dato</th>
-                        <th className="px-3 py-2">Hva sendt hvor</th>
-                        <th className="px-3 py-2">Treffgrunnlag</th>
+                        <th className="px-3 py-2">{t("invoice_search.col_score")}</th>
+                        <th className="px-3 py-2">{t("invoice_search.col_invoice")}</th>
+                        <th className="px-3 py-2">{t("invoice_search.col_country")}</th>
+                        <th className="px-3 py-2">{t("invoice_search.col_date")}</th>
+                        <th className="px-3 py-2">{t("invoice_search.col_shipment")}</th>
+                        <th className="px-3 py-2">{t("invoice_search.col_basis")}</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-100">
                       {classicSearch.data.hits.length === 0 && (
                         <tr>
                           <td colSpan={6} className="px-3 py-6 text-center text-xlent-muted">
-                            Ingen treff.
+                            {t("invoice_search.no_hits")}
                           </td>
                         </tr>
                       )}
@@ -400,15 +425,15 @@ export function InvoiceSearchPage() {
                           </td>
                           <td className="px-3 py-2 text-xs text-xlent-muted">
                             <div>
-                              Fra: {hit.shipment_summary?.consignor ?? "—"}
+                              {t("invoice_search.from")}: {hit.shipment_summary?.consignor ?? "—"}
                               {" · "}
-                              Til: {hit.shipment_summary?.consignee ?? "—"}
+                              {t("invoice_search.to")}: {hit.shipment_summary?.consignee ?? "—"}
                             </div>
                             <div className="mt-0.5">
-                              Sluttbruker: {hit.shipment_summary?.end_user ?? "—"}
+                              {t("invoice_search.end_user")}: {hit.shipment_summary?.end_user ?? "—"}
                             </div>
                             <div className="mt-0.5">
-                              Varer:{" "}
+                              {t("invoice_search.items")}:{" "}
                               {(hit.shipment_summary?.top_items ?? []).slice(0, 2).join(", ") || "—"}
                             </div>
                           </td>
@@ -457,59 +482,65 @@ export function InvoiceSearchPage() {
         <>
           <section className="rounded-lg border border-gray-200 bg-white p-4">
             <h2 className="mb-3 text-xs font-semibold uppercase tracking-wide text-xlent-muted">
-              Hybrid RAG-spørring
+              {t("invoice_search.rag_query")}
             </h2>
             <div className="grid gap-3 md:grid-cols-2">
               <div className="md:col-span-2">
-                <label className="mb-1 block text-xs text-xlent-muted">Spørsmål / søk</label>
+                <label className="mb-1 block text-xs text-xlent-muted">{t("invoice_search.question")}</label>
                 <input
                   className={INPUT_CLS}
                   value={ragForm.query}
                   onChange={(e) => updateRag("query", e.target.value)}
-                  placeholder="F.eks. Er Rosneft involvert i noen invoices?"
+                  placeholder={t("invoice_search.question_placeholder")}
                 />
               </div>
               <div>
-                <label className="mb-1 block text-xs text-xlent-muted">Entitet (fuzzy)</label>
+                <label className="mb-1 block text-xs text-xlent-muted">{t("invoice_search.entity_fuzzy")}</label>
                 <input
                   className={INPUT_CLS}
                   value={ragForm.entity_q}
                   onChange={(e) => updateRag("entity_q", e.target.value)}
-                  placeholder="Valgfritt"
+                  placeholder={t("invoice_search.optional")}
                 />
               </div>
               <div>
-                <label className="mb-1 block text-xs text-xlent-muted">Varelinje (fuzzy)</label>
+                <label className="mb-1 block text-xs text-xlent-muted">{t("invoice_search.line_fuzzy")}</label>
                 <input
                   className={INPUT_CLS}
                   value={ragForm.line_q}
                   onChange={(e) => updateRag("line_q", e.target.value)}
-                  placeholder="Valgfritt"
+                  placeholder={t("invoice_search.optional")}
                 />
               </div>
               <div>
-                <label className="mb-1 block text-xs text-xlent-muted">Serienummer (eksakt)</label>
+                <label className="mb-1 block text-xs text-xlent-muted">{t("invoice_search.serial_exact")}</label>
                 <input
                   className={INPUT_CLS}
                   value={ragForm.serial_number}
                   onChange={(e) => updateRag("serial_number", e.target.value)}
-                  placeholder="Valgfritt"
+                  placeholder={t("invoice_search.optional")}
                 />
               </div>
               <div>
                 <label className="mb-1 block text-xs text-xlent-muted">
-                  Destinasjonsland (ISO2)
+                  {t("invoice_search.destination_iso2")}
                 </label>
                 <input
                   className={INPUT_CLS}
                   value={ragForm.destination_country}
-                  onChange={(e) => updateRag("destination_country", e.target.value.toUpperCase())}
-                  placeholder="Valgfritt"
-                  maxLength={2}
+                  onChange={(e) => {
+                    updateRag("destination_country", e.target.value);
+                    setRagCountryError(null);
+                  }}
+                  placeholder={t("invoice_search.optional")}
+                  maxLength={32}
                 />
+                {ragCountryError && (
+                  <p className="mt-1 text-xs text-traffic-red">{ragCountryError}</p>
+                )}
               </div>
               <div>
-                <label className="mb-1 block text-xs text-xlent-muted">Fakturadato fra</label>
+                <label className="mb-1 block text-xs text-xlent-muted">{t("invoice_search.date_from")}</label>
                 <input
                   type="date"
                   className={INPUT_CLS}
@@ -518,7 +549,7 @@ export function InvoiceSearchPage() {
                 />
               </div>
               <div>
-                <label className="mb-1 block text-xs text-xlent-muted">Fakturadato til</label>
+                <label className="mb-1 block text-xs text-xlent-muted">{t("invoice_search.date_to")}</label>
                 <input
                   type="date"
                   className={INPUT_CLS}
@@ -534,7 +565,7 @@ export function InvoiceSearchPage() {
                 checked={ragForm.with_answer}
                 onChange={(e) => updateRag("with_answer", e.target.checked)}
               />
-              Generer LLM-svar fra toppkilder
+              {t("invoice_search.generate_answer")}
             </label>
 
             <div className="mt-4 flex gap-2">
@@ -542,13 +573,13 @@ export function InvoiceSearchPage() {
                 onClick={submitRag}
                 className="rounded bg-xlent-primary px-3 py-1.5 text-sm font-medium text-white hover:bg-xlent-primary/90"
               >
-                Kjør RAG-søk
+                {t("invoice_search.run_rag")}
               </button>
               <button
                 onClick={resetRag}
                 className="rounded border border-gray-200 px-3 py-1.5 text-sm text-xlent-muted hover:bg-gray-50"
               >
-                Nullstill
+                {t("invoice_search.reset_button")}
               </button>
             </div>
           </section>
@@ -556,30 +587,30 @@ export function InvoiceSearchPage() {
           <section className="rounded-lg border border-gray-200 bg-white p-4">
             <div className="mb-3 flex items-center justify-between">
               <h2 className="text-xs font-semibold uppercase tracking-wide text-xlent-muted">
-                RAG-treff
+                {t("invoice_search.rag_hits")}
               </h2>
               {ragSearch.data?.took_ms != null && (
                 <span className="text-xs text-xlent-muted">
-                  ES tid: {ragSearch.data.took_ms} ms
+                  {t("invoice_search.es_time")}: {ragSearch.data.took_ms} ms
                 </span>
               )}
             </div>
 
             {!ragSubmitted && (
-              <p className="text-sm text-xlent-muted">Skriv et spørsmål og kjør søk.</p>
+              <p className="text-sm text-xlent-muted">{t("invoice_search.write_question")}</p>
             )}
             {ragSubmitted && ragSearch.isLoading && (
-              <p className="text-sm text-xlent-muted">Kjører hybrid RAG-søk …</p>
+              <p className="text-sm text-xlent-muted">{t("invoice_search.running_rag")}</p>
             )}
             {ragSubmitted && ragSearch.error && (
-              <p className="text-sm text-traffic-red">{formatRagError(ragSearch.error)}</p>
+              <p className="text-sm text-traffic-red">{formatRagError(ragSearch.error, t)}</p>
             )}
 
             {ragSearch.data && (
               <div className="space-y-4">
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <p className="text-xs text-xlent-muted">
-                    {ragSearch.data.total_raw} rå-treff, {ragSearch.data.total_after_dedupe} etter deduplisering (viser {ragVisibleHits.length})
+                    {ragSearch.data.total_raw} {t("invoice_search.raw_hits")}, {ragSearch.data.total_after_dedupe} {t("invoice_search.after_dedupe")} ({t("invoice_search.showing")} {ragVisibleHits.length})
                   </p>
                   <label className="inline-flex items-center gap-2 text-xs text-xlent-muted">
                     <input
@@ -587,19 +618,19 @@ export function InvoiceSearchPage() {
                       checked={ragEvidenceOnly}
                       onChange={(e) => setRagEvidenceOnly(e.target.checked)}
                     />
-                    Vis kun evidens-treff
+                    {t("invoice_search.evidence_only")}
                   </label>
                 </div>
                 {ragSearch.data.answer && (
                   <div className="rounded border border-gray-200 bg-xlent-surface p-3">
                     <div className="mb-1 text-xs uppercase tracking-wide text-xlent-muted">
-                      LLM-svar {ragSearch.data.answer_model ? `(${ragSearch.data.answer_model})` : ""}
+                      {t("invoice_search.llm_answer")} {ragSearch.data.answer_model ? `(${ragSearch.data.answer_model})` : ""}
                     </div>
                     <p className="text-sm text-xlent-ink whitespace-pre-wrap">
                       {ragSearch.data.answer}
                     </p>
                     <p className="mt-2 text-xs text-xlent-muted">
-                      Basert på {ragSearch.data.answer_source_count} kilder.
+                      {t("invoice_search.based_on_sources", { count: ragSearch.data.answer_source_count })}
                     </p>
                   </div>
                 )}
@@ -608,10 +639,10 @@ export function InvoiceSearchPage() {
                   <table className="min-w-full divide-y divide-gray-200 text-sm">
                     <thead className="bg-xlent-surface text-left text-xs uppercase text-xlent-muted">
                       <tr>
-                        <th className="px-3 py-2">Score</th>
-                        <th className="px-3 py-2">Invoice</th>
-                        <th className="px-3 py-2">Chunk</th>
-                        <th className="px-3 py-2">Evidens</th>
+                        <th className="px-3 py-2">{t("invoice_search.col_score")}</th>
+                        <th className="px-3 py-2">{t("invoice_search.col_invoice")}</th>
+                        <th className="px-3 py-2">{t("invoice_search.col_chunk")}</th>
+                        <th className="px-3 py-2">{t("invoice_search.col_evidence")}</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-100">
@@ -619,8 +650,8 @@ export function InvoiceSearchPage() {
                         <tr>
                           <td colSpan={4} className="px-3 py-6 text-center text-xlent-muted">
                             {ragEvidenceOnly
-                              ? "Ingen evidens-treff for valgt spørsmål."
-                              : "Ingen treff."}
+                              ? t("invoice_search.no_evidence_hits")
+                              : t("invoice_search.no_hits")}
                           </td>
                         </tr>
                       )}
@@ -643,11 +674,11 @@ export function InvoiceSearchPage() {
                           <td className="px-3 py-2 text-xs text-xlent-muted">
                             {hit.evidence_hit ? (
                               <span className="inline-flex rounded bg-green-50 px-1.5 py-0.5 text-[11px] text-green-700">
-                                Evidens
+                                {t("invoice_search.evidence")}
                               </span>
                             ) : (
                               <span className="inline-flex rounded bg-gray-100 px-1.5 py-0.5 text-[11px] text-gray-600">
-                                Svak
+                                {t("invoice_search.weak")}
                               </span>
                             )}
                             <div className="mt-1">{stripMarkTags(hit.snippet)}</div>

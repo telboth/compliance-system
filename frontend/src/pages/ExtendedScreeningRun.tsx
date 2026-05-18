@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import clsx from "clsx";
+import { useTranslation } from "react-i18next";
 
 import {
   useAddExtendedScreenFeedback,
@@ -76,10 +77,10 @@ type ExternalSourceStatusRow = {
   error: string | null;
 };
 
-function verificationLabel(status: string): string {
-  if (status === "verified") return "Verifisert";
-  if (status === "conflicting") return "Konflikt";
-  return "Uverifisert";
+function verificationLabel(status: string, t: (key: string) => string): string {
+  if (status === "verified") return t("extended_screening.verification.verified");
+  if (status === "conflicting") return t("extended_screening.verification.conflicting");
+  return t("extended_screening.verification.unverified");
 }
 
 function verificationClass(status: string): string {
@@ -96,11 +97,11 @@ function resolverReason(claim: ExtendedScreenClaim): string {
   return reason;
 }
 
-function statusLabel(status: string): string {
-  if (status === "queued") return "Køet";
-  if (status === "running") return "Kjører";
-  if (status === "completed") return "Fullført";
-  if (status === "failed") return "Feilet";
+function statusLabel(status: string, t: (key: string) => string): string {
+  if (status === "queued") return t("extended_screening.status.queued");
+  if (status === "running") return t("extended_screening.status.running");
+  if (status === "completed") return t("extended_screening.status.completed");
+  if (status === "failed") return t("extended_screening.status.failed");
   return status;
 }
 
@@ -279,6 +280,8 @@ function buildGraph(
 }
 
 export function ExtendedScreeningRunPage() {
+  const { t, i18n } = useTranslation("pages");
+  const locale = i18n.language === "en" ? "en-GB" : "nb-NO";
   const params = useParams<{
     invoiceId: string;
     entityId: string;
@@ -523,34 +526,34 @@ export function ExtendedScreeningRunPage() {
                 className="inline-block h-3 w-3 animate-spin rounded-full border border-current border-t-transparent"
               />
             )}
-            {statusLabel(data.status)}
+            {statusLabel(data.status, t)}
           </span>
         )}
       </div>
 
       <header className="rounded-lg border border-gray-200 bg-white p-4">
-        <h1 className="text-xl font-semibold text-xlent-ink">Utvidet screening</h1>
+        <h1 className="text-xl font-semibold text-xlent-ink">{t("extended_screening.title")}</h1>
         <p className="mt-1 text-sm text-xlent-muted">
-          Viser hvordan eksterne signaler brukes i due diligence-vurderingen.
+          {t("extended_screening.subtitle")}
         </p>
         <div className="mt-3 grid gap-2 text-xs text-xlent-muted sm:grid-cols-2">
           <div>
-            Run-ID: <code>{runId || "mangler"}</code>
+            {t("extended_screening.run_id")}: <code>{runId || t("extended_screening.missing")}</code>
           </div>
           <div>
-            Aggressivitet:{" "}
+            {t("extended_screening.aggressiveness")}:{" "}
             <span className="font-medium text-xlent-ink">{data?.aggressiveness ?? "—"}</span>
           </div>
           <div>
-            Opprettet:{" "}
+            {t("extended_screening.created")}:{" "}
             <span className="font-medium text-xlent-ink">
-              {data?.created_at ? new Date(data.created_at).toLocaleString("nb-NO") : "—"}
+              {data?.created_at ? new Date(data.created_at).toLocaleString(locale) : "—"}
             </span>
           </div>
           <div>
-            Ferdig:{" "}
+            {t("extended_screening.finished")}:{" "}
             <span className="font-medium text-xlent-ink">
-              {data?.finished_at ? new Date(data.finished_at).toLocaleString("nb-NO") : "—"}
+              {data?.finished_at ? new Date(data.finished_at).toLocaleString(locale) : "—"}
             </span>
           </div>
         </div>
@@ -558,13 +561,13 @@ export function ExtendedScreeningRunPage() {
 
       {isLoading && (
         <section className="rounded-lg border border-gray-200 bg-white p-4 text-sm text-xlent-muted">
-          Laster utvidet screening …
+          {t("extended_screening.loading_run")}
         </section>
       )}
 
       {error && (
         <section className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-traffic-red">
-          Kunne ikke hente utvidet screening-run.
+          {t("extended_screening.load_error")}
         </section>
       )}
 
@@ -602,7 +605,7 @@ export function ExtendedScreeningRunPage() {
               </div>
             </div>
             <div className="mt-3 rounded border border-gray-200 bg-gray-50 p-2 text-[11px] text-xlent-muted">
-              <div className="font-medium text-xlent-ink">Web ingest</div>
+              <div className="font-medium text-xlent-ink">{t("extended_screening.web_ingest")}</div>
               <div className="mt-1">
                 Queries planlagt: {webStats.queriesPlanned} | kjørt:{" "}
                 {webStats.queriesExecuted} | resultater: {webStats.resultsFound} | sider
@@ -688,7 +691,7 @@ export function ExtendedScreeningRunPage() {
                       <th className="px-2 py-2">Kategori</th>
                       <th className="px-2 py-2">Navn</th>
                       <th className="px-2 py-2">Rolle</th>
-                      <th className="px-2 py-2">Kilde</th>
+                      <th className="px-2 py-2">{t("extended_screening.col_source")}</th>
                       <th className="px-2 py-2">Confidence</th>
                       <th className="px-2 py-2">Evidens</th>
                     </tr>
@@ -853,9 +856,9 @@ export function ExtendedScreeningRunPage() {
               Claim-Evidens
             </h2>
             {claimsQuery.isLoading ? (
-              <p className="text-sm text-xlent-muted">Laster claims …</p>
+              <p className="text-sm text-xlent-muted">{t("extended_screening.loading_claims")}</p>
             ) : claimRows.length === 0 ? (
-              <p className="text-sm text-xlent-muted">Ingen persisted claims for denne run-en.</p>
+              <p className="text-sm text-xlent-muted">{t("extended_screening.no_claims")}</p>
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full min-w-[980px] text-left text-sm">
@@ -864,9 +867,9 @@ export function ExtendedScreeningRunPage() {
                       <th className="px-2 py-2">Type</th>
                       <th className="px-2 py-2">Subject</th>
                       <th className="px-2 py-2">Object</th>
-                      <th className="px-2 py-2">Kilde</th>
+                      <th className="px-2 py-2">{t("extended_screening.col_source")}</th>
                       <th className="px-2 py-2">Confidence</th>
-                      <th className="px-2 py-2">Status</th>
+                      <th className="px-2 py-2">{t("extended_screening.col_status")}</th>
                       <th className="px-2 py-2">Resolver</th>
                       <th className="px-2 py-2">Evidens</th>
                     </tr>
@@ -903,7 +906,7 @@ export function ExtendedScreeningRunPage() {
                               verificationClass(row.verification_status),
                             )}
                           >
-                            {verificationLabel(row.verification_status)}
+                            {verificationLabel(row.verification_status, t)}
                           </span>
                         </td>
                         <td className="px-2 py-2 text-xs text-xlent-muted">
@@ -925,15 +928,15 @@ export function ExtendedScreeningRunPage() {
               Kildelog
             </h2>
             {sourcesQuery.isLoading ? (
-              <p className="text-sm text-xlent-muted">Laster kilder …</p>
+              <p className="text-sm text-xlent-muted">{t("extended_screening.loading_sources")}</p>
             ) : sourceRows.length === 0 ? (
-              <p className="text-sm text-xlent-muted">Ingen persisted kilder for denne run-en.</p>
+              <p className="text-sm text-xlent-muted">{t("extended_screening.no_sources")}</p>
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full min-w-[860px] text-left text-sm">
                   <thead className="text-xs uppercase tracking-wide text-xlent-muted">
                     <tr>
-                      <th className="px-2 py-2">Provider</th>
+                      <th className="px-2 py-2">{t("extended_screening.col_provider")}</th>
                       <th className="px-2 py-2">Tittel</th>
                       <th className="px-2 py-2">Domene</th>
                       <th className="px-2 py-2">Hentet</th>
@@ -951,7 +954,7 @@ export function ExtendedScreeningRunPage() {
                           {row.source_domain ?? "—"}
                         </td>
                         <td className="px-2 py-2 text-xs text-xlent-muted">
-                          {new Date(row.fetched_at).toLocaleString("nb-NO")}
+                          {new Date(row.fetched_at).toLocaleString(locale)}
                         </td>
                         <td className="px-2 py-2 text-xs text-xlent-muted">
                           <a
@@ -977,15 +980,15 @@ export function ExtendedScreeningRunPage() {
             </h2>
             <div className="grid gap-2 text-sm sm:grid-cols-2">
               <div>
-                <div className="text-xs text-xlent-muted">Seed-entitet</div>
+                <div className="text-xs text-xlent-muted">{t("extended_screening.seed_entity")}</div>
                 <div className="font-medium text-xlent-ink">{sanitizeLabel(seed?.name, "—")}</div>
               </div>
               <div>
-                <div className="text-xs text-xlent-muted">Seed-land</div>
+                <div className="text-xs text-xlent-muted">{t("extended_screening.seed_country")}</div>
                 <div className="font-medium text-xlent-ink">{sanitizeLabel(seed?.country, "—")}</div>
               </div>
               <div>
-                <div className="text-xs text-xlent-muted">Maks hopp</div>
+                <div className="text-xs text-xlent-muted">{t("extended_screening.max_hops")}</div>
                 <div className="font-medium text-xlent-ink">
                   {typeof meta?.max_hops === "number" ? meta.max_hops : "—"}
                 </div>
@@ -1058,18 +1061,18 @@ export function ExtendedScreeningRunPage() {
               Eksterne Kilder Status
             </h2>
             {externalSourceStatus.length === 0 ? (
-              <p className="text-sm text-xlent-muted">Ingen ekstern status registrert.</p>
+              <p className="text-sm text-xlent-muted">{t("extended_screening.no_external_status")}</p>
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full min-w-[860px] text-left text-sm">
                   <thead className="text-xs uppercase tracking-wide text-xlent-muted">
                     <tr>
-                      <th className="px-2 py-2">Kilde</th>
-                      <th className="px-2 py-2">Enabled</th>
-                      <th className="px-2 py-2">Status</th>
-                      <th className="px-2 py-2">Records</th>
+                      <th className="px-2 py-2">{t("extended_screening.col_source")}</th>
+                      <th className="px-2 py-2">{t("extended_screening.col_enabled")}</th>
+                      <th className="px-2 py-2">{t("extended_screening.col_status")}</th>
+                      <th className="px-2 py-2">{t("extended_screening.col_records")}</th>
                       <th className="px-2 py-2">Sist Hentet</th>
-                      <th className="px-2 py-2">Feil</th>
+                      <th className="px-2 py-2">{t("extended_screening.col_error")}</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -1077,14 +1080,14 @@ export function ExtendedScreeningRunPage() {
                       <tr key={`ext-src-${index}`} className="border-t border-gray-100">
                         <td className="px-2 py-2 text-xs text-xlent-muted">{row.provider}</td>
                         <td className="px-2 py-2 text-xs text-xlent-muted">
-                          {row.enabled ? "Ja" : "Nei"}
+                          {row.enabled ? t("extended_screening.yes") : t("extended_screening.no")}
                         </td>
                         <td className="px-2 py-2 text-xs text-xlent-muted">{row.status}</td>
                         <td className="px-2 py-2 text-xs text-xlent-muted">
-                          {row.recordCount != null ? row.recordCount.toLocaleString("nb-NO") : "—"}
+                          {row.recordCount != null ? row.recordCount.toLocaleString(locale) : "—"}
                         </td>
                         <td className="px-2 py-2 text-xs text-xlent-muted">
-                          {row.fetchedAt ? new Date(row.fetchedAt).toLocaleString("nb-NO") : "—"}
+                          {row.fetchedAt ? new Date(row.fetchedAt).toLocaleString(locale) : "—"}
                         </td>
                         <td className="px-2 py-2 text-xs text-traffic-red">
                           {row.error ?? "—"}
@@ -1210,7 +1213,7 @@ export function ExtendedScreeningRunPage() {
               <div className="mt-3 rounded border border-gray-200 bg-gray-50 p-3 text-sm">
                 {selectedNode && (
                   <>
-                    <div className="font-semibold text-xlent-ink">Valgt node</div>
+                    <div className="font-semibold text-xlent-ink">{t("extended_screening.selected_node")}</div>
                     <div className="mt-1 text-xs text-xlent-muted">
                       Navn: {selectedNode.label} | Type: {selectedNode.type} | ID:{" "}
                       <code>{selectedNode.qid}</code>
@@ -1226,7 +1229,7 @@ export function ExtendedScreeningRunPage() {
                 )}
                 {selectedEdge && (
                   <>
-                    <div className="font-semibold text-xlent-ink">Valgt relasjon</div>
+                    <div className="font-semibold text-xlent-ink">{t("extended_screening.selected_relation")}</div>
                     <div className="mt-1 text-xs text-xlent-muted">
                       Relasjon: {selectedEdge.label} | Confidence:{" "}
                       {typeof selectedEdge.confidence === "number"
@@ -1301,7 +1304,7 @@ export function ExtendedScreeningRunPage() {
               </summary>
               <div className="mt-3">
                 {candidates.length === 0 ? (
-                  <p className="text-sm text-xlent-muted">Ingen kandidater i denne kjøringen.</p>
+                  <p className="text-sm text-xlent-muted">{t("extended_screening.no_candidates")}</p>
                 ) : (
                   <div className="overflow-x-auto">
                     <table className="w-full min-w-[760px] text-left text-sm">
@@ -1312,7 +1315,7 @@ export function ExtendedScreeningRunPage() {
                           <th className="px-2 py-2">Type</th>
                           <th className="px-2 py-2">Confidence</th>
                           <th className="px-2 py-2">Valg</th>
-                          <th className="px-2 py-2">Årsak</th>
+                          <th className="px-2 py-2">{t("extended_screening.col_reason")}</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -1357,7 +1360,7 @@ export function ExtendedScreeningRunPage() {
                   Sanksjonstreff
                 </div>
                 {sanctionHits.length === 0 ? (
-                  <p className="text-sm text-xlent-muted">Ingen kvalifiserte treff i denne kjøringen.</p>
+                  <p className="text-sm text-xlent-muted">{t("extended_screening.no_qualified_hits")}</p>
                 ) : (
                   <ul className="space-y-2 text-sm text-xlent-ink">
                     {sanctionHits.map((hit, index) => (
@@ -1381,7 +1384,7 @@ export function ExtendedScreeningRunPage() {
                   Landeksponering
                 </div>
                 {countryExposure.length === 0 ? (
-                  <p className="text-sm text-xlent-muted">Ingen landeksponeringer registrert.</p>
+                  <p className="text-sm text-xlent-muted">{t("extended_screening.no_country_exposure")}</p>
                 ) : (
                   <ul className="space-y-2 text-sm text-xlent-ink">
                     {countryExposure.map((item, index) => {
@@ -1412,12 +1415,12 @@ export function ExtendedScreeningRunPage() {
                     <table className="w-full min-w-[820px] text-left text-sm">
                       <thead className="text-xs uppercase tracking-wide text-xlent-muted">
                         <tr>
-                          <th className="px-2 py-2">Source</th>
+                          <th className="px-2 py-2">{t("extended_screening.col_source")}</th>
                           <th className="px-2 py-2">Relasjon</th>
-                          <th className="px-2 py-2">Target</th>
+                          <th className="px-2 py-2">{t("extended_screening.col_target")}</th>
                           <th className="px-2 py-2">Confidence</th>
                           <th className="px-2 py-2">Inkludert</th>
-                          <th className="px-2 py-2">Årsak</th>
+                          <th className="px-2 py-2">{t("extended_screening.col_reason")}</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -1462,7 +1465,7 @@ export function ExtendedScreeningRunPage() {
                     </table>
                   </div>
                 ) : (
-                  <p className="text-sm text-xlent-muted">Ingen relasjonsbeslutninger tilgjengelig.</p>
+                  <p className="text-sm text-xlent-muted">{t("extended_screening.no_relation_decisions")}</p>
                 )}
               </div>
             </details>
@@ -1473,7 +1476,7 @@ export function ExtendedScreeningRunPage() {
               Analyst Feedback Historikk
             </h2>
             {feedbackQuery.isLoading ? (
-              <p className="text-sm text-xlent-muted">Laster feedback …</p>
+              <p className="text-sm text-xlent-muted">{t("extended_screening.loading_feedback")}</p>
             ) : feedbackQuery.data && feedbackQuery.data.length > 0 ? (
               <ul className="space-y-2 text-sm text-xlent-ink">
                 {feedbackQuery.data.map((row) => (
@@ -1486,13 +1489,13 @@ export function ExtendedScreeningRunPage() {
                     </div>
                     {row.note && <div className="mt-1 text-xs text-xlent-muted">Note: {row.note}</div>}
                     <div className="mt-1 text-xs text-xlent-muted">
-                      {new Date(row.created_at).toLocaleString("nb-NO")}
+                      {new Date(row.created_at).toLocaleString(locale)}
                     </div>
                   </li>
                 ))}
               </ul>
             ) : (
-              <p className="text-sm text-xlent-muted">Ingen feedback registrert ennå.</p>
+              <p className="text-sm text-xlent-muted">{t("extended_screening.no_feedback")}</p>
             )}
           </section>
 

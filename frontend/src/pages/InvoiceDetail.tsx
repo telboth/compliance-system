@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import clsx from "clsx";
+import { useTranslation } from "react-i18next";
 
 import { useAuth } from "@/auth/AuthContext";
 
@@ -11,6 +12,7 @@ import { computeOverallRisk } from "@/components/ComplianceBadge";
 import { AuditTimeline } from "@/components/AuditTimeline";
 import {
   useDeleteInvoice,
+  useEscalateInvoiceRisk,
   useExtendedScreeningRun,
   useExtractInvoice,
   useInvoice,
@@ -46,12 +48,6 @@ function confidenceColor(score: number): string {
   if (score >= 0.9) return "text-traffic-green";
   if (score >= 0.8) return "text-traffic-yellow";
   return "text-traffic-red";
-}
-
-function confidenceBg(score: number): string {
-  if (score >= 0.9) return "bg-green-50 border-green-200";
-  if (score >= 0.8) return "bg-yellow-50 border-yellow-200";
-  return "bg-red-50 border-red-100";
 }
 
 function ConfidencePip({ score }: { score: number }) {
@@ -129,11 +125,12 @@ function FieldRow({
 // ── Dokument-inspektor ───────────────────────────────────────────────────────
 
 function FileViewer({ invoice }: { invoice: Invoice }) {
+  const { t } = useTranslation("invoices");
   const fileUrl = getInvoiceFileUrl(invoice.id);
   const ext = (invoice.original_filename ?? "").split(".").pop()?.toLowerCase() ?? "";
 
   if (ext === "pdf") {
-    return <iframe src={fileUrl} className="h-full w-full border-0" title="Invoice PDF" />;
+    return <iframe src={fileUrl} className="h-full w-full border-0" title={t("detail.file_viewer.pdf_title")} />;
   }
   if (["png", "jpg", "jpeg"].includes(ext)) {
     return (
@@ -145,21 +142,22 @@ function FileViewer({ invoice }: { invoice: Invoice }) {
   return (
     <div className="flex h-full flex-col items-center justify-center gap-3 p-6 text-center">
       <p className="text-sm text-xlent-muted">
-        Forhåndsvisning ikke tilgjengelig for{" "}
-        <span className="font-medium uppercase">{ext || "denne filtypen"}</span>.
+        {t("detail.file_viewer.preview_unavailable")}{" "}
+        <span className="font-medium uppercase">{ext || t("detail.file_viewer.default_filetype")}</span>.
       </p>
       <a
         href={fileUrl}
         download={invoice.original_filename ?? "invoice"}
         className="rounded bg-xlent-primary px-3 py-1.5 text-sm font-medium text-white hover:bg-xlent-primary/90"
       >
-        Last ned {invoice.original_filename}
+        {t("detail.file_viewer.download")} {invoice.original_filename}
       </a>
     </div>
   );
 }
 
 function DocumentInspector({ invoice }: { invoice: Invoice }) {
+  const { t } = useTranslation("invoices");
   const [open, setOpen] = useState(false);
   return (
     <section className="rounded-lg border border-gray-200 bg-white">
@@ -167,7 +165,7 @@ function DocumentInspector({ invoice }: { invoice: Invoice }) {
         onClick={() => setOpen((v) => !v)}
         className="flex w-full items-center justify-between px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-xlent-muted hover:bg-xlent-surface"
       >
-        <span>Dokument-inspektor</span>
+        <span>{t("detail.inspector.title")}</span>
         <span className="ml-2 font-mono text-base leading-none">{open ? "▲" : "▼"}</span>
       </button>
       {open && (
@@ -177,7 +175,7 @@ function DocumentInspector({ invoice }: { invoice: Invoice }) {
         >
           <div className="flex flex-col overflow-hidden border-r border-gray-200">
             <div className="shrink-0 border-b border-gray-100 px-3 py-2 text-xs font-medium text-xlent-muted">
-              Originalfil — {invoice.original_filename ?? invoice.id}
+              {t("detail.inspector.original_file")} {invoice.original_filename ?? invoice.id}
             </div>
             <div className="min-h-0 flex-1">
               <FileViewer invoice={invoice} />
@@ -185,11 +183,11 @@ function DocumentInspector({ invoice }: { invoice: Invoice }) {
           </div>
           <div className="flex flex-col overflow-hidden">
             <div className="shrink-0 border-b border-gray-100 px-3 py-2 text-xs font-medium text-xlent-muted">
-              Parsert tekst (Vision OCR / Docling)
+              {t("detail.inspector.parsed_text")}
             </div>
             <div className="min-h-0 flex-1 overflow-auto">
               <pre className="p-4 font-mono text-xs leading-relaxed text-xlent-ink whitespace-pre-wrap break-words">
-                {invoice.raw_text ?? "Ingen parsert tekst ennå."}
+                {invoice.raw_text ?? t("detail.inspector.no_parsed_text")}
               </pre>
             </div>
           </div>
@@ -214,6 +212,7 @@ function ActionButtons({
   isProcessing: boolean;
   isExtracted: boolean;
 }) {
+  const { t } = useTranslation("invoices");
   const extract = useExtractInvoice(invoiceId);
   const reparse = useReparseInvoice(invoiceId);
   const screen = useStartScreening(invoiceId);
@@ -239,14 +238,14 @@ function ActionButtons({
           )}
           title={
             sanctionsStatus?.elasticsearch_error ??
-            "Status for Yente og Elasticsearch"
+            t("detail.actions.sanctions_status_tooltip")
           }
         >
           {sanctionsLoading
-            ? "Sanksjonsmotor: sjekker …"
+            ? t("detail.sanctions_motor.checking")
             : screeningInfraReady
-              ? "Sanksjonsmotor: Yente + Elasticsearch oppe"
-              : "Sanksjonsmotor: ikke klar"}
+              ? t("detail.sanctions_motor.ready")
+              : t("detail.sanctions_motor.not_ready")}
         </div>
       )}
 
@@ -254,8 +253,8 @@ function ActionButtons({
         <details className="relative">
           <summary
             className="list-none cursor-pointer rounded border border-gray-200 px-2 py-1 text-sm text-xlent-muted hover:bg-gray-50 hover:text-xlent-ink"
-            aria-label="Vis handlinger"
-            title="Vis handlinger"
+            aria-label={t("detail.actions.menu_aria")}
+            title={t("detail.actions.menu_aria")}
           >
             ⋯
           </summary>
@@ -264,7 +263,7 @@ function ActionButtons({
               <button
                 onClick={() => reparse.mutate()}
                 disabled={reparse.isPending}
-                title="Re-parser dokumentet med forbedret Vision OCR"
+                title={t("detail.actions.reparse_tooltip")}
                 className={clsx(
                   "rounded border px-3 py-1.5 text-left text-xs font-medium transition-colors",
                   reparse.isPending
@@ -272,7 +271,7 @@ function ActionButtons({
                     : "border-xlent-primary/40 text-xlent-primary hover:bg-xlent-primary/5",
                 )}
               >
-                {reparse.isPending ? "Re-parser …" : "Re-parse"}
+                {reparse.isPending ? t("detail.actions.reparsing") : t("detail.actions.reparse")}
               </button>
 
               {canExtract && (
@@ -287,10 +286,10 @@ function ActionButtons({
                   )}
                 >
                   {extract.isPending
-                    ? "Ekstraherer …"
+                    ? t("detail.actions.extracting")
                     : isExtracted
-                      ? "Re-ekstraher"
-                      : "Ekstraher med LLM"}
+                      ? t("detail.actions.reextract")
+                      : t("detail.actions.extract")}
                 </button>
               )}
 
@@ -300,8 +299,8 @@ function ActionButtons({
                   disabled={screenDisabled}
                   title={
                     screeningInfraReady
-                      ? "Kjør sanksjonsscreening på nytt for alle parter"
-                      : "Yente/Elasticsearch må være oppe før screening kan kjøres"
+                      ? t("detail.actions.rescreen_title")
+                      : t("detail.actions.rescreen_disabled")
                   }
                   className={clsx(
                     "rounded border px-3 py-1.5 text-left text-xs font-medium transition-colors",
@@ -310,7 +309,7 @@ function ActionButtons({
                       : "border-orange-300 bg-orange-50 text-orange-700 hover:bg-orange-100",
                   )}
                 >
-                  {screen.isPending ? "Re-screener …" : "Re-screen sanksjoner"}
+                  {screen.isPending ? t("detail.actions.rescreening") : t("detail.actions.rescreen")}
                 </button>
               )}
             </div>
@@ -321,14 +320,14 @@ function ActionButtons({
       {extract.isError && (
         <p className="text-xs text-traffic-red">
           {(extract.error as { response?: { data?: { detail?: string } } })
-            ?.response?.data?.detail ?? "Ekstraksjon feilet."}
+            ?.response?.data?.detail ?? t("detail.errors.extract")}
         </p>
       )}
-      {reparse.isError && <p className="text-xs text-traffic-red">Re-parsing feilet.</p>}
-      {screen.isError && <p className="text-xs text-traffic-red">Screening feilet.</p>}
+      {reparse.isError && <p className="text-xs text-traffic-red">{t("detail.errors.reparse")}</p>}
+      {screen.isError && <p className="text-xs text-traffic-red">{t("detail.errors.rescreen")}</p>}
       {sanctionsError && canScreen && (
         <p className="text-xs text-traffic-red">
-          Kunne ikke hente status for sanksjonsmotor.
+          {t("detail.errors.sanctions_status")}
         </p>
       )}
     </div>
@@ -337,18 +336,10 @@ function ActionButtons({
 
 // ── Linjetabell med inline-redigering ────────────────────────────────────────
 
-const TRANSPORT_OPTIONS = [
-  { value: "sea", label: "Sjø" },
-  { value: "air", label: "Luft" },
-  { value: "road", label: "Vei" },
-  { value: "rail", label: "Rail" },
-  { value: "courier", label: "Kurer" },
-  { value: "unknown", label: "Ukjent" },
-];
-
 // ── HS-kode risikobadge ───────────────────────────────────────────────────────
 
 function HsRiskBadge({ code }: { code: string | null }) {
+  const { t } = useTranslation("invoices");
   const { data } = useQuery({
     queryKey: ["hs-classify", code],
     queryFn: () => classifyHsCode(code!),
@@ -378,8 +369,8 @@ function HsRiskBadge({ code }: { code: string | null }) {
       title={[
         data.heading_description ?? data.chapter_description,
         data.risk_reason,
-        data.is_controlled ? "Eksportkontroll" : null,
-        data.dual_use_flag ? "Dual-use" : null,
+        data.is_controlled ? t("detail.hs.export_control") : null,
+        data.dual_use_flag ? t("detail.hs.dual_use") : null,
       ].filter(Boolean).join(" · ")}
       className={clsx(
         "mt-0.5 inline-flex items-center gap-0.5 rounded border px-1 py-px text-[10px] font-medium",
@@ -395,6 +386,7 @@ function HsRiskBadge({ code }: { code: string | null }) {
 // ── Ikke-faktura-avvisningsbanner ─────────────────────────────────────────────
 
 function NotInvoiceBanner({ invoice }: { invoice: Invoice }) {
+  const { t } = useTranslation("invoices");
   const navigate = useNavigate();
   const deleteMutation = useDeleteInvoice();
 
@@ -412,13 +404,13 @@ function NotInvoiceBanner({ invoice }: { invoice: Invoice }) {
         <span className="text-2xl" aria-hidden>⚠️</span>
         <div className="flex-1 min-w-0">
           <h2 className="text-base font-semibold text-orange-800">
-            Dokumentet er ikke en faktura
+            {t("detail.not_invoice.title")}
           </h2>
           {reason && (
             <p className="mt-1 text-sm text-orange-700">{reason}</p>
           )}
           <p className="mt-2 text-xs text-orange-600">
-            Systemet har stoppet behandlingen. Last opp riktig fil (PDF eller bilde av en faktura) for å starte på nytt.
+            {t("detail.not_invoice.message")}
           </p>
         </div>
       </div>
@@ -428,10 +420,10 @@ function NotInvoiceBanner({ invoice }: { invoice: Invoice }) {
           disabled={deleteMutation.isPending}
           className="rounded border border-orange-300 bg-white px-4 py-1.5 text-sm font-medium text-orange-800 hover:bg-orange-100 disabled:opacity-50"
         >
-          {deleteMutation.isPending ? "Sletter…" : "🗑 Slett filen"}
+          {deleteMutation.isPending ? t("detail.not_invoice.deleting") : t("detail.not_invoice.delete_button")}
         </button>
         <span className="text-xs text-orange-500">
-          eller gå tilbake og last opp en annen fil
+          {t("detail.not_invoice.fallback")}
         </span>
       </div>
     </section>
@@ -445,6 +437,7 @@ function LinesSection({
   invoice: Invoice;
   canEdit: boolean;
 }) {
+  const { t } = useTranslation("invoices");
   const updateLine = useUpdateInvoiceLine(invoice.id);
 
   async function saveLineField(lineId: string, field: string, value: string) {
@@ -454,35 +447,35 @@ function LinesSection({
   return (
     <section className="rounded-lg border border-gray-200 bg-white p-4">
       <h2 className="mb-3 text-xs font-semibold uppercase tracking-wide text-xlent-muted">
-        Linjer ({invoice.lines.length})
+        {t("detail.lines.title")} ({invoice.lines.length})
         {canEdit && (
           <span className="ml-2 font-normal normal-case text-xlent-muted/60">
-            — klikk en celle for å redigere
+            {t("detail.lines.edit_hint")}
           </span>
         )}
       </h2>
       {invoice.lines.length === 0 ? (
         <p className="text-sm text-xlent-muted">
           {canEdit
-            ? "Ingen linjer ennå — auto-ekstraksjon pågår eller ga tomt resultat."
-            : "Ingen linjer ekstrahert."}
+            ? t("detail.lines.empty_editable")
+            : t("detail.lines.empty")}
         </p>
       ) : (
         <div className="overflow-x-auto">
           <table className="min-w-full text-sm">
             <thead>
               <tr className="text-left text-xs uppercase text-xlent-muted">
-                <th className="px-2 py-1">#</th>
-                <th className="px-2 py-1">Beskrivelse</th>
-                <th className="px-2 py-1">Modell</th>
-                <th className="px-2 py-1">Serienr</th>
-                <th className="px-2 py-1">HS-kode</th>
-                <th className="px-2 py-1">ECCN</th>
-                <th className="px-2 py-1">Oppr.land</th>
-                <th className="px-2 py-1 text-right">Antall</th>
-                <th className="px-2 py-1 text-right">Enhetspris</th>
-                <th className="px-2 py-1 text-right">Sum</th>
-                <th className="px-2 py-1">Valuta</th>
+                <th className="px-2 py-1">{t("detail.lines.col_num")}</th>
+                <th className="px-2 py-1">{t("detail.lines.col_description")}</th>
+                <th className="px-2 py-1">{t("detail.lines.col_model")}</th>
+                <th className="px-2 py-1">{t("detail.lines.col_serial")}</th>
+                <th className="px-2 py-1">{t("detail.lines.col_hs")}</th>
+                <th className="px-2 py-1">{t("detail.lines.col_eccn")}</th>
+                <th className="px-2 py-1">{t("detail.lines.col_origin")}</th>
+                <th className="px-2 py-1 text-right">{t("detail.lines.col_qty")}</th>
+                <th className="px-2 py-1 text-right">{t("detail.lines.col_unit_price")}</th>
+                <th className="px-2 py-1 text-right">{t("detail.lines.col_total")}</th>
+                <th className="px-2 py-1">{t("detail.lines.col_currency")}</th>
               </tr>
             </thead>
             <tbody>
@@ -597,26 +590,28 @@ function LinesSection({
 
 // ── Entitetskort med inline-redigering ───────────────────────────────────────
 
-const ENTITY_ROLE_OPTIONS = [
-  { value: "seller", label: "Selger" },
-  { value: "buyer", label: "Kjøper" },
-  { value: "consignor", label: "Avsender" },
-  { value: "consignee", label: "Mottaker" },
-  { value: "end_user", label: "Sluttbruker" },
-  { value: "delivery_address", label: "Leveringsadresse" },
-  { value: "signatory", label: "Signatar" },
-  { value: "other", label: "Annet" },
-];
+const MATCH_STATUS_COLORS: Record<MatchStatus, string> = {
+  clear: "bg-green-50 text-green-700 border-green-200",
+  potential_match: "bg-yellow-50 text-yellow-700 border-yellow-200",
+  confirmed_match: "bg-red-50 text-red-700 border-red-200",
+};
 
-const ENTITY_ROLE_LABELS: Record<string, string> = {
-  seller: "Selger",
-  buyer: "Kjøper",
-  consignor: "Avsender",
-  consignee: "Mottaker",
-  end_user: "Sluttbruker",
-  delivery_address: "Leveringsadresse",
-  signatory: "Signatar",
-  other: "Annet",
+const DATASET_NAMES: Record<string, string> = {
+  un_sc_sanctions: "FN Sikkerhedsrad",
+  eu_fsf: "EU Financial Sanctions",
+  us_ofac_sdn: "US OFAC SDN",
+  us_ofac_cons: "US OFAC Consolidated",
+  no_un_sanctions: "Norsk FN-sanksjoner",
+  no_legacies: "Norge legacies",
+  all: "Alle lister",
+};
+
+const CANDIDATE_SOURCE_LABELS: Record<string, string> = {
+  entity_name: "Entitetsnavn",
+  entity_name_fallback: "Entitetsnavn (fallback)",
+  entity_email: "E-post på entitet",
+  raw_text_email: "E-post i dokumenttekst",
+  raw_text_label: "Label/overskrift i dokument",
 };
 
 function EntityCard({
@@ -630,6 +625,7 @@ function EntityCard({
   canEdit: boolean;
   canRunExtended: boolean;
 }) {
+  const { t } = useTranslation("invoices");
   const navigate = useNavigate();
   const updateEntityMutation = useUpdateEntity(invoiceId);
   const [aggressiveness, setAggressiveness] = useState(70);
@@ -650,6 +646,28 @@ function EntityCard({
     latestRunId,
     Boolean(latestRunId),
   );
+
+  const entityRoleOptions = [
+    { value: "seller", label: t("detail.entities.role_seller") },
+    { value: "buyer", label: t("detail.entities.role_buyer") },
+    { value: "consignor", label: t("detail.entities.role_consignor") },
+    { value: "consignee", label: t("detail.entities.role_consignee") },
+    { value: "end_user", label: t("detail.entities.role_end_user") },
+    { value: "delivery_address", label: t("detail.entities.role_delivery") },
+    { value: "signatory", label: t("detail.entities.role_signatory") },
+    { value: "other", label: t("detail.entities.role_other") },
+  ];
+
+  const entityRoleLabel = (role: string): string => ({
+    seller: t("detail.entities.role_seller"),
+    buyer: t("detail.entities.role_buyer"),
+    consignor: t("detail.entities.role_consignor"),
+    consignee: t("detail.entities.role_consignee"),
+    end_user: t("detail.entities.role_end_user"),
+    delivery_address: t("detail.entities.role_delivery"),
+    signatory: t("detail.entities.role_signatory"),
+    other: t("detail.entities.role_other"),
+  })[role] ?? role;
 
   async function save(field: string, value: string) {
     await updateEntityMutation.mutateAsync({ entityId: entity.id, update: { [field]: value } });
@@ -699,11 +717,11 @@ function EntityCard({
       </div>
       <div className="mt-1 flex flex-wrap gap-2 text-xs text-xlent-muted">
         <EditableField
-          value={ENTITY_ROLE_LABELS[entity.role] ?? entity.role}
+          value={entityRoleLabel(entity.role)}
           onSave={(v) => save("role", v)}
           editable={canEdit}
           type="select"
-          options={ENTITY_ROLE_OPTIONS}
+          options={entityRoleOptions}
           className="font-medium"
         />
         <span>·</span>
@@ -726,7 +744,7 @@ function EntityCard({
             value={entity.address}
             onSave={(v) => save("address", v)}
             editable={canEdit}
-            placeholder="Adresse…"
+            placeholder={t("detail.entities.address_placeholder")}
           />
         </div>
       )}
@@ -737,7 +755,7 @@ function EntityCard({
               value={entity.phone}
               onSave={(v) => save("phone", v)}
               editable={canEdit}
-              placeholder="Telefon…"
+              placeholder={t("detail.entities.phone_placeholder")}
             />
           )}
           {(entity.email || canEdit) && (
@@ -745,7 +763,7 @@ function EntityCard({
               value={entity.email}
               onSave={(v) => save("email", v)}
               editable={canEdit}
-              placeholder="E-post…"
+              placeholder={t("detail.entities.email_placeholder")}
             />
           )}
         </div>
@@ -801,7 +819,7 @@ function EntityCard({
             </label>
           </div>
           <div className="mt-2 rounded border border-gray-200 bg-gray-50 p-2 text-[11px] text-xlent-muted">
-            <div className="mb-1 font-medium text-xlent-ink">Kilder (på/av)</div>
+            <div className="mb-1 font-medium text-xlent-ink">{t("detail.extended.sources_toggle")}</div>
             <div className="flex flex-wrap items-center gap-3">
               <label className="inline-flex items-center gap-1">
                 <input
@@ -847,7 +865,7 @@ function EntityCard({
           </div>
           {externalIssues.length > 0 && (
             <div className="mt-2 rounded border border-amber-200 bg-amber-50 p-2 text-[11px] text-amber-900">
-              <div className="font-medium">Kildevarsel</div>
+              <div className="font-medium">{t("detail.extended.source_warning")}</div>
               <ul className="mt-1 space-y-1">
                 {externalIssues.slice(0, 3).map((row) => (
                   <li key={row.source}>
@@ -913,6 +931,7 @@ function EntitiesSection({
   canEdit: boolean;
   canRunExtended: boolean;
 }) {
+  const { t } = useTranslation("invoices");
   const signatories = invoice.entities.filter((e) => e.role === "signatory");
   const otherEntities = invoice.entities.filter((e) => e.role !== "signatory");
 
@@ -921,18 +940,18 @@ function EntitiesSection({
       {/* Parter */}
       <section className="rounded-lg border border-gray-200 bg-white p-4">
         <h2 className="mb-3 text-xs font-semibold uppercase tracking-wide text-xlent-muted">
-          Parter ({otherEntities.length})
+          {t("detail.entities.title")} ({otherEntities.length})
           {canEdit && (
             <span className="ml-2 font-normal normal-case text-xlent-muted/60">
-              — klikk et felt for å redigere
+              {t("detail.entities.edit_hint")}
             </span>
           )}
         </h2>
         {otherEntities.length === 0 ? (
           <p className="text-sm text-xlent-muted">
             {canEdit
-              ? "Ingen parter ennå — auto-ekstraksjon pågår eller ga tomt resultat."
-              : "Ingen parter ekstrahert."}
+              ? t("detail.entities.empty_editable")
+              : t("detail.entities.empty")}
           </p>
         ) : (
           <ul className="grid gap-2 sm:grid-cols-2">
@@ -953,10 +972,10 @@ function EntitiesSection({
       {(signatories.length > 0 || canEdit) && (
         <section className="rounded-lg border border-gray-200 bg-white p-4">
           <h2 className="mb-3 text-xs font-semibold uppercase tracking-wide text-xlent-muted">
-            Signatarer ({signatories.length})
+            {t("detail.signatories.title")} ({signatories.length})
           </h2>
           {signatories.length === 0 ? (
-            <p className="text-sm text-xlent-muted">Ingen signatarer funnet i dokumentet.</p>
+            <p className="text-sm text-xlent-muted">{t("detail.signatories.empty")}</p>
           ) : (
             <ul className="grid gap-2 sm:grid-cols-2">
               {signatories.map((entity: Entity) => (
@@ -978,46 +997,23 @@ function EntitiesSection({
 
 // ── Sanksjonsscreening-seksjon ────────────────────────────────────────────────
 
-const MATCH_STATUS_LABELS: Record<MatchStatus, string> = {
-  clear: "Klar",
-  potential_match: "Potensielt treff",
-  confirmed_match: "Bekreftet treff",
-};
-
-const MATCH_STATUS_COLORS: Record<MatchStatus, string> = {
-  clear: "bg-green-50 text-green-700 border-green-200",
-  potential_match: "bg-yellow-50 text-yellow-700 border-yellow-200",
-  confirmed_match: "bg-red-50 text-red-700 border-red-200",
-};
-
-const DATASET_NAMES: Record<string, string> = {
-  un_sc_sanctions: "FN Sikkerhedsrad",
-  eu_fsf: "EU Financial Sanctions",
-  us_ofac_sdn: "US OFAC SDN",
-  us_ofac_cons: "US OFAC Consolidated",
-  no_un_sanctions: "Norsk FN-sanksjoner",
-  no_legacies: "Norge legacies",
-  all: "Alle lister",
-};
-
-const CANDIDATE_SOURCE_LABELS: Record<string, string> = {
-  entity_name: "Entitetsnavn",
-  entity_name_fallback: "Entitetsnavn (fallback)",
-  entity_email: "E-post på entitet",
-  raw_text_email: "E-post i dokumenttekst",
-  raw_text_label: "Label/overskrift i dokument",
-};
-
-function screeningMood(score: number): { icon: string; cls: string; label: string } {
-  if (score >= 0.8) return { icon: "☹", cls: "text-traffic-red", label: "Høy risiko" };
-  if (score >= 0.7) return { icon: "😐", cls: "text-traffic-yellow", label: "Potensiell risiko" };
-  return { icon: "🙂", cls: "text-traffic-green", label: "Lav risiko" };
+function screeningMood(score: number, t: (key: string) => string): { icon: string; cls: string; label: string } {
+  if (score >= 0.8) return { icon: "☹", cls: "text-traffic-red", label: t("detail.screening.mood_high") };
+  if (score >= 0.7) return { icon: "😐", cls: "text-traffic-yellow", label: t("detail.screening.mood_potential") };
+  return { icon: "🙂", cls: "text-traffic-green", label: t("detail.screening.mood_low") };
 }
 
 function ScreeningResultRow({ result }: { result: ScreeningResult }) {
+  const { t } = useTranslation("invoices");
   const score = parseFloat(result.score);
   const pct = (score * 100).toFixed(1);
-  const mood = screeningMood(score);
+  const mood = screeningMood(score, t);
+
+  const matchStatusLabels: Record<MatchStatus, string> = {
+    clear: t("detail.screening.match_clear"),
+    potential_match: t("detail.screening.match_potential"),
+    confirmed_match: t("detail.screening.match_confirmed"),
+  };
 
   return (
     <tr className="border-t border-gray-100 text-sm">
@@ -1050,7 +1046,7 @@ function ScreeningResultRow({ result }: { result: ScreeningResult }) {
             MATCH_STATUS_COLORS[result.status],
           )}
         >
-          {MATCH_STATUS_LABELS[result.status]}
+          {matchStatusLabels[result.status]}
         </span>
       </td>
       <td className="px-3 py-2 text-xs text-xlent-ink">
@@ -1070,6 +1066,7 @@ function ScreeningSection({
   invoiceId: string;
   embedded?: boolean;
 }) {
+  const { t, i18n } = useTranslation("invoices");
   const { data, isLoading, error } = useScreeningResults(invoiceId);
   const {
     data: candidateData,
@@ -1077,16 +1074,18 @@ function ScreeningSection({
     error: candidateError,
   } = useScreeningCandidates(invoiceId);
 
+  const locale = i18n.language === "en" ? "en-GB" : "nb-NO";
+
   if (isLoading) {
     if (embedded) {
-      return <p className="text-sm text-xlent-muted">Laster screeningresultater …</p>;
+      return <p className="text-sm text-xlent-muted">{t("detail.screening.loading_text")} …</p>;
     }
     return (
       <section className="rounded-lg border border-gray-200 bg-white p-4">
         <h2 className="mb-2 text-xs font-semibold uppercase tracking-wide text-xlent-muted">
-          Sanksjonsscreening
+          {t("detail.risk.sanctions_title")}
         </h2>
-        <p className="text-sm text-xlent-muted">Laster screeningresultater …</p>
+        <p className="text-sm text-xlent-muted">{t("detail.screening.loading_text")} …</p>
       </section>
     );
   }
@@ -1114,31 +1113,31 @@ function ScreeningSection({
       <div className={clsx("mb-4 rounded-lg border p-3", summaryBg)}>
         <div className="flex flex-wrap items-center gap-4 text-sm">
           <div>
-            <span className="text-xlent-muted">Entiteter sjekket: </span>
+            <span className="text-xlent-muted">{t("detail.screening.entities_checked")} </span>
             <span className="font-semibold">{data.total_entities}</span>
           </div>
           {data.confirmed_matches > 0 && (
             <div>
               <span className="font-semibold text-traffic-red">
-                {data.confirmed_matches} bekreftet treff
+                {data.confirmed_matches} {t("detail.screening.confirmed_matches")}
               </span>
             </div>
           )}
           {data.potential_matches > 0 && (
             <div>
               <span className="font-semibold text-yellow-700">
-                {data.potential_matches} potensielle treff
+                {data.potential_matches} {t("detail.screening.potential_matches")}
               </span>
             </div>
           )}
           {!hasHits && (
             <div>
-              <span className="font-medium text-green-700">Ingen treff — alle klar</span>
+              <span className="font-medium text-green-700">{t("detail.screening.no_hits")}</span>
             </div>
           )}
           {data.screened_at && (
             <div className="ml-auto text-xs text-xlent-muted">
-              Screenet: {new Date(data.screened_at).toLocaleString("nb-NO")}
+              {t("detail.screening.screened_at")} {new Date(data.screened_at).toLocaleString(locale)}
             </div>
           )}
         </div>
@@ -1148,17 +1147,17 @@ function ScreeningSection({
       {significantResults.length > 0 && (
         <div className="mb-4 overflow-x-auto">
           <p className="mb-2 text-xs font-medium text-xlent-muted">
-            Treff som krever oppfolging:
+            {t("detail.screening.hits_requiring_followup")}
           </p>
           <table className="min-w-full text-sm">
             <thead>
               <tr className="text-left text-xs uppercase text-xlent-muted">
-                <th className="px-3 py-1">Entitet</th>
-                <th className="px-3 py-1">Liste</th>
-                <th className="px-3 py-1">Matchet navn</th>
-                <th className="px-3 py-1 text-right">Score</th>
-                <th className="px-3 py-1">Status</th>
-                <th className="px-3 py-1">Hvorfor</th>
+                <th className="px-3 py-1">{t("detail.screening.col_entity")}</th>
+                <th className="px-3 py-1">{t("detail.screening.col_dataset")}</th>
+                <th className="px-3 py-1">{t("detail.screening.col_entity")}</th>
+                <th className="px-3 py-1 text-right">{t("detail.screening.col_score")}</th>
+                <th className="px-3 py-1">{t("detail.screening.col_status")}</th>
+                <th className="px-3 py-1">{t("detail.screening.col_details")}</th>
                 <th className="px-3 py-1">Opptatt siden</th>
               </tr>
             </thead>
@@ -1175,18 +1174,18 @@ function ScreeningSection({
       {clearResults.length > 0 && (
         <details className="mt-2">
           <summary className="cursor-pointer text-xs text-xlent-muted hover:text-xlent-ink">
-            {clearResults.length} entitet(er) uten treff (vis)
+            {clearResults.length} {t("detail.screening.clear_results")}
           </summary>
           <div className="mt-2 overflow-x-auto">
             <table className="min-w-full text-sm">
               <thead>
                 <tr className="text-left text-xs uppercase text-xlent-muted">
-                  <th className="px-3 py-1">Entitet</th>
-                  <th className="px-3 py-1">Liste</th>
-                  <th className="px-3 py-1">Matchet navn</th>
-                  <th className="px-3 py-1 text-right">Score</th>
-                  <th className="px-3 py-1">Status</th>
-                  <th className="px-3 py-1">Hvorfor</th>
+                  <th className="px-3 py-1">{t("detail.screening.col_entity")}</th>
+                  <th className="px-3 py-1">{t("detail.screening.col_dataset")}</th>
+                  <th className="px-3 py-1">{t("detail.screening.col_entity")}</th>
+                  <th className="px-3 py-1 text-right">{t("detail.screening.col_score")}</th>
+                  <th className="px-3 py-1">{t("detail.screening.col_status")}</th>
+                  <th className="px-3 py-1">{t("detail.screening.col_details")}</th>
                   <th className="px-3 py-1">Opptatt siden</th>
                 </tr>
               </thead>
@@ -1211,15 +1210,15 @@ function ScreeningSection({
               Kilde: {candidateData.mode === "snapshot" ? "Snapshot fra siste screening-kjoring" : "Live preview"}
               {candidateData.run_status ? ` | status: ${candidateData.run_status}` : ""}
               {candidateData.run_started_at
-                ? ` | startet: ${new Date(candidateData.run_started_at).toLocaleString("nb-NO")}`
+                ? ` | startet: ${new Date(candidateData.run_started_at).toLocaleString(locale)}`
                 : ""}
               {candidateData.run_finished_at
-                ? ` | ferdig: ${new Date(candidateData.run_finished_at).toLocaleString("nb-NO")}`
+                ? ` | ferdig: ${new Date(candidateData.run_finished_at).toLocaleString(locale)}`
                 : ""}
             </p>
           )}
           {candidateLoading && (
-            <p className="text-xs text-xlent-muted">Laster kandidater …</p>
+            <p className="text-xs text-xlent-muted">{t("detail.extended.loading_candidates")}</p>
           )}
           {candidateError && (
             <p className="text-xs text-traffic-red">
@@ -1227,7 +1226,7 @@ function ScreeningSection({
             </p>
           )}
           {!candidateLoading && !candidateError && candidates.length === 0 && (
-            <p className="text-xs text-xlent-muted">Ingen kandidater tilgjengelig.</p>
+            <p className="text-xs text-xlent-muted">{t("detail.extended.no_candidates")}</p>
           )}
           {!candidateLoading && !candidateError && candidates.length > 0 && (
             <div className="overflow-x-auto">
@@ -1236,7 +1235,7 @@ function ScreeningSection({
                   <tr className="text-left uppercase text-xlent-muted">
                     <th className="px-2 py-1">Entitet</th>
                     <th className="px-2 py-1">Kandidat</th>
-                    <th className="px-2 py-1">Kilde</th>
+                    <th className="px-2 py-1">{t("detail.extended.source_col")}</th>
                     <th className="px-2 py-1">E-post</th>
                     <th className="px-2 py-1">Primær</th>
                   </tr>
@@ -1279,7 +1278,7 @@ function ScreeningSection({
     return (
       <div className="mt-4 border-t border-gray-200 pt-4">
         <h3 className="mb-3 text-xs font-semibold uppercase tracking-wide text-xlent-muted">
-          Sanksjonsscreening
+          {t("detail.risk.sanctions_title")}
         </h3>
         {content}
       </div>
@@ -1289,7 +1288,7 @@ function ScreeningSection({
   return (
     <section className="rounded-lg border border-gray-200 bg-white p-4">
       <h2 className="mb-3 text-xs font-semibold uppercase tracking-wide text-xlent-muted">
-        Sanksjonsscreening
+        {t("detail.risk.sanctions_title")}
       </h2>
       {content}
     </section>
@@ -1303,8 +1302,9 @@ function RiskAndScreeningSection({
   invoice: Invoice;
   hasBeenScreened: boolean;
 }) {
+  const { t } = useTranslation("invoices");
   const { data: screeningData, isLoading: screeningLoading } = useScreeningResults(invoice.id);
-  const { risk, reasons } = computeOverallRisk(invoice);
+  const { risk, reasonKeys } = computeOverallRisk(invoice);
   const countryInfo = getCountryRisk(invoice.destination_country);
   const screeningPending = invoice.status === "extracted" || invoice.status === "screening";
   const maxScreeningScore = screeningData
@@ -1314,49 +1314,49 @@ function RiskAndScreeningSection({
   const screeningSignal = (() => {
     if (invoice.status === "screening") {
       return {
-        text: "Screening pågår",
-        detail: "Sjekker alle identifiserte parter mot sanksjonslister …",
+        text: t("detail.screening.in_progress"),
+        detail: t("detail.screening.in_progress_detail"),
         cls: "text-blue-700",
       };
     }
     if (invoice.status === "extracted") {
       return {
-        text: "Venter på auto-screening",
-        detail: "Screening starter normalt automatisk rett etter ekstraksjon.",
+        text: t("detail.screening.waiting"),
+        detail: t("detail.screening.waiting_detail"),
         cls: "text-amber-700",
       };
     }
     if (screeningLoading) {
       return {
-        text: "Laster screeningresultat",
-        detail: "Henter status fra backend …",
+        text: t("detail.screening.loading_text"),
+        detail: t("detail.screening.loading_detail"),
         cls: "text-xlent-muted",
       };
     }
     if (!screeningData) {
       return {
-        text: "Ingen screeningdata",
-        detail: "Ingen resultater ble funnet for denne invoicen.",
+        text: t("detail.screening.no_data"),
+        detail: t("detail.screening.no_data_detail"),
         cls: "text-xlent-muted",
       };
     }
     if (screeningData.confirmed_matches > 0) {
       return {
-        text: `${screeningData.confirmed_matches} bekreftet treff`,
-        detail: `${screeningData.potential_matches} potensielle treff`,
+        text: `${screeningData.confirmed_matches} ${t("detail.screening.confirmed_matches")}`,
+        detail: `${screeningData.potential_matches} ${t("detail.screening.potential_matches")}`,
         cls: "text-traffic-red",
       };
     }
     if (screeningData.potential_matches > 0) {
       return {
-        text: `${screeningData.potential_matches} potensielle treff`,
-        detail: "Ingen bekreftede treff",
+        text: `${screeningData.potential_matches} ${t("detail.screening.potential_matches")}`,
+        detail: t("detail.screening.no_confirmed_hits"),
         cls: "text-yellow-700",
       };
     }
     return {
-      text: "Ingen sanksjonstreff",
-      detail: "Alle screenede entiteter er klar.",
+      text: t("detail.screening.no_hits_text"),
+      detail: t("detail.screening.all_clear"),
       cls: "text-green-700",
     };
   })();
@@ -1371,14 +1371,14 @@ function RiskAndScreeningSection({
       (screeningData?.confirmed_matches ?? 0) > 0
     ) {
       return {
-        label: "Svært høy risiko",
+        label: t("detail.conclusion.very_high_risk"),
         icon: "☹",
         cls: "text-traffic-red",
         boxCls: "border-red-200 bg-red-50",
         detail:
           maxScreeningScore != null
-            ? `Høyeste screening-score er ${(maxScreeningScore * 100).toFixed(1)}%.`
-            : "Bekreftet sanksjonsmatch er funnet.",
+            ? `${t("detail.conclusion.high_score_detail")} ${(maxScreeningScore * 100).toFixed(1)}%.`
+            : t("detail.conclusion.confirmed_detail"),
       };
     }
     if (
@@ -1387,59 +1387,59 @@ function RiskAndScreeningSection({
       risk === "orange"
     ) {
       return {
-        label: "Høy risiko",
+        label: t("detail.conclusion.high_risk"),
         icon: "😐",
         cls: "text-yellow-700",
         boxCls: "border-yellow-200 bg-yellow-50",
         detail:
           maxScreeningScore != null
-            ? `Høyeste screening-score er ${(maxScreeningScore * 100).toFixed(1)}%.`
-            : "Potensielle sanksjonstreff krever manuell vurdering.",
+            ? `${t("detail.conclusion.high_score_detail")} ${(maxScreeningScore * 100).toFixed(1)}%.`
+            : t("detail.conclusion.potential_detail"),
       };
     }
     if (risk === "yellow") {
       return {
-        label: "Moderat risiko",
+        label: t("detail.conclusion.moderate_risk"),
         icon: "🙂",
         cls: "text-yellow-700",
         boxCls: "border-yellow-200 bg-yellow-50",
-        detail: "Ingen sterke sanksjonssignaler, men normal aktsomhet kreves.",
+        detail: t("detail.conclusion.moderate_detail"),
       };
     }
     return {
-      label: "Lav risiko",
+      label: t("detail.conclusion.low_risk"),
       icon: "🙂",
       cls: "text-green-700",
       boxCls: "border-green-200 bg-green-50",
-      detail: "Ingen kritiske risikosignaler identifisert.",
+      detail: t("detail.conclusion.low_detail"),
     };
   })();
 
   return (
     <section className="rounded-lg border border-gray-200 bg-white p-4">
       <h2 className="mb-3 text-xs font-semibold uppercase tracking-wide text-xlent-muted">
-        Risiko og screening
+        {t("detail.risk.section_title")}
       </h2>
 
       <div className="grid gap-3 md:grid-cols-2">
         <div className="rounded-lg border border-gray-200 bg-gray-50 p-3">
           <h3 className="text-xs font-semibold uppercase tracking-wide text-xlent-muted">
-            LLM og landrisiko
+            {t("detail.risk.llm_title")}
           </h3>
           <p className="mt-1 text-sm font-medium text-xlent-ink">
-            Destinasjonsland: {invoice.destination_country ?? "ukjent"}
+            {t("detail.risk.destination_country")} {invoice.destination_country ?? "ukjent"}
           </p>
           <p className="text-xs text-xlent-muted">
             {TIER_LABELS[countryInfo.tier]} (tier {countryInfo.tier})
           </p>
           <p className="mt-2 text-xs text-xlent-muted">
-            LLM-notater: {invoice.comments ? "registrert" : "ingen spesielle notater"}
+            {t("detail.risk.llm_notes")} {invoice.comments ? t("detail.risk.llm_notes_registered") : t("detail.risk.llm_notes_none")}
           </p>
         </div>
 
         <div className="rounded-lg border border-gray-200 bg-gray-50 p-3">
           <h3 className="text-xs font-semibold uppercase tracking-wide text-xlent-muted">
-            Sanksjonsscreening
+            {t("detail.risk.sanctions_title")}
           </h3>
           <div className="mt-1 flex items-center gap-2">
             {invoice.status === "screening" && (
@@ -1450,7 +1450,7 @@ function RiskAndScreeningSection({
           <p className="text-xs text-xlent-muted">{screeningSignal.detail}</p>
           {screeningData && (
             <p className="mt-2 text-xs text-xlent-muted">
-              Entiteter sjekket: {screeningData.total_entities}
+              {t("detail.risk.entities_checked")} {screeningData.total_entities}
             </p>
           )}
         </div>
@@ -1459,11 +1459,12 @@ function RiskAndScreeningSection({
       {screeningPending && (
         <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-3">
           <h3 className="text-sm font-semibold text-amber-900">
-            Sanksjonsscreening ikke fullført
+            {t("detail.screening.not_complete_title")}
           </h3>
           <p className="mt-1 text-sm text-amber-800">
-            Screening skjer normalt automatisk etter ekstraksjon. Hvis den ikke er gjennomført, klikk{" "}
-            <span className="font-medium">«Re-screen sanksjoner»</span> øverst til høyre.
+            {t("detail.screening.not_complete_message")}{" "}
+            <span className="font-medium">{t("detail.screening.not_complete_button")}</span>{" "}
+            øverst til høyre.
           </p>
         </div>
       )}
@@ -1472,15 +1473,15 @@ function RiskAndScreeningSection({
 
       <div className="mt-4 border-t border-gray-200 pt-4">
         <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-xlent-muted">
-          Samlet konklusjon
+          {t("detail.conclusion.title")}
         </h3>
         {screeningPending ? (
           <div className="rounded-lg border border-gray-200 bg-gray-50 p-3">
             <p className="text-sm font-semibold text-xlent-ink">
-              Avventer screening
+              {t("detail.conclusion.awaiting")}
             </p>
             <p className="mt-1 text-xs text-xlent-muted">
-              Samlet konklusjon vises når sanksjonsscreening er ferdig.
+              {t("detail.conclusion.awaiting_detail")}
             </p>
           </div>
         ) : (
@@ -1492,7 +1493,7 @@ function RiskAndScreeningSection({
             <p className="mt-1 text-xs text-xlent-ink">{conclusion.detail}</p>
             {strongestScreeningMatch && (
               <p className="mt-1 text-xs text-xlent-muted">
-                Sterkeste treff: {strongestScreeningMatch.matched_name ?? "ukjent navn"} (
+                {t("detail.conclusion.strongest_match")} {strongestScreeningMatch.matched_name ?? "ukjent navn"} (
                 {strongestScreeningMatch.dataset}, score {(
                   Number.parseFloat(strongestScreeningMatch.score) * 100
                 ).toFixed(1)}
@@ -1501,10 +1502,10 @@ function RiskAndScreeningSection({
             )}
           </div>
         )}
-        {reasons.length > 0 && (
+        {reasonKeys.length > 0 && (
           <ul className="mt-2 space-y-1 text-xs text-xlent-muted">
-            {reasons.map((reason, idx) => (
-              <li key={idx}>• {reason}</li>
+            {reasonKeys.map((reason, idx) => (
+              <li key={idx}>• {t(reason.key, reason.params)}</li>
             ))}
           </ul>
         )}
@@ -1515,6 +1516,101 @@ function RiskAndScreeningSection({
 
 // ── Review-beslutningspanel ───────────────────────────────────────────────────
 
+function ManualRiskEscalationPanel({ invoice }: { invoice: Invoice }) {
+  const { t } = useTranslation("invoices");
+  const { user, can } = useAuth();
+  const [target, setTarget] = useState<"yellow" | "red">("yellow");
+  const [reason, setReason] = useState("");
+  const [submitError, setSubmitError] = useState<string | null>(null);
+  const escalateMutation = useEscalateInvoiceRisk(invoice.id);
+
+  const canEscalate = can("invoices:edit");
+  const isGreen = invoice.compliance_score === "green";
+  const isStableStatus =
+    invoice.status !== "uploaded" &&
+    invoice.status !== "parsing" &&
+    invoice.status !== "extracting" &&
+    invoice.status !== "screening" &&
+    invoice.status !== "not_invoice";
+
+  if (!canEscalate || !isGreen || !isStableStatus) return null;
+
+  async function handleEscalate() {
+    if (reason.trim().length < 10) {
+      setSubmitError(t("detail.escalate.reason_too_short"));
+      return;
+    }
+    setSubmitError(null);
+    try {
+      await escalateMutation.mutateAsync({
+        target_score: target,
+        reason: reason.trim(),
+        actor: user.name,
+      });
+      setReason("");
+      setTarget("yellow");
+    } catch {
+      setSubmitError(t("detail.escalate.save_error"));
+    }
+  }
+
+  return (
+    <section className="rounded-lg border border-blue-200 bg-blue-50 p-4">
+      <h2 className="mb-1 text-sm font-semibold text-blue-900">
+        {t("detail.escalate.title")}
+      </h2>
+      <p className="mb-3 text-xs text-blue-800">
+        {t("detail.escalate.subtitle")}
+      </p>
+
+      <div className="grid gap-3 md:grid-cols-2">
+        <div>
+          <label className="mb-1 block text-xs font-medium text-blue-900">
+            {t("detail.escalate.target_label")}
+          </label>
+          <select
+            value={target}
+            onChange={(e) => setTarget(e.target.value as "yellow" | "red")}
+            className="w-full rounded border border-blue-200 bg-white px-2 py-1.5 text-sm text-xlent-ink focus:outline-none focus:ring-1 focus:ring-xlent-primary"
+          >
+            <option value="yellow">{t("detail.escalate.target_yellow")}</option>
+            <option value="red">{t("detail.escalate.target_red")}</option>
+          </select>
+        </div>
+        <div className="md:col-span-2">
+          <label className="mb-1 block text-xs font-medium text-blue-900">
+            {t("detail.escalate.reason_label")}
+          </label>
+          <textarea
+            value={reason}
+            onChange={(e) => setReason(e.target.value)}
+            rows={3}
+            placeholder={t("detail.escalate.reason_placeholder")}
+            className="w-full rounded border border-blue-200 bg-white px-3 py-2 text-sm text-xlent-ink placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-xlent-primary"
+          />
+        </div>
+      </div>
+      {submitError && <p className="mt-2 text-xs text-traffic-red">{submitError}</p>}
+      <div className="mt-3">
+        <button
+          onClick={handleEscalate}
+          disabled={escalateMutation.isPending}
+          className={clsx(
+            "rounded px-3 py-1.5 text-xs font-medium text-white transition-colors disabled:cursor-not-allowed",
+            target === "red"
+              ? "bg-red-600 hover:bg-red-700 disabled:bg-red-300"
+              : "bg-amber-600 hover:bg-amber-700 disabled:bg-amber-300",
+          )}
+        >
+          {escalateMutation.isPending
+            ? t("detail.escalate.saving")
+            : t("detail.escalate.submit")}
+        </button>
+      </div>
+    </section>
+  );
+}
+
 /**
  * Viser gjeldende beslutning (readonly) eller beslutningsgrensesnittet
  * (Godkjenn / Blokker + begrunnelsesfelt) avhengig av invoice-status.
@@ -1523,11 +1619,14 @@ function RiskAndScreeningSection({
  * er i status screened, approved eller blocked.
  */
 function ReviewDecisionPanel({ invoice }: { invoice: Invoice }) {
+  const { t, i18n } = useTranslation("invoices");
   const { user, can } = useAuth();
   const [decision, setDecision] = useState<"approved" | "blocked" | null>(null);
   const [reason, setReason] = useState("");
   const [submitError, setSubmitError] = useState<string | null>(null);
   const reviewMutation = useReviewInvoice(invoice.id);
+
+  const locale = i18n.language === "en" ? "en-GB" : "nb-NO";
 
   const canReview = can("invoices:review");
   const isReviewable =
@@ -1577,20 +1676,20 @@ function ReviewDecisionPanel({ invoice }: { invoice: Invoice }) {
             isApproved ? "text-green-800" : "text-red-800",
           )}
         >
-          {isApproved ? "✓ Faktura godkjent" : "🔒 Faktura blokkert"}
+          {isApproved ? t("detail.review.approved_title") : t("detail.review.blocked_title")}
         </h2>
         <dl className="grid grid-cols-2 gap-y-1 text-xs">
-          <dt className="text-xlent-muted">Besluttet av</dt>
+          <dt className="text-xlent-muted">{t("detail.review.decided_by")}</dt>
           <dd className="font-medium text-xlent-ink">
             {invoice.reviewed_by ?? "—"}
           </dd>
-          <dt className="text-xlent-muted">Tidspunkt</dt>
+          <dt className="text-xlent-muted">{t("detail.review.decision_time")}</dt>
           <dd className="text-xlent-ink">
             {invoice.reviewed_at
-              ? new Date(invoice.reviewed_at).toLocaleString("nb-NO")
+              ? new Date(invoice.reviewed_at).toLocaleString(locale)
               : "—"}
           </dd>
-          <dt className="text-xlent-muted">Begrunnelse</dt>
+          <dt className="text-xlent-muted">{t("detail.review.reason_label")}</dt>
           <dd className="col-span-1 text-xlent-ink">
             {invoice.review_reason ?? "—"}
           </dd>
@@ -1598,7 +1697,7 @@ function ReviewDecisionPanel({ invoice }: { invoice: Invoice }) {
         {/* La compliance_officer/admin omgjøre beslutning */}
         <div className="mt-3 border-t border-current/20 pt-3">
           <p className="mb-2 text-xs text-xlent-muted">
-            Omgjør beslutning:
+            {t("detail.review.override_label")}
           </p>
           <div className="flex flex-wrap gap-2">
             <button
@@ -1610,7 +1709,7 @@ function ReviewDecisionPanel({ invoice }: { invoice: Invoice }) {
                   : "border-green-300 bg-white text-green-700 hover:bg-green-50",
               )}
             >
-              ✓ Godkjenn
+              {t("detail.review.approve_button")}
             </button>
             <button
               onClick={() => setDecision("blocked")}
@@ -1621,7 +1720,7 @@ function ReviewDecisionPanel({ invoice }: { invoice: Invoice }) {
                   : "border-red-300 bg-white text-red-700 hover:bg-red-50",
               )}
             >
-              🔒 Blokker
+              {t("detail.review.block_button")}
             </button>
           </div>
           {decision && (
@@ -1644,11 +1743,10 @@ function ReviewDecisionPanel({ invoice }: { invoice: Invoice }) {
   return (
     <section className="rounded-lg border border-amber-200 bg-amber-50 p-4">
       <h2 className="mb-1 text-sm font-semibold text-amber-900">
-        Manuell review kreves
+        {t("detail.review.required_title")}
       </h2>
       <p className="mb-3 text-xs text-amber-800">
-        Faktura med forhøyet compliance-risiko. Godkjenn eller blokker etter
-        gjennomgang.
+        {t("detail.review.required_message")}
       </p>
       <div className="flex flex-wrap gap-2">
         <button
@@ -1660,7 +1758,7 @@ function ReviewDecisionPanel({ invoice }: { invoice: Invoice }) {
               : "border-green-300 bg-white text-green-700 hover:bg-green-50",
           )}
         >
-          ✓ Godkjenn
+          {t("detail.review.approve_button")}
         </button>
         <button
           onClick={() => setDecision("blocked")}
@@ -1671,7 +1769,7 @@ function ReviewDecisionPanel({ invoice }: { invoice: Invoice }) {
               : "border-red-300 bg-white text-red-700 hover:bg-red-50",
           )}
         >
-          🔒 Blokker
+          {t("detail.review.block_button")}
         </button>
       </div>
       {decision && (
@@ -1707,23 +1805,24 @@ function ReviewReasonForm({
   isLoading: boolean;
   error: string | null;
 }) {
+  const { t } = useTranslation("invoices");
   const remainingChars = Math.max(0, 10 - reason.trim().length);
   return (
     <div className="mt-3">
       <label className="mb-1 block text-xs font-medium text-xlent-ink">
-        Begrunnelse{" "}
-        <span className="font-normal text-xlent-muted">(obligatorisk, min. 10 tegn)</span>
+        {t("detail.review.reason_field")}{" "}
+        <span className="font-normal text-xlent-muted">{t("detail.review.reason_hint")}</span>
       </label>
       <textarea
         value={reason}
         onChange={(e) => onReasonChange(e.target.value)}
         rows={3}
-        placeholder="Forklar beslutningen…"
+        placeholder={t("detail.review.reason_placeholder")}
         className="w-full rounded border border-gray-300 px-3 py-2 text-sm text-xlent-ink placeholder-gray-400 focus:border-xlent-primary focus:outline-none focus:ring-1 focus:ring-xlent-primary"
       />
       {remainingChars > 0 && (
         <p className="mt-0.5 text-[11px] text-xlent-muted">
-          Skriv {remainingChars} tegn til…
+          {t("detail.review.chars_remaining")} {remainingChars} {t("detail.review.chars_suffix")}
         </p>
       )}
       {error && (
@@ -1741,14 +1840,14 @@ function ReviewReasonForm({
             "disabled:cursor-not-allowed",
           )}
         >
-          {isLoading ? "Lagrer…" : decision === "approved" ? "Bekreft godkjenning" : "Bekreft blokkering"}
+          {isLoading ? t("detail.review.saving") : decision === "approved" ? t("detail.review.confirm_approve") : t("detail.review.confirm_block")}
         </button>
         <button
           onClick={onCancel}
           disabled={isLoading}
           className="rounded border border-gray-300 px-3 py-1.5 text-xs font-medium text-xlent-muted hover:bg-gray-50 disabled:cursor-not-allowed"
         >
-          Avbryt
+          {t("detail.review.cancel")}
         </button>
       </div>
     </div>
@@ -1764,12 +1863,13 @@ function ReviewDataExpander({
   conf: ExtractionConfidence | null | undefined;
   canEdit: boolean;
 }) {
+  const { t } = useTranslation("invoices");
   return (
     <details className="rounded-lg border border-gray-200 bg-white">
       <summary className="cursor-pointer px-4 py-3 text-xs font-semibold uppercase tracking-wide text-xlent-muted hover:bg-xlent-surface">
-        Metadata og linjer
+        {t("detail.metadata.expander_title")}
         <span className="ml-2 normal-case text-xlent-muted/80">
-          ({invoice.lines.length} linjer)
+          ({invoice.lines.length} {t("detail.lines.title").toLowerCase()})
         </span>
       </summary>
       <div className="space-y-4 border-t border-gray-200 p-4">
@@ -1791,7 +1891,17 @@ function MetadataSection({
   conf: ExtractionConfidence | null | undefined;
   canEdit: boolean;
 }) {
+  const { t, i18n } = useTranslation("invoices");
   const updateFields = useUpdateInvoiceFields(invoice.id);
+
+  const transportOptions = [
+    { value: "sea", label: t("detail.transport.sea") },
+    { value: "air", label: t("detail.transport.air") },
+    { value: "road", label: t("detail.transport.road") },
+    { value: "rail", label: t("detail.transport.rail") },
+    { value: "courier", label: t("detail.transport.courier") },
+    { value: "unknown", label: t("detail.transport.unknown") },
+  ];
 
   async function save(field: string, value: string) {
     await updateFields.mutateAsync({ [field]: value });
@@ -1800,18 +1910,18 @@ function MetadataSection({
   return (
     <section className="rounded-lg border border-gray-200 bg-white p-4 text-sm">
       <h2 className="mb-3 text-xs font-semibold uppercase tracking-wide text-xlent-muted">
-        Metadata
+        {t("detail.metadata.title")}
         {canEdit && (
           <span className="ml-2 font-normal normal-case text-xlent-muted/60">
-            — klikk et felt for å redigere
+            {t("detail.metadata.edit_hint")}
           </span>
         )}
       </h2>
       <dl className="grid grid-cols-2 gap-y-2 gap-x-6 text-sm">
-        <FieldRow label="Retning" value={<span className="capitalize">{invoice.direction}</span>} />
+        <FieldRow label={t("detail.metadata.direction")} value={<span className="capitalize">{invoice.direction}</span>} />
 
         <EditableFieldRow
-          label="Faktura-nr"
+          label={t("detail.metadata.invoice_number")}
           fieldKey="invoice_number"
           value={invoice.invoice_number}
           confidence={conf?.invoice_number}
@@ -1820,7 +1930,7 @@ function MetadataSection({
         />
 
         <EditableFieldRow
-          label="Beløp"
+          label={t("detail.metadata.total_amount")}
           fieldKey="total_amount"
           value={
             invoice.total_amount
@@ -1833,7 +1943,7 @@ function MetadataSection({
         />
 
         <EditableFieldRow
-          label="Valuta"
+          label={t("detail.metadata.currency")}
           fieldKey="currency"
           value={invoice.currency}
           confidence={conf?.currency}
@@ -1842,7 +1952,7 @@ function MetadataSection({
         />
 
         <EditableFieldRow
-          label="Faktura-dato"
+          label={t("detail.metadata.invoice_date")}
           fieldKey="invoice_date"
           value={invoice.invoice_date}
           confidence={conf?.invoice_date}
@@ -1852,7 +1962,7 @@ function MetadataSection({
         />
 
         <EditableFieldRow
-          label="Incoterms"
+          label={t("detail.metadata.incoterms")}
           fieldKey="incoterms"
           value={invoice.incoterms}
           confidence={conf?.incoterms}
@@ -1861,18 +1971,18 @@ function MetadataSection({
         />
 
         <EditableFieldRow
-          label="Transportmåte"
+          label={t("detail.metadata.transport_mode")}
           fieldKey="transport_mode"
           value={invoice.transport_mode}
           confidence={conf?.transport_mode}
           onSave={save}
           editable={canEdit}
           type="select"
-          options={TRANSPORT_OPTIONS}
+          options={transportOptions}
         />
 
         <EditableFieldRow
-          label="Destinasjonsland"
+          label={t("detail.metadata.destination_country")}
           fieldKey="destination_country"
           value={invoice.destination_country}
           confidence={conf?.destination_country}
@@ -1881,7 +1991,7 @@ function MetadataSection({
         />
 
         <EditableFieldRow
-          label="PO-nummer"
+          label={t("detail.metadata.po_number")}
           fieldKey="po_number"
           value={invoice.po_number}
           onSave={save}
@@ -1889,7 +1999,7 @@ function MetadataSection({
         />
 
         <EditableFieldRow
-          label="MVA-beløp"
+          label={t("detail.metadata.vat_amount")}
           fieldKey="vat_amount"
           value={invoice.vat_amount}
           confidence={conf?.vat_amount}
@@ -1898,7 +2008,7 @@ function MetadataSection({
         />
 
         <EditableFieldRow
-          label="MVA-sats"
+          label={t("detail.metadata.vat_rate")}
           fieldKey="vat_rate"
           value={invoice.vat_rate}
           confidence={conf?.vat_rate}
@@ -1907,7 +2017,7 @@ function MetadataSection({
         />
 
         <FieldRow
-          label="Filstørrelse"
+          label={t("detail.metadata.file_size")}
           value={
             invoice.file_size_bytes
               ? `${(invoice.file_size_bytes / 1024).toFixed(1)} kB`
@@ -1915,15 +2025,15 @@ function MetadataSection({
           }
         />
         <FieldRow
-          label="Opprettet"
-          value={new Date(invoice.created_at).toLocaleString("nb-NO")}
+          label={t("detail.metadata.created_at")}
+          value={new Date(invoice.created_at).toLocaleString(i18n.language === "en" ? "en-GB" : "nb-NO")}
         />
         {(invoice.input_tokens != null || invoice.output_tokens != null) && (
           <FieldRow
-            label="Token-forbruk"
+            label={t("detail.metadata.token_usage")}
             value={
-              `${invoice.input_tokens?.toLocaleString("nb-NO") ?? "?"} inn` +
-              ` / ${invoice.output_tokens?.toLocaleString("nb-NO") ?? "?"} ut`
+              `${invoice.input_tokens?.toLocaleString(i18n.language === "en" ? "en-GB" : "nb-NO") ?? "?"} inn` +
+              ` / ${invoice.output_tokens?.toLocaleString(i18n.language === "en" ? "en-GB" : "nb-NO") ?? "?"} ut`
             }
           />
         )}
@@ -1931,10 +2041,10 @@ function MetadataSection({
 
       {invoice.vat_mismatch_check?.flagged && (
         <div className="mt-4 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900">
-          <div className="font-semibold">Mulig feilregistrert MVA ved eksport</div>
+          <div className="font-semibold">{t("detail.metadata.vat_mismatch")}</div>
           <p className="mt-1 text-xs">
             {invoice.vat_mismatch_check.reason ??
-              "Avsenderland og mottakerland avviker, men VAT/MVA er satt. Verifiser manuelt."}
+              t("detail.metadata.vat_mismatch_fallback")}
           </p>
         </div>
       )}
@@ -1943,7 +2053,7 @@ function MetadataSection({
       {(invoice.instructions || canEdit) && (
         <div className="mt-3">
           <div className="mb-1 flex items-center gap-2 text-xs text-xlent-muted">
-            <span>Instruksjoner / notater fra dokumentet</span>
+            <span>{t("detail.metadata.instructions")}</span>
             {conf?.instructions != null && conf.instructions > 0 && (
               <ConfidencePip score={conf.instructions} />
             )}
@@ -1953,7 +2063,7 @@ function MetadataSection({
               value={invoice.instructions}
               onSave={(v) => save("instructions", v)}
               editable={canEdit}
-              placeholder="Ingen instruksjoner funnet…"
+              placeholder={t("detail.metadata.instructions_placeholder")}
               className="w-full whitespace-pre-wrap"
             />
           </div>
@@ -1963,13 +2073,13 @@ function MetadataSection({
       {/* LLM-analyse / compliance-kommentar */}
       {(invoice.comments || canEdit) && (
         <div className="mt-3">
-          <div className="mb-1 text-xs text-xlent-muted">LLM-analyse og compliance-notater</div>
+          <div className="mb-1 text-xs text-xlent-muted">{t("detail.metadata.llm_analysis")}</div>
           <div className="rounded border border-blue-100 bg-blue-50 px-3 py-2 text-xs text-xlent-ink">
             <EditableField
               value={invoice.comments}
               onSave={(v) => save("comments", v)}
               editable={canEdit}
-              placeholder="Ingen compliance-notater…"
+              placeholder={t("detail.metadata.llm_analysis_placeholder")}
               className="w-full"
             />
           </div>
@@ -1982,17 +2092,18 @@ function MetadataSection({
 // ── Hovedside ─────────────────────────────────────────────────────────────────
 
 export function InvoiceDetail() {
+  const { t } = useTranslation("invoices");
   const { id } = useParams<{ id: string }>();
   const { data: invoice, isLoading, error } = useInvoice(id);
   const { can } = useAuth();
 
-  if (isLoading) return <p className="p-6 text-sm text-xlent-muted">Laster …</p>;
+  if (isLoading) return <p className="p-6 text-sm text-xlent-muted">{t("detail.loading")}</p>;
   if (error || !invoice) {
     return (
       <div className="p-6">
-        <p className="text-sm text-traffic-red">Invoice ikke funnet.</p>
+        <p className="text-sm text-traffic-red">{t("detail.not_found")}</p>
         <Link to="/" className="mt-2 inline-block text-sm text-xlent-primary hover:underline">
-          ← Tilbake til oversikten
+          {t("detail.back_to_list")}
         </Link>
       </div>
     );
@@ -2033,14 +2144,14 @@ export function InvoiceDetail() {
     <div className="mx-auto max-w-5xl space-y-6 p-6">
       <div>
         <Link to="/" className="text-sm text-xlent-primary hover:underline">
-          ← Tilbake
+          {t("detail.back")}
         </Link>
       </div>
 
       <header className="flex items-start justify-between gap-4">
         <div>
           <h1 className="text-2xl font-semibold text-xlent-ink">
-            {invoice.original_filename ?? "Invoice"}
+            {invoice.original_filename ?? t("detail.default_title")}
           </h1>
           {invoice.extraction_model && (
             <p className="mt-1 text-sm text-xlent-muted">
@@ -2064,10 +2175,10 @@ export function InvoiceDetail() {
                 href={getInvoiceReportUrl(invoice.id)}
                 target="_blank"
                 rel="noopener noreferrer"
-                title="Åpne compliance-rapport i ny fane — bruk Ctrl+P / Cmd+P for å lagre som PDF"
+                title={t("detail.report_tooltip")}
                 className="inline-flex items-center gap-1.5 rounded border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-xlent-ink hover:bg-gray-50"
               >
-                📄 Rapport
+                {t("detail.report_button")}
               </a>
             )}
             <ActionButtons
@@ -2091,19 +2202,19 @@ export function InvoiceDetail() {
           <span>
             <span className="font-medium">
               {invoice.status === "extracting"
-                ? "Ekstraherer med LLM …"
+                ? t("detail.processing.extracting")
                 : invoice.status === "screening"
-                  ? "Screener mot sanksjonslister …"
-                  : "Parser dokumentet …"}
+                  ? t("detail.processing.screening")
+                  : t("detail.processing.parsing")}
             </span>
             <span className="ml-2 text-xlent-muted">
               {invoice.status === "extracting"
-                ? "Claude leser fakturaen og henter ut felter."
+                ? t("detail.processing.extracting_detail")
                 : invoice.status === "screening"
-                  ? "Sjekker alle parter mot UN, EU, OFAC og norske lister."
+                  ? t("detail.processing.screening_detail")
                   : invoice.status === "parsing"
-                    ? "Vision OCR / Docling kjorer."
-                    : "Venter pa bakgrunnsprosessen."}
+                    ? t("detail.processing.parsing_detail")
+                    : t("detail.processing.waiting")}
             </span>
           </span>
         </div>
@@ -2128,18 +2239,19 @@ export function InvoiceDetail() {
       {/* Feilmeldinger (vises ikke for not_invoice — de har eget banner) */}
       {invoice.parsing_error && invoice.status !== "not_invoice" && (
         <section className="rounded-lg border border-traffic-red/50 bg-red-50 p-4">
-          <h2 className="mb-1 text-sm font-semibold text-traffic-red">Parsing feilet</h2>
+          <h2 className="mb-1 text-sm font-semibold text-traffic-red">{t("detail.errors.parsing_failed_title")}</h2>
           <pre className="whitespace-pre-wrap text-xs text-traffic-red">{invoice.parsing_error}</pre>
         </section>
       )}
       {invoice.extraction_error && invoice.status !== "not_invoice" && (
         <section className="rounded-lg border border-traffic-red/50 bg-red-50 p-4">
-          <h2 className="mb-1 text-sm font-semibold text-traffic-red">Ekstraksjon feilet</h2>
+          <h2 className="mb-1 text-sm font-semibold text-traffic-red">{t("detail.errors.extraction_failed_title")}</h2>
           <pre className="whitespace-pre-wrap text-xs text-traffic-red">{invoice.extraction_error}</pre>
         </section>
       )}
 
       {/* Review-beslutning (godkjenn/blokker) — vises for compliance_officer og admin */}
+      <ManualRiskEscalationPanel invoice={invoice} />
       <ReviewDecisionPanel invoice={invoice} />
 
       {/* Parter og signatarer — alltid synlig */}

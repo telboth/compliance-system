@@ -1,0 +1,68 @@
+{
+  "nav": {
+    "invoices": "Invoices",
+    "dashboard": "📊 Dashboard",
+    "customers": "Customers",
+    "review_queue": "Review Queue",
+    "rules": "Rules",
+    "watchlist": "🚫 Watchlist",
+    "agreements": "Framework Agreements",
+    "maps": "Maps",
+    "risk_map": "🌍 Risk Countries",
+    "sanctioned_entities": "Sanctioned Entities",
+    "invoice_search": "Invoice Search",
+    "shipments_map": "Shipments Map",
+    "pipeline_ops": "Pipeline Ops",
+    "no_access": "You do not have access to this page with your current role"
+  },
+  "status": {
+    "uploaded": "Uploaded",
+    "parsing": "Parsing",
+    "parsed": "Parsed",
+    "parsing_failed": "Parsing Failed",
+    "not_invoice": "Not an Invoice",
+    "extracting": "Extracting",
+    "extraction_failed": "Extraction Failed",
+    "extracted": "Extracted",
+    "screening": "Screening",
+    "screening_failed": "Screening Failed",
+    "screened": "Screened",
+    "reviewed": "Reviewed",
+    "approved": "Approved",
+    "blocked": "Blocked"
+  },
+  "action": {
+    "save": "Save",
+    "saving": "Saving…",
+    "cancel": "Cancel",
+    "delete": "Delete",
+    "edit": "Edit",
+    "add": "Add",
+    "create": "Create",
+    "close": "Close",
+    "toggle_active": "Activate",
+    "toggle_inactive": "Deactivate"
+  },
+  "loading": "Loading …",
+  "loading_page": "Loading page …",
+  "error_generic": "Something went wrong. Please try again.",
+  "error_api": "Check that the API is running.",
+  "compliance": "Compliance",
+  "header_title": "Compliance",
+  "direction": {
+    "incoming": "In",
+    "outgoing": "Out",
+    "incoming_full": "Incoming",
+    "outgoing_full": "Outgoing"
+  },
+  "pagination": {
+    "showing": "Showing {{from}}–{{to}} of {{total}}",
+    "prev": "← Previous",
+    "next": "Next →"
+  },
+  "language": {
+    "nb": "Norsk",
+    "en": "English",
+    "switch_aria": "Select language"
+  }
+}
