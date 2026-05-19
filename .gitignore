@@ -49,9 +49,13 @@ Thumbs.db
 # Database / storage
 *.sqlite3
 *.db
-data/
+/data/
 storage/
 uploads/
+
+# Keep frontend source data tracked (country risk map etc.)
+!frontend/src/data/
+!frontend/src/data/**
 
 # Logs
 *.log
