@@ -63,6 +63,8 @@
   },
   "model_selector": {
     "loading": "Loading models…",
+    "unavailable": "Models unavailable",
+    "retry": "Retry",
     "label": "Model:",
     "missing_key_title": "Add API key in .secrets to use {{provider}}",
     "missing_key_badge": "⚠ No key",

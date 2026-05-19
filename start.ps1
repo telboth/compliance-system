@@ -39,6 +39,27 @@ function Write-Info([string]$Text) { Write-Host "  -->   $Text" -ForegroundColor
 function Write-Warn([string]$Text) { Write-Host "  [!]   $Text" -ForegroundColor Yellow }
 function Write-Fail([string]$Text) { Write-Host "  [X]   $Text" -ForegroundColor Red }
 
+function Get-ComposeExit137Services {
+    try {
+        $raw = docker compose ps --all --format json 2>$null
+        if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($raw)) {
+            return @()
+        }
+        $parsed = $raw | ConvertFrom-Json
+        if ($parsed -isnot [System.Array]) {
+            $parsed = @($parsed)
+        }
+        return @(
+            $parsed |
+            Where-Object { $_.State -eq "exited" -and [int]$_.ExitCode -eq 137 } |
+            ForEach-Object { $_.Service } |
+            Select-Object -Unique
+        )
+    } catch {
+        return @()
+    }
+}
+
 # -- Forutsetninger ------------------------------------------------------------
 
 Write-Header "XLENT Compliance - oppstart"
@@ -92,9 +113,30 @@ Write-Info "Merk: ved forste oppstart laster yente ned sanksjonslister (5-15 min
 Write-Info "API og frontend starter umiddelbart - yente er klar naar statusindikator slutter aa spinne."
 & docker @composeArgs
 if ($LASTEXITCODE -ne 0) {
-    Write-Warn "docker compose returnerte exit $LASTEXITCODE"
-    Write-Warn "Yente kan fortsatt holde paa med datasett-nedlasting - dette er normalt ved forste oppstart."
-    Write-Warn "Sjekk status med: docker compose logs yente"
+    $composeExitCode = $LASTEXITCODE
+    Write-Warn "docker compose returnerte exit $composeExitCode"
+    $exit137Services = Get-ComposeExit137Services
+    if ($composeExitCode -eq 137 -or $exit137Services.Count -gt 0) {
+        Write-Fail "En eller flere containere ble drept med exit 137 (SIGKILL)."
+        if ($exit137Services.Count -gt 0) {
+            Write-Warn "Berorte tjenester: $($exit137Services -join ', ')"
+        }
+        Write-Warn "Vanligste arsaker: for lite minne i Docker Desktop, eller WSL2 etter install/restart."
+        Write-Warn "Tiltak:"
+        Write-Warn "  1) Restart maskinen (spesielt etter ny Docker/WSL-installasjon)."
+        Write-Warn "  2) Sett Docker Desktop Memory til minst 6 GB (helst 8 GB)."
+        Write-Warn "  3) Senk ES-heap i .env ved lav-RAM maskin:"
+        Write-Warn "     ELASTICSEARCH_JAVA_OPTS=-Xms256m -Xmx256m"
+        Write-Warn "  4) Kjor pa nytt:"
+        Write-Warn "     docker compose down --remove-orphans"
+        Write-Warn "     .\\start.ps1"
+        Write-Warn "Detaljlogger:"
+        Write-Warn "  docker compose logs --tail=200 elasticsearch yente api"
+        exit 137
+    } else {
+        Write-Warn "Yente kan fortsatt holde paa med datasett-nedlasting - dette er normalt ved forste oppstart."
+        Write-Warn "Sjekk status med: docker compose logs yente"
+    }
 } else {
     Write-OK "Alle tjenester er oppe"
 }

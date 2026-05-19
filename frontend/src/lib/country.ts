@@ -1,4 +1,4 @@
-import { ALL_COUNTRY_RISKS } from "@/data/countryRisk";
+import { ALL_COUNTRY_RISKS } from "@/data/countryrisk";
 
 const LOCALES = ["en", "nb", "no"] as const;
 

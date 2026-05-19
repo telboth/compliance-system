@@ -17,7 +17,7 @@
 import clsx from "clsx";
 import { useTranslation } from "react-i18next";
 import type { ComplianceScore, Invoice } from "@/api/types";
-import { getCountryRisk, isNatoCountry, TIER_LABELS } from "@/data/countryRisk";
+import { getCountryRisk, isNatoCountry, TIER_LABELS } from "@/data/countryrisk";
 
 // ── Dual-use-deteksjon fra LLM-kommentarer ────────────────────────────────────
 

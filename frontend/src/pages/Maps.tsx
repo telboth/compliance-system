@@ -18,7 +18,7 @@ import {
   getTierFillColor,
   getTierStrokeColor,
   type CountryRiskTier,
-} from "@/data/countryRisk";
+} from "@/data/countryrisk";
 
 const GEOJSON_URL =
   "https://raw.githubusercontent.com/datasets/geo-countries/master/data/countries.geojson";

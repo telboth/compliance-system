@@ -28,7 +28,7 @@ import {
   useUpdateInvoiceFields,
   useUpdateInvoiceLine,
 } from "@/hooks/useInvoices";
-import { getCountryRisk, TIER_LABELS } from "@/data/countryRisk";
+import { getCountryRisk, TIER_LABELS } from "@/data/countryrisk";
 import { getSelectedModel } from "@/lib/modelStore";
 import { getInvoiceFileUrl } from "@/api/invoices";
 import { getInvoiceReportUrl } from "@/api/notifications";

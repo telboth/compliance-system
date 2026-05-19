@@ -12,14 +12,35 @@ import clsx from "clsx";
  */
 export function ModelSelector({ variant = "light" }: { variant?: "light" | "dark" }) {
   const { t } = useTranslation("components");
-  const { data, isLoading } = useModels();
+  const { data, isLoading, isError, refetch } = useModels();
   const { selected, select } = useModelSelection();
 
-  if (isLoading || !data) {
+  if (isLoading) {
     return (
       <span className={clsx("text-xs", variant === "dark" ? "text-white/80" : "text-xlent-muted")}>
         {t("model_selector.loading")}
       </span>
+    );
+  }
+  if (isError || !data) {
+    return (
+      <div className="flex items-center gap-2">
+        <span className={clsx("text-xs", variant === "dark" ? "text-amber-200" : "text-traffic-red")}>
+          {t("model_selector.unavailable")}
+        </span>
+        <button
+          type="button"
+          onClick={() => void refetch()}
+          className={clsx(
+            "rounded border px-2 py-0.5 text-xs",
+            variant === "dark"
+              ? "border-white/35 bg-white/10 text-white hover:bg-white/20"
+              : "border-gray-300 bg-white text-xlent-ink hover:bg-gray-50",
+          )}
+        >
+          {t("model_selector.retry")}
+        </button>
+      </div>
     );
   }
 

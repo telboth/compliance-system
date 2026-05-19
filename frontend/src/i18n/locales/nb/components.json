@@ -63,6 +63,8 @@
   },
   "model_selector": {
     "loading": "Laster modeller…",
+    "unavailable": "Modeller utilgjengelig",
+    "retry": "Prøv igjen",
     "label": "Modell:",
     "missing_key_title": "Legg til API-nøkkel i .secrets for å bruke {{provider}}",
     "missing_key_badge": "⚠ Ingen nøkkel",
