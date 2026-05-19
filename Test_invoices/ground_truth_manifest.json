@@ -1,0 +1,122 @@
+[
+  {
+    "invoice_no": "INV-2026-0001",
+    "file": "INV-2026-0001_CLEAN.pdf",
+    "expected_status": "CLEAN",
+    "sanctions_test_entity": "",
+    "test_location": "",
+    "amount": 28576.6
+  },
+  {
+    "invoice_no": "INV-2026-0002",
+    "file": "INV-2026-0002_CLEAN.pdf",
+    "expected_status": "CLEAN",
+    "sanctions_test_entity": "",
+    "test_location": "",
+    "amount": 17268.17
+  },
+  {
+    "invoice_no": "INV-2026-0003",
+    "file": "INV-2026-0003_CLEAN.pdf",
+    "expected_status": "CLEAN",
+    "sanctions_test_entity": "",
+    "test_location": "",
+    "amount": 15751.4
+  },
+  {
+    "invoice_no": "INV-2026-0004",
+    "file": "INV-2026-0004_CLEAN.pdf",
+    "expected_status": "CLEAN",
+    "sanctions_test_entity": "",
+    "test_location": "",
+    "amount": 14788.31
+  },
+  {
+    "invoice_no": "INV-2026-0005",
+    "file": "INV-2026-0005_CLEAN.pdf",
+    "expected_status": "CLEAN",
+    "sanctions_test_entity": "",
+    "test_location": "",
+    "amount": 20994.79
+  },
+  {
+    "invoice_no": "INV-2026-0006",
+    "file": "INV-2026-0006_CLEAN.pdf",
+    "expected_status": "CLEAN",
+    "sanctions_test_entity": "",
+    "test_location": "",
+    "amount": 17034.35
+  },
+  {
+    "invoice_no": "INV-2026-0007",
+    "file": "INV-2026-0007_CLEAN.pdf",
+    "expected_status": "CLEAN",
+    "sanctions_test_entity": "",
+    "test_location": "",
+    "amount": 20888.82
+  },
+  {
+    "invoice_no": "INV-2026-0008",
+    "file": "INV-2026-0008_CLEAN.pdf",
+    "expected_status": "CLEAN",
+    "sanctions_test_entity": "",
+    "test_location": "",
+    "amount": 5192.07
+  },
+  {
+    "invoice_no": "INV-2026-0009",
+    "file": "INV-2026-0009_CLEAN.pdf",
+    "expected_status": "CLEAN",
+    "sanctions_test_entity": "",
+    "test_location": "",
+    "amount": 5230.67
+  },
+  {
+    "invoice_no": "INV-2026-0010",
+    "file": "INV-2026-0010_CLEAN.pdf",
+    "expected_status": "CLEAN",
+    "sanctions_test_entity": "",
+    "test_location": "",
+    "amount": 8981.0
+  },
+  {
+    "invoice_no": "INV-2026-0011",
+    "file": "INV-2026-0011_FLAGGED.pdf",
+    "expected_status": "FLAGGED",
+    "sanctions_test_entity": "NUEVO CONTINENTE S.A.",
+    "test_location": "Buyer name",
+    "amount": 6781.93
+  },
+  {
+    "invoice_no": "INV-2026-0012",
+    "file": "INV-2026-0012_FLAGGED.pdf",
+    "expected_status": "FLAGGED",
+    "sanctions_test_entity": "TAMILS REHABILITATION ORGANISATION",
+    "test_location": "Notify party",
+    "amount": 11374.37
+  },
+  {
+    "invoice_no": "INV-2026-0013",
+    "file": "INV-2026-0013_FLAGGED.pdf",
+    "expected_status": "FLAGGED",
+    "sanctions_test_entity": "Main Centre for Special Technologies (GTsST) of the Main Directorate of the General Staff of the Armed Forces of the Russian Federation (GU/GRU)",
+    "test_location": "Declared end-user",
+    "amount": 21934.88
+  },
+  {
+    "invoice_no": "INV-2026-0014",
+    "file": "INV-2026-0014_FLAGGED.pdf",
+    "expected_status": "FLAGGED",
+    "sanctions_test_entity": "Federal State Budgetary Enterprise Production-Agrarian Union \"Massandra\" of the Administration of the President of the Russian Federation",
+    "test_location": "Consignee note",
+    "amount": 19992.49
+  },
+  {
+    "invoice_no": "INV-2026-0015",
+    "file": "INV-2026-0015_FLAGGED.pdf",
+    "expected_status": "FLAGGED",
+    "sanctions_test_entity": "Abdelmalek DROUKDEL",
+    "test_location": "Technical contact",
+    "amount": 13599.35
+  }
+]
