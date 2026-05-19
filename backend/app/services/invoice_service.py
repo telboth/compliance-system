@@ -293,7 +293,7 @@ async def parse_invoice_in_background(invoice_id: uuid.UUID, storage_path: Path)
         try:
             loop = asyncio.get_running_loop()
             settings = get_settings()
-            timeout_seconds = int(getattr(settings, "parsing_timeout_seconds", 180) or 180)
+            timeout_seconds = settings.parsing_timeout_seconds
             parsed = await asyncio.wait_for(
                 loop.run_in_executor(
                     None,
@@ -629,35 +629,37 @@ async def list_invoices(
     count_stmt = select(func.count()).select_from(Invoice)
     list_stmt = select(Invoice)
 
-    def _apply_filters(stmt):  # type: ignore[no-untyped-def]
-        if status is not None:
-            stmt = stmt.where(Invoice.status == status)
-        if direction is not None:
-            stmt = stmt.where(Invoice.direction == direction)
-        if compliance_score is not None:
-            stmt = stmt.where(Invoice.compliance_score == compliance_score)
-        if vat_note_status:
-            stmt = stmt.where(Invoice.vat_note_status == vat_note_status)
-        if email_note_status:
-            stmt = stmt.where(Invoice.email_note_status == email_note_status)
-        if approval_state:
-            if approval_state not in APPROVAL_STATES:
-                return stmt.where(literal(False))
-            stmt = stmt.where(Invoice.approval_state == ApprovalState(approval_state))
-        if destination_country is not None:
-            country_filter = "".join(ch for ch in destination_country.upper() if ch.isalpha())[:2]
-            if country_filter:
-                stmt = stmt.where(
-                    func.upper(func.trim(Invoice.destination_country)) == country_filter
-                )
-        if date_from is not None:
-            stmt = stmt.where(Invoice.invoice_date >= date_from)
-        if date_to is not None:
-            stmt = stmt.where(Invoice.invoice_date <= date_to)
-        return stmt
+    # Bygg WHERE-betingelser én gang og legg dem på begge spørringer.
+    conditions = []
+    if status is not None:
+        conditions.append(Invoice.status == status)
+    if direction is not None:
+        conditions.append(Invoice.direction == direction)
+    if compliance_score is not None:
+        conditions.append(Invoice.compliance_score == compliance_score)
+    if vat_note_status:
+        conditions.append(Invoice.vat_note_status == vat_note_status)
+    if email_note_status:
+        conditions.append(Invoice.email_note_status == email_note_status)
+    if approval_state:
+        if approval_state not in APPROVAL_STATES:
+            conditions.append(literal(False))
+        else:
+            conditions.append(Invoice.approval_state == ApprovalState(approval_state))
+    if destination_country is not None:
+        country_filter = "".join(ch for ch in destination_country.upper() if ch.isalpha())[:2]
+        if country_filter:
+            conditions.append(
+                func.upper(func.trim(Invoice.destination_country)) == country_filter
+            )
+    if date_from is not None:
+        conditions.append(Invoice.invoice_date >= date_from)
+    if date_to is not None:
+        conditions.append(Invoice.invoice_date <= date_to)
 
-    count_stmt = _apply_filters(count_stmt)
-    list_stmt = _apply_filters(list_stmt)
+    if conditions:
+        count_stmt = count_stmt.where(*conditions)
+        list_stmt = list_stmt.where(*conditions)
 
     sort_map = {
         "created_at": Invoice.created_at,

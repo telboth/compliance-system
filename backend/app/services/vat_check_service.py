@@ -165,23 +165,36 @@ async def list_vat_mismatch_invoices(
     offset: int = 0,
     flagged_only: bool = True,
 ) -> tuple[list[VatMismatchInvoiceResult], int, int]:
-    """Hent invoices med VAT-heurstikk, valgfritt filtrert til kun flaggede."""
-    count_stmt = select(func.count()).select_from(Invoice)
-    total_scanned = (await session.execute(count_stmt)).scalar_one()
+    """Hent invoices med VAT-heuristikk, valgfritt filtrert til kun flaggede.
+
+    Bruker lagret ``vat_note_status`` for databasefiltrering og -paginering
+    slik at hele tabellen ikke lastes inn i minnet.
+    """
+    total_scanned: int = (
+        await session.execute(select(func.count()).select_from(Invoice))
+    ).scalar_one()
+
+    total_flagged: int = (
+        await session.execute(
+            select(func.count())
+            .select_from(Invoice)
+            .where(Invoice.vat_note_status == "error")
+        )
+    ).scalar_one()
 
     stmt = (
         select(Invoice)
         .options(selectinload(Invoice.entities))
         .order_by(Invoice.created_at.desc())
+        .limit(limit)
+        .offset(offset)
     )
-    invoices = list((await session.execute(stmt)).scalars().all())
+    if flagged_only:
+        stmt = stmt.where(Invoice.vat_note_status == "error")
 
-    checks: list[VatMismatchInvoiceResult] = []
-    for invoice in invoices:
-        check = evaluate_invoice_vat_mismatch(invoice)
-        if flagged_only and not check.flagged:
-            continue
-        checks.append(VatMismatchInvoiceResult(invoice=invoice, check=check))
-
-    total_flagged = sum(1 for item in checks if item.check.flagged)
-    return checks[offset: offset + limit], total_flagged, total_scanned
+    rows = list((await session.execute(stmt)).scalars().all())
+    results = [
+        VatMismatchInvoiceResult(invoice=inv, check=evaluate_invoice_vat_mismatch(inv))
+        for inv in rows
+    ]
+    return results, total_flagged, total_scanned

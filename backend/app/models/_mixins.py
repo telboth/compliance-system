@@ -21,7 +21,16 @@ class UUIDPrimaryKeyMixin:
 
 
 class TimestampMixin:
-    """`created_at` og `updated_at` håndtert av databasen."""
+    """`created_at` og `updated_at` håndtert av databasen.
+
+    Merk: ``onupdate=func.now()`` er et ORM-nivå-signal — SQLAlchemy inkluderer
+    ``updated_at = NOW()`` automatisk i UPDATE-setninger generert via ORM-session
+    (``session.add`` / ``session.flush``).  Direkte bulk-oppdateringer via
+    ``session.execute(update(...))`` trigger *ikke* ``onupdate`` automatisk;
+    de må eksplisitt sette ``updated_at`` i ``.values()``.
+    For robust server-side-oppdatering bør en PostgreSQL-trigger brukes
+    dersom mange steder bruker bulk-UPDATE.
+    """
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),

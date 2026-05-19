@@ -6,8 +6,7 @@ from collections.abc import Iterable
 from app.data.logistics_domains import is_logistics_domain
 from app.models.invoice import Invoice
 from app.services.vat_check_service import evaluate_invoice_vat_mismatch
-
-_EMAIL_RE = re.compile(r"[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}")
+from app.utils.email_utils import EMAIL_RE as _EMAIL_RE
 
 _FREE_MAIL_DOMAINS = {
     "gmail.com",

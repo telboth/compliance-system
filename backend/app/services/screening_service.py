@@ -46,12 +46,15 @@ from app.core.logging import get_logger
 from app.data.logistics_domains import LOGISTICS_DOMAINS, is_logistics_domain
 from app.models.entity import Entity, EntityRole
 from app.models.invoice import ComplianceScore, Invoice, InvoiceDirection, InvoiceStatus
+from app.models.invoice_line import InvoiceLine
 from app.models.screening import MatchStatus, ScreeningResult
 from app.models.screening_run import ScreeningCandidate, ScreeningRun
 from app.sanctions.embargo import EmbargoEntry, check_country
 from app.sanctions.yente_client import YenteMatch, get_yente_client
 from app.services.pipeline_event_service import append_pipeline_event
 from app.services import audit_service
+from app.services import internal_watchlist_service as wl_svc
+from app.services import notification_service
 from app.services import rule_engine_service
 
 logger = get_logger(__name__)
@@ -66,9 +69,7 @@ _SCREENED_ROLES = set(EntityRole)
 
 # Dataset-navn brukt i ScreeningResult nar treffet kommer fra landsjekk
 _EMBARGO_DATASET = "country_embargo"
-_EMAIL_RE = re.compile(
-    r"(?<![A-Za-z0-9._%+-])([A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,})"
-)
+from app.utils.email_utils import EMAIL_RE as _EMAIL_RE
 _GENERIC_EMAIL_PARTS = {
     "admin",
     "accounts",
@@ -352,7 +353,7 @@ def _normalize_candidate_name(value: str) -> str | None:
 def _extract_emails(text: str | None) -> set[str]:
     if not text:
         return set()
-    return {m.group(1).lower() for m in _EMAIL_RE.finditer(text)}
+    return {m.group(0).lower() for m in _EMAIL_RE.finditer(text)}
 
 
 def _email_hints(email: str) -> list[str]:
@@ -955,6 +956,156 @@ async def _collect_duplicate_invoice_results(
     return out
 
 
+def _collect_embargo_results(
+    *,
+    invoice_id: uuid.UUID,
+    invoice: Invoice,
+    entities_to_screen: list[Entity],
+    all_entities: list[Entity],
+) -> tuple[list[ScreeningResult], list[MatchStatus], int]:
+    """Kjør fase 1 (land-embargo) og returnér (records, statuses, hit_count).
+
+    Funksjonen er ren (ingen I/O) og kaster aldri unntak.
+    """
+    embargo_hits: list[tuple[uuid.UUID | None, EmbargoEntry]] = []
+
+    dest_entry = check_country(invoice.destination_country)
+    if dest_entry:
+        logger.info(
+            "embargo_hit_destination",
+            invoice_id=str(invoice_id),
+            country=dest_entry.iso2,
+            scope=dest_entry.scope,
+        )
+        anchor_id = (
+            entities_to_screen[0].id
+            if entities_to_screen
+            else (all_entities[0].id if all_entities else None)
+        )
+        embargo_hits.append((anchor_id, dest_entry))
+
+    for entity in entities_to_screen:
+        if entity.country and entity.country != invoice.destination_country:
+            entry = check_country(entity.country)
+            if entry:
+                logger.info(
+                    "embargo_hit_entity",
+                    invoice_id=str(invoice_id),
+                    entity=entity.name,
+                    country=entry.iso2,
+                    scope=entry.scope,
+                )
+                embargo_hits.append((entity.id, entry))
+
+    records: list[ScreeningResult] = []
+    statuses: list[MatchStatus] = []
+    for entity_id, entry in embargo_hits:
+        status = (
+            MatchStatus.CONFIRMED_MATCH
+            if entry.scope == "comprehensive"
+            else MatchStatus.POTENTIAL_MATCH
+        )
+        if entity_id is not None:
+            records.append(_make_embargo_result(invoice_id, entity_id, entry, status))
+        statuses.append(status)
+
+    return records, statuses, len(embargo_hits)
+
+
+def _process_yente_batch(
+    *,
+    invoice_id: uuid.UUID,
+    candidates: list[_ScreeningCandidate],
+    batch_results: dict[str, list[YenteMatch] | None],
+    primary_by_entity: dict[uuid.UUID, _ScreeningCandidate],
+    confirmed_threshold: float,
+    match_threshold: float,
+) -> tuple[list[ScreeningResult], list[MatchStatus], int]:
+    """Prosesser Yente batch-svar og returnér (records, statuses, succeeded_count).
+
+    Funksjonen er ren (ingen I/O) og kaster aldri unntak.
+    """
+    records: list[ScreeningResult] = []
+    statuses: list[MatchStatus] = []
+    yente_succeeded = 0
+    entity_with_match: set[uuid.UUID] = set()
+    seen_hits: set[tuple[uuid.UUID, str, str | None, str | None, str]] = set()
+
+    for candidate in candidates:
+        matches: list[YenteMatch] | None = batch_results.get(candidate.key, [])
+        if matches is None:
+            logger.warning(
+                "yente_match_failed_for_candidate",
+                candidate_key=candidate.key,
+                entity_id=str(candidate.entity_id),
+                name=candidate.name,
+                source=candidate.source,
+            )
+            continue
+
+        yente_succeeded += 1
+        for match in matches:
+            score_dec = Decimal(str(round(match.score, 4)))
+            status = _classify_match(match.score, confirmed_threshold, match_threshold)
+            if status == MatchStatus.CLEAR:
+                continue
+
+            dedupe_key = (
+                candidate.entity_id,
+                match.dataset,
+                match.entity_id,
+                match.matched_name,
+                status.value,
+            )
+            if dedupe_key in seen_hits:
+                continue
+            seen_hits.add(dedupe_key)
+
+            raw_payload = dict(match.raw) if match.raw else {}
+            raw_payload["query_source"] = candidate.source
+            raw_payload["query_name"] = candidate.name
+            if candidate.source_email:
+                raw_payload["query_email"] = candidate.source_email
+
+            records.append(ScreeningResult(
+                id=uuid.uuid4(),
+                invoice_id=invoice_id,
+                entity_id=candidate.entity_id,
+                dataset=match.dataset,
+                dataset_entity_id=match.entity_id,
+                matched_name=match.matched_name,
+                score=score_dec,
+                listed_on=match.listed_on,
+                status=status,
+                raw_response=raw_payload or None,
+            ))
+            statuses.append(status)
+            entity_with_match.add(candidate.entity_id)
+
+    # Legg inn én "clear" per primær-entitet uten treff.
+    for entity_id, primary_candidate in primary_by_entity.items():
+        if entity_id in entity_with_match:
+            continue
+        records.append(ScreeningResult(
+            id=uuid.uuid4(),
+            invoice_id=invoice_id,
+            entity_id=entity_id,
+            dataset="all",
+            dataset_entity_id=None,
+            matched_name=None,
+            score=Decimal("0.0000"),
+            listed_on=None,
+            status=MatchStatus.CLEAR,
+            raw_response={
+                "query_source": primary_candidate.source,
+                "query_name": primary_candidate.name,
+            },
+        ))
+        statuses.append(MatchStatus.CLEAR)
+
+    return records, statuses, yente_succeeded
+
+
 async def screen_invoice(
     session: AsyncSession,
     invoice_id: uuid.UUID,
@@ -1051,57 +1202,19 @@ async def screen_invoice(
         # ══════════════════════════════════════════════════════════════════════
         # FASE 1 — Land-embargo-sjekk (lokal, feiler aldri)
         # ══════════════════════════════════════════════════════════════════════
-        embargo_hits: list[tuple[uuid.UUID | None, EmbargoEntry]] = []
-
-        # 1a. Destinasjonsland pa invoice
-        dest_entry = check_country(invoice.destination_country)
-        if dest_entry:
-            logger.info(
-                "embargo_hit_destination",
-                invoice_id=str(invoice_id),
-                country=dest_entry.iso2,
-                scope=dest_entry.scope,
-            )
-            # Bruk forste screenbare entitet som "anker" for resultatet.
-            # Dersom ingen entiteter finnes, registrerer vi bare status.
-            anchor_id = (
-                entities_to_screen[0].id
-                if entities_to_screen
-                else (all_entities[0].id if all_entities else None)
-            )
-            embargo_hits.append((anchor_id, dest_entry))
-
-        # 1b. Entiteters land
-        for entity in entities_to_screen:
-            if entity.country and entity.country != invoice.destination_country:
-                entry = check_country(entity.country)
-                if entry:
-                    logger.info(
-                        "embargo_hit_entity",
-                        invoice_id=str(invoice_id),
-                        entity=entity.name,
-                        country=entry.iso2,
-                        scope=entry.scope,
-                    )
-                    embargo_hits.append((entity.id, entry))
-
-        # Lagre embargo-resultater
-        for entity_id, entry in embargo_hits:
-            status = (
-                MatchStatus.CONFIRMED_MATCH
-                if entry.scope == "comprehensive"
-                else MatchStatus.POTENTIAL_MATCH
-            )
-            if entity_id is not None:
-                sr = _make_embargo_result(invoice_id, entity_id, entry, status)
-                screening_records.append(sr)
-            all_statuses.append(status)
+        embargo_records, embargo_statuses, embargo_hit_count = _collect_embargo_results(
+            invoice_id=invoice_id,
+            invoice=invoice,
+            entities_to_screen=entities_to_screen,
+            all_entities=list(all_entities),
+        )
+        screening_records.extend(embargo_records)
+        all_statuses.extend(embargo_statuses)
 
         # ══════════════════════════════════════════════════════════════════════
         # FASE 1.5 — Intern sperreliste-sjekk (lokal, feiler aldri)
         # ══════════════════════════════════════════════════════════════════════
         try:
-            from app.services import internal_watchlist_service as wl_svc
             entity_names = [e.name for e in entities_to_screen if e.name]
             email_addresses = [e.email for e in entities_to_screen if e.email]
             countries = [c for c in [
@@ -1164,6 +1277,10 @@ async def screen_invoice(
                     )
         except Exception:
             logger.exception("internal_watchlist_check_failed", invoice_id=str(invoice_id))
+            # Sørg for at fakturaen ikke får grønt resultat når sjekken feilet.
+            # POTENTIAL_MATCH (gul) gjør at compliance-score minst blir gul,
+            # slik at feilen er synlig for manuell review.
+            all_statuses.append(MatchStatus.POTENTIAL_MATCH)
 
         # ── Heuristikk: trade plausibility (ikke direkte sanksjonstreff) ─────
         plausibility_records = _collect_trade_plausibility_results(
@@ -1194,7 +1311,7 @@ async def screen_invoice(
             entities_to_screen,
             all_entities,
         )
-        max_candidates = int(getattr(settings, "screening_max_candidates", 60) or 60)
+        max_candidates = settings.screening_max_candidates
         candidates = _limit_candidates(candidates, max_candidates)
         primary_by_entity = {
             entity_id: cand
@@ -1230,9 +1347,7 @@ async def screen_invoice(
                     for c in candidates
                 ]
 
-                match_timeout = int(
-                    getattr(settings, "screening_match_timeout_seconds", 90) or 90
-                )
+                match_timeout = settings.screening_match_timeout_seconds
                 try:
                     batch_results = await asyncio.wait_for(
                         yente.match_entities_batch(candidate_dicts),
@@ -1246,86 +1361,16 @@ async def screen_invoice(
                         timeout_seconds=max(20, match_timeout),
                     )
                     batch_results = {}
-                entity_with_match: set[uuid.UUID] = set()
-                seen_hits: set[tuple[uuid.UUID, str, str | None, str | None, str]] = set()
-
-                for candidate in candidates:
-                    matches: list[YenteMatch] | None = batch_results.get(candidate.key, [])
-
-                    if matches is None:
-                        logger.warning(
-                            "yente_match_failed_for_candidate",
-                            candidate_key=candidate.key,
-                            entity_id=str(candidate.entity_id),
-                            name=candidate.name,
-                            source=candidate.source,
-                        )
-                        continue
-
-                    yente_succeeded += 1
-
-                    for match in matches:
-                        score_dec = Decimal(str(round(match.score, 4)))
-                        status = _classify_match(
-                            match.score, confirmed_threshold, match_threshold
-                        )
-                        if status == MatchStatus.CLEAR:
-                            continue
-
-                        dedupe_key = (
-                            candidate.entity_id,
-                            match.dataset,
-                            match.entity_id,
-                            match.matched_name,
-                            status.value,
-                        )
-                        if dedupe_key in seen_hits:
-                            continue
-                        seen_hits.add(dedupe_key)
-
-                        raw_payload = dict(match.raw) if match.raw else {}
-                        raw_payload["query_source"] = candidate.source
-                        raw_payload["query_name"] = candidate.name
-                        if candidate.source_email:
-                            raw_payload["query_email"] = candidate.source_email
-
-                        sr = ScreeningResult(
-                            id=uuid.uuid4(),
-                            invoice_id=invoice_id,
-                            entity_id=candidate.entity_id,
-                            dataset=match.dataset,
-                            dataset_entity_id=match.entity_id,
-                            matched_name=match.matched_name,
-                            score=score_dec,
-                            listed_on=match.listed_on,
-                            status=status,
-                            raw_response=raw_payload or None,
-                        )
-                        screening_records.append(sr)
-                        all_statuses.append(status)
-                        entity_with_match.add(candidate.entity_id)
-
-                # Legg inn en "clear" per primær-entity uten treff.
-                for entity_id, primary_candidate in primary_by_entity.items():
-                    if entity_id in entity_with_match:
-                        continue
-                    sr = ScreeningResult(
-                        id=uuid.uuid4(),
-                        invoice_id=invoice_id,
-                        entity_id=entity_id,
-                        dataset="all",
-                        dataset_entity_id=None,
-                        matched_name=None,
-                        score=Decimal("0.0000"),
-                        listed_on=None,
-                        status=MatchStatus.CLEAR,
-                        raw_response={
-                            "query_source": primary_candidate.source,
-                            "query_name": primary_candidate.name,
-                        },
-                    )
-                    screening_records.append(sr)
-                    all_statuses.append(MatchStatus.CLEAR)
+                yente_records, yente_statuses, yente_succeeded = _process_yente_batch(
+                    invoice_id=invoice_id,
+                    candidates=candidates,
+                    batch_results=batch_results,
+                    primary_by_entity=primary_by_entity,
+                    confirmed_threshold=confirmed_threshold,
+                    match_threshold=match_threshold,
+                )
+                screening_records.extend(yente_records)
+                all_statuses.extend(yente_statuses)
 
         # ══════════════════════════════════════════════════════════════════════
         # FASE 3 — Lagre og sett compliance_score
@@ -1338,7 +1383,7 @@ async def screen_invoice(
         yente_completely_failed = (
             yente_attempted
             and yente_succeeded == 0
-            and not embargo_hits
+            and not embargo_hit_count
         )
 
         if yente_completely_failed and not all_statuses:
@@ -1384,7 +1429,7 @@ async def screen_invoice(
             status_to=InvoiceStatus.SCREENED.value,
             payload={
                 "compliance_score": invoice.compliance_score.value if invoice.compliance_score else None,
-                "embargo_hits": len(embargo_hits),
+                "embargo_hits": embargo_hit_count,
                 "yente_results": yente_succeeded,
                 "record_count": len(screening_records),
             },
@@ -1399,7 +1444,7 @@ async def screen_invoice(
             invoice_id=invoice.id,
             details={
                 "compliance_score": invoice.compliance_score.value if invoice.compliance_score else None,
-                "embargo_hits": len(embargo_hits),
+                "embargo_hits": embargo_hit_count,
                 "confirmed_matches": confirmed_hits,
                 "potential_matches": potential_hits,
                 "record_count": len(screening_records),
@@ -1410,7 +1455,6 @@ async def screen_invoice(
         # ── In-app varsel for forhøyet score ─────────────────────────────────
         score_val = invoice.compliance_score.value if invoice.compliance_score else "green"
         if score_val in ("yellow", "red"):
-            from app.services import notification_service
             score_label = "🔴 Rød" if score_val == "red" else "🟡 Gul"
             inv_label = invoice.original_filename or invoice.invoice_number or str(invoice.id)[:8]
             await notification_service.create(
@@ -1423,10 +1467,8 @@ async def screen_invoice(
 
         # ── Regelmotor — evaluer alle aktive YAML-regler ──────────────────────
         # all_entities er allerede hentet ovenfor; lines lastes her for regelmotor.
-        from sqlalchemy import select as _select
-        from app.models.invoice_line import InvoiceLine as _InvoiceLine
         lines_result = await session.execute(
-            _select(_InvoiceLine).where(_InvoiceLine.invoice_id == invoice_id)
+            select(InvoiceLine).where(InvoiceLine.invoice_id == invoice_id)
         )
         invoice_lines = list(lines_result.scalars().all())
 
@@ -1458,7 +1500,10 @@ async def screen_invoice(
                 )
         except Exception:
             logger.exception("rule_engine_failed", invoice_id=str(invoice_id))
-            # Regelmotor-feil er ikke fatalt — screening fortsetter
+            # Regelmotor-feil er ikke fatalt — screening fortsetter, men sørg for
+            # at fakturaen ikke beholder grønn score når reglene ikke ble evaluert.
+            if invoice.compliance_score == ComplianceScore.GREEN:
+                invoice.compliance_score = ComplianceScore.YELLOW
 
         await session.commit()
 
@@ -1466,7 +1511,7 @@ async def screen_invoice(
             "screening_completed",
             invoice_id=str(invoice_id),
             compliance_score=invoice.compliance_score.value,
-            embargo_hits=len(embargo_hits),
+            embargo_hits=embargo_hit_count,
             yente_results=yente_succeeded,
             total_records=len(screening_records),
         )

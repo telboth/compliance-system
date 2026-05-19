@@ -8,8 +8,11 @@ underliggende moduler.
 
 from __future__ import annotations
 
+import asyncio
+import tempfile
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -29,6 +32,81 @@ def _track_startup_task(task: object) -> None:
         task.add_done_callback(_startup_tasks.discard)
 
 
+def _make_minimal_pdf() -> bytes:
+    """Bygg en minimal men syntaktisk gyldig PDF for pre-warming av Docling."""
+    objects = [
+        b"1 0 obj\n<</Type/Catalog/Pages 2 0 R>>\nendobj\n",
+        b"2 0 obj\n<</Type/Pages/Kids[3 0 R]/Count 1>>\nendobj\n",
+        b"3 0 obj\n<</Type/Page/Parent 2 0 R/MediaBox[0 0 612 792]>>\nendobj\n",
+    ]
+    header = b"%PDF-1.4\n"
+    pos = len(header)
+    offsets: list[int] = []
+    body = b""
+    for obj in objects:
+        offsets.append(pos)
+        body += obj
+        pos += len(obj)
+    xref_pos = pos
+    xref = b"xref\n0 4\n0000000000 65535 f\r\n"
+    for off in offsets:
+        xref += f"{off:010d} 00000 n\r\n".encode()
+    trailer = b"trailer\n<</Size 4/Root 1 0 R>>\nstartxref\n"
+    trailer += str(xref_pos).encode() + b"\n%%EOF\n"
+    return header + body + xref + trailer
+
+
+def _warm_docling(logger: object) -> None:  # type: ignore[type-arg]
+    """Pre-warm Docling ML-modeller i en thread-pool under oppstart.
+
+    Docling laster layout-deteksjon, tabellstruktur og OCR-modeller LAZY
+    ved første convert()-kall. Uten pre-warming henger første brukerforespørsel
+    i 2–3 min mens modellene (hundrevis av MB) lastes fra disk til RAM/GPU.
+    """
+    try:
+        from app.core.gpu import get_gpu_info
+        gpu = get_gpu_info()
+        logger.info(  # type: ignore[union-attr]
+            "gpu_status",
+            available=gpu.available,
+            device=gpu.device,
+            name=gpu.name,
+            vram_mb=gpu.vram_mb,
+        )
+
+        from app.parsers.docling_parser import (
+            _get_image_converter,
+            _get_standard_converter,
+            _get_xlsx_converter,
+        )
+        std_conv = _get_standard_converter()
+        _get_xlsx_converter()
+        _get_image_converter()
+
+        with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as _f:
+            _f.write(_make_minimal_pdf())
+            _dummy_path = Path(_f.name)
+        try:
+            std_conv.convert(str(_dummy_path))
+            logger.info("docling_models_warmed")  # type: ignore[union-attr]
+        finally:
+            _dummy_path.unlink(missing_ok=True)
+
+        logger.info("docling_prewarmed")  # type: ignore[union-attr]
+
+        try:
+            import easyocr
+            gpu_flag = gpu.available and gpu.device == "cuda"
+            easyocr.Reader(["en"], gpu=gpu_flag, verbose=False)
+            logger.info("easyocr_models_cached", gpu=gpu_flag)  # type: ignore[union-attr]
+        except ImportError:
+            pass  # easyocr ikke installert — RapidOCR brukes som fallback
+        except Exception as exc:
+            logger.warning("easyocr_prewarm_failed", error=str(exc))  # type: ignore[union-attr]
+    except Exception as exc:
+        logger.warning("docling_prewarm_failed", error=str(exc))  # type: ignore[union-attr]
+
+
 @asynccontextmanager
 async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
     """Initialisering ved oppstart og opprydding ved nedstenging."""
@@ -43,97 +121,8 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
         upload_dir=str(settings.upload_dir),
     )
 
-    # Pre-warm Docling i bakgrunnen slik at første opplasting ikke trenger å
-    # vente på at ML-modellene lastes inn.
-    #
-    # Bakgrunn: Docling laster layout-deteksjon, tabellstruktur og OCR-modeller
-    # LAZY ved første DocumentConverter.convert()-kall — ikke når konverter-
-    # objektet opprettes. Uten eksplisitt pre-warming betyr dette at første
-    # brukerforespørsel henger i 2-3 min mens modellene (hundrevis av MB)
-    # lastes fra disk til RAM/GPU.
-    #
-    # Løsning: kall convert() med en minimal dummy-PDF under oppstart.
-    # Dette tvinger full pipeline-initialisering i bakgrunnen.
-    # Kjøres i en thread-pool for å ikke blokkere event-loopen.
-    import asyncio
-
-    def _make_minimal_pdf() -> bytes:
-        """Bygg en minimal men syntaktisk gyldig PDF for pre-warming av Docling."""
-        objects = [
-            b"1 0 obj\n<</Type/Catalog/Pages 2 0 R>>\nendobj\n",
-            b"2 0 obj\n<</Type/Pages/Kids[3 0 R]/Count 1>>\nendobj\n",
-            b"3 0 obj\n<</Type/Page/Parent 2 0 R/MediaBox[0 0 612 792]>>\nendobj\n",
-        ]
-        header = b"%PDF-1.4\n"
-        pos = len(header)
-        offsets: list[int] = []
-        body = b""
-        for obj in objects:
-            offsets.append(pos)
-            body += obj
-            pos += len(obj)
-        xref_pos = pos
-        xref = b"xref\n0 4\n0000000000 65535 f\r\n"
-        for off in offsets:
-            xref += f"{off:010d} 00000 n\r\n".encode()
-        trailer = b"trailer\n<</Size 4/Root 1 0 R>>\nstartxref\n"
-        trailer += str(xref_pos).encode() + b"\n%%EOF\n"
-        return header + body + xref + trailer
-
-    def _warm_docling() -> None:
-        import tempfile
-        from pathlib import Path as _Path
-
-        try:
-            from app.core.gpu import get_gpu_info
-            gpu = get_gpu_info()
-            logger.info(
-                "gpu_status",
-                available=gpu.available,
-                device=gpu.device,
-                name=gpu.name,
-                vram_mb=gpu.vram_mb,
-            )
-
-            from app.parsers.docling_parser import (
-                _get_image_converter,
-                _get_standard_converter,
-                _get_xlsx_converter,
-            )
-            # Opprett konverter-singletons (raskt — ingen modeller lastes ennå)
-            std_conv = _get_standard_converter()
-            _get_xlsx_converter()
-            _get_image_converter()
-
-            # Tving full pipeline-initialisering ved å konvertere en minimal PDF.
-            # Dette laster layout-deteksjon, tabellstruktur og OCR-modeller
-            # inn i minnet slik at første brukerforespørsel er umiddelbar.
-            with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as _f:
-                _f.write(_make_minimal_pdf())
-                _dummy_path = _Path(_f.name)
-            try:
-                std_conv.convert(str(_dummy_path))
-                logger.info("docling_models_warmed")
-            finally:
-                _dummy_path.unlink(missing_ok=True)
-
-            logger.info("docling_prewarmed")
-
-            # Pre-last EasyOCR-modellfilene til diskcache — Docling lager sin
-            # egen Reader-instans internt, men filene er da allerede nedlastet.
-            try:
-                import easyocr
-                gpu_flag = gpu.available and gpu.device == "cuda"
-                easyocr.Reader(["en"], gpu=gpu_flag, verbose=False)
-                logger.info("easyocr_models_cached", gpu=gpu_flag)
-            except ImportError:
-                pass  # easyocr ikke installert — RapidOCR brukes som fallback
-            except Exception as exc:
-                logger.warning("easyocr_prewarm_failed", error=str(exc))
-        except Exception as exc:
-            logger.warning("docling_prewarm_failed", error=str(exc))
-
-    asyncio.get_running_loop().run_in_executor(None, _warm_docling)
+    # Pre-warm Docling i bakgrunnen (se _warm_docling for detaljer).
+    asyncio.get_running_loop().run_in_executor(None, _warm_docling, logger)
 
     # Startup-recovery: finn invoices som satt fast under forrige kjøring.
     # Kjøres som en async task slik at oppstart ikke blokkeres.
@@ -202,7 +191,7 @@ async def _recover_stuck_invoices(logger: object, settings: object) -> None:  # 
             logger.info("startup_recovery_requeue_parse", invoice_id=str(iid))  # type: ignore[attr-defined]
 
         elif istatus in {_InvoiceStatus.PARSED, _InvoiceStatus.EXTRACTING} and (
-            getattr(settings, "auto_extract_after_parse", False)
+            settings.auto_extract_after_parse
             or istatus == _InvoiceStatus.EXTRACTING
         ):
             # Trigger ekstraksjon direkte — parsing er allerede ferdig

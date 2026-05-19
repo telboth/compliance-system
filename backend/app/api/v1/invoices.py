@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import csv
+import io
 import mimetypes
 import uuid
 from datetime import date
@@ -45,6 +47,14 @@ router = APIRouter()
 logger = get_logger(__name__)
 
 
+def _parse_date(s: str | None) -> date | None:
+    """Konverter ISO-dato-streng til date, eller None ved feil/tom verdi."""
+    try:
+        return date.fromisoformat(s) if s else None
+    except ValueError:
+        return None
+
+
 def _to_invoice_read(invoice: Invoice) -> InvoiceRead:
     payload = InvoiceRead.model_validate(invoice)
     payload.vat_mismatch_check = evaluate_invoice_vat_mismatch(invoice).to_dict()
@@ -53,6 +63,17 @@ def _to_invoice_read(invoice: Invoice) -> InvoiceRead:
         if invoice.approval_state is not None
         else compute_approval_state(invoice.status, invoice.compliance_score)
     )
+    return payload
+
+
+def _to_invoice_summary(inv: Invoice) -> InvoiceSummary:
+    payload = InvoiceSummary.model_validate(inv)
+    payload.approval_state = (
+        inv.approval_state
+        if inv.approval_state is not None
+        else compute_approval_state(inv.status, inv.compliance_score)
+    )
+    payload.llm_note_full = inv.comments
     return payload
 
 
@@ -359,12 +380,6 @@ async def list_invoices_endpoint(
         description="Sorteringsretning.",
     ),
 ) -> InvoiceListResponse:
-    def _parse_date(s: str | None) -> date | None:
-        try:
-            return date.fromisoformat(s) if s else None
-        except ValueError:
-            return None
-
     invoices, total = await invoice_service.list_invoices(
         session,
         limit=limit,
@@ -381,16 +396,7 @@ async def list_invoices_endpoint(
         sort_by=sort_by,
         sort_dir=sort_dir,
     )
-    items: list[InvoiceSummary] = []
-    for inv in invoices:
-        payload = InvoiceSummary.model_validate(inv)
-        payload.approval_state = (
-            inv.approval_state
-            if inv.approval_state is not None
-            else compute_approval_state(inv.status, inv.compliance_score)
-        )
-        payload.llm_note_full = inv.comments
-        items.append(payload)
+    items = [_to_invoice_summary(inv) for inv in invoices]
     return InvoiceListResponse(
         items=items,
         total=total,
@@ -460,16 +466,6 @@ async def export_invoices_csv(
 
     Maks 5000 rader per eksport.
     """
-    import csv
-    import io
-    from datetime import date as _date
-
-    def _parse_date(s: str | None) -> _date | None:
-        try:
-            return _date.fromisoformat(s) if s else None
-        except ValueError:
-            return None
-
     invoices, _ = await invoice_service.list_invoices(
         session,
         limit=5000,
@@ -508,8 +504,7 @@ async def export_invoices_csv(
             inv.created_at.isoformat(),
         ])
 
-    from datetime import date as _today
-    filename = f"fakturaer-{_today.today().isoformat()}.csv"
+    filename = f"fakturaer-{date.today().isoformat()}.csv"
     return Response(
         content="﻿" + buf.getvalue(),   # BOM for Excel-kompatibilitet
         media_type="text/csv; charset=utf-8",
@@ -581,19 +576,12 @@ async def review_invoice_endpoint(
     body: ReviewCreate,
     session: SessionDep,
     actor_ctx: ActorContext = Depends(require_roles("admin", "compliance_officer")),
-    actor: str | None = Query(default=None, description="Bakoverkompatibilitet (ignoreres hvis ulik header)."),
 ) -> InvoiceRead:
     """Sett en manuell beslutning på en screenet invoice.
 
     - **decision**: `approved` eller `blocked`
     - **reason**: Obligatorisk begrunnelse (min. 10 tegn)
-    - **actor**: Brukeridentitet — sendes fra frontend med innlogget brukers navn
     """
-    if actor and actor.strip() and actor.strip() != actor_ctx.name:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="actor-query matcher ikke autentisert bruker.",
-        )
     try:
         invoice = await invoice_review_service.review_invoice(
             session,
@@ -623,13 +611,7 @@ async def review_invoice_and_next_endpoint(
     body: ReviewCreate,
     session: SessionDep,
     actor_ctx: ActorContext = Depends(require_roles("admin", "compliance_officer")),
-    actor: str | None = Query(default=None, description="Bakoverkompatibilitet (ignoreres hvis ulik header)."),
 ) -> ReviewAndNextResponse:
-    if actor and actor.strip() and actor.strip() != actor_ctx.name:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="actor-query matcher ikke autentisert bruker.",
-        )
     settings = get_settings()
     try:
         invoice, next_invoice_id = await invoice_review_service.review_invoice_and_next(
@@ -716,18 +698,12 @@ async def escalate_invoice_risk_endpoint(
     body: RiskEscalationCreate,
     session: SessionDep,
     actor_ctx: ActorContext = Depends(require_roles("admin", "compliance_officer", "controller")),
-    actor: str | None = Query(default=None, description="Bakoverkompatibilitet (ignoreres hvis ulik header)."),
 ) -> InvoiceRead:
     """La controller eskalere en grønn invoice til gul/rød ved manuell observasjon.
 
     Eskalering setter status til 'screened' og nullstiller tidligere review-beslutning,
     slik at compliance/admin må godkjenne eller blokkere på nytt.
     """
-    if actor and actor.strip() and actor.strip() != actor_ctx.name:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="actor-query matcher ikke autentisert bruker.",
-        )
     target = ComplianceScore(body.target_score)
     invoice = await invoice_service.escalate_invoice_risk_for_review(
         session,

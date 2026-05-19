@@ -17,12 +17,12 @@ from app.core.logging import get_logger
 from app.models.invoice import Invoice
 from app.schemas.search import InvoiceSearchHit, InvoiceSearchResponse
 from app.services.invoice_service import get_invoice
+from app.utils.email_utils import EMAIL_RE as EMAIL_REGEX
 
 logger = get_logger(__name__)
 
 INDEX_NAME = "invoice_search_v1"
 ES_TIMEOUT_SECONDS = 20.0
-EMAIL_REGEX = re.compile(r"\b[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}\b")
 
 
 def _es_base() -> str:

@@ -71,35 +71,19 @@ def _compose_review_reason(
     )
 
 
-async def _get_invoice_for_update(
-    session: AsyncSession,
-    invoice_id: uuid.UUID,
-) -> Invoice:
-    stmt = (
-        select(Invoice)
-        .where(Invoice.id == invoice_id)
-        .options(selectinload(Invoice.lines), selectinload(Invoice.entities))
-        .with_for_update()
-    )
-    result = await session.execute(stmt)
-    invoice = result.scalar_one_or_none()
-    if invoice is None:
-        raise NotFoundError(
-            "Invoice ikke funnet.",
-            details={"invoice_id": str(invoice_id)},
-        )
-    return invoice
-
-
 async def _get_invoice(
     session: AsyncSession,
     invoice_id: uuid.UUID,
+    *,
+    for_update: bool = False,
 ) -> Invoice:
     stmt = (
         select(Invoice)
         .where(Invoice.id == invoice_id)
         .options(selectinload(Invoice.lines), selectinload(Invoice.entities))
     )
+    if for_update:
+        stmt = stmt.with_for_update()
     result = await session.execute(stmt)
     invoice = result.scalar_one_or_none()
     if invoice is None:
@@ -221,7 +205,7 @@ async def review_invoice(
     deviation_approval: bool,
     actor: str = "system",
 ) -> Invoice:
-    invoice = await _get_invoice_for_update(session, invoice_id)
+    invoice = await _get_invoice(session, invoice_id, for_update=True)
     stale_minutes = _review_claim_stale_minutes()
     now = _now_utc()
     if (
@@ -261,7 +245,7 @@ async def review_invoice_and_next(
     stale_minutes: int | None = None,
 ) -> tuple[Invoice, uuid.UUID | None]:
     stale = max(1, int(stale_minutes or _review_claim_stale_minutes()))
-    invoice = await _get_invoice_for_update(session, invoice_id)
+    invoice = await _get_invoice(session, invoice_id, for_update=True)
     now = _now_utc()
     if (
         invoice.review_claimed_by
@@ -309,7 +293,7 @@ async def claim_review_invoice(
     stale_minutes: int | None = None,
 ) -> Invoice:
     stale = max(1, int(stale_minutes or _review_claim_stale_minutes()))
-    invoice = await _get_invoice_for_update(session, invoice_id)
+    invoice = await _get_invoice(session, invoice_id, for_update=True)
     if invoice.status != InvoiceStatus.SCREENED or invoice.approval_state != ApprovalState.PENDING:
         raise ApplicationError(
             "Kun screenede invoices som venter godkjenning kan claimes.",
@@ -351,7 +335,7 @@ async def release_review_claim(
     stale_minutes: int | None = None,
 ) -> Invoice:
     stale = max(1, int(stale_minutes or _review_claim_stale_minutes()))
-    invoice = await _get_invoice_for_update(session, invoice_id)
+    invoice = await _get_invoice(session, invoice_id, for_update=True)
     now = _now_utc()
     if (
         invoice.review_claimed_by

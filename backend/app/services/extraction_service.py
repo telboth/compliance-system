@@ -86,7 +86,7 @@ async def run_extraction(
                           eller LLM-kallet feiler.
     """
     settings = get_settings()
-    timeout_seconds = int(getattr(settings, "extraction_timeout_seconds", 180) or 180)
+    timeout_seconds = settings.extraction_timeout_seconds
     invoice = await get_invoice(session, invoice_id)
 
     if not invoice.raw_text:
@@ -347,8 +347,8 @@ async def _persist_result(
         "low_confidence_fields": result.low_confidence_fields,
     }
     invoice.extraction_model = result.model_id
-    invoice.input_tokens = result.input_tokens or None
-    invoice.output_tokens = result.output_tokens or None
+    invoice.input_tokens = result.input_tokens
+    invoice.output_tokens = result.output_tokens
     prev_status = invoice.status.value
 
     # ── Trinn 2: post-ekstraksjon null-felt-sjekk ─────────────────────────────
