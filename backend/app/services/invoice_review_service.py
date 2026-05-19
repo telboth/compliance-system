@@ -141,6 +141,7 @@ async def _apply_review_decision(
     )
 
     from app.services import notification_service
+    from app.services import control_effectiveness_service as ce_svc
 
     inv_label = invoice.original_filename or invoice.invoice_number or str(invoice.id)[:8]
     decision_icon = "✓" if decision == "approved" else "🔒"
@@ -154,6 +155,21 @@ async def _apply_review_decision(
         invoice_id=invoice.id,
         target_roles=["controller", "admin"],
     )
+
+    # Control Effectiveness: registrer avvik dersom godkjent med forhøyet score
+    if decision == "approved":
+        try:
+            await ce_svc.record_deviation_if_applicable(
+                session,
+                invoice=invoice,
+                reviewed_by=actor,
+                reason_summary=reason,
+            )
+        except Exception:
+            import logging
+            logging.getLogger(__name__).exception(
+                "control_deviation_record_failed", extra={"invoice_id": str(invoice.id)}
+            )
 
 
 async def _find_next_review_invoice_to_claim(

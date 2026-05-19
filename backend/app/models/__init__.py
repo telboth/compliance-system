@@ -27,12 +27,23 @@ from app.models.sanctions_list import SanctionsList
 from app.models.sanctions_refresh_run import SanctionsRefreshRun
 from app.models.screening import MatchStatus, ScreeningResult
 from app.models.screening_run import ScreeningCandidate, ScreeningRun
+from app.models.ai_decision_record import AIDecisionRecord
+from app.models.audit_plan import AuditPlan
+from app.models.compliance_policy import CompliancePolicy, CompliancePolicyVersion
+from app.models.control_deviation import ControlDeviation
+from app.models.regulatory_alert import RegulatoryAlert
 from app.models.user_preference import UserPreference
+from app.models.vendor import Vendor
 
 __all__ = [
     "Agreement",
     "AgreementCheckResult",
+    "AIDecisionRecord",
     "AuditLog",
+    "AuditPlan",
+    "CompliancePolicy",
+    "CompliancePolicyVersion",
+    "ControlDeviation",
     "ComplianceScore",
     "Customer",
     "Entity",
@@ -50,6 +61,7 @@ __all__ = [
     "InvoiceLine",
     "InvoiceStatus",
     "MatchStatus",
+    "RegulatoryAlert",
     "Rule",
     "RuleSeverity",
     "RuleVersion",
@@ -59,4 +71,5 @@ __all__ = [
     "ScreeningResult",
     "ScreeningRun",
     "UserPreference",
+    "Vendor",
 ]

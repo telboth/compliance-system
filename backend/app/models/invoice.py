@@ -176,6 +176,16 @@ class Invoice(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     review_claimed_by: Mapped[str | None] = mapped_column(String(128), nullable=True, index=True)
     review_claimed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True, index=True)
 
+    # Risikokvantifisering (Feature #3)
+    risk_exposure_nok: Mapped[Decimal | None] = mapped_column(Numeric(18, 2), nullable=True)
+    """Estimert eksponering i NOK = total_amount * currency_rate_nok * risk_multiplier."""
+    currency_rate_nok: Mapped[Decimal | None] = mapped_column(Numeric(18, 6), nullable=True)
+    """Valutakurs mot NOK på kvantifiseringstidspunktet (fra api.frankfurter.app)."""
+    risk_multiplier: Mapped[Decimal | None] = mapped_column(Numeric(6, 2), nullable=True)
+    """Risikomultiplikator basert på compliance_score (GREEN=1.0, YELLOW=1.5, RED=2.5)."""
+    risk_quantified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    """Tidspunkt for siste risikokvantifisering."""
+
     customer: Mapped[Customer | None] = relationship(back_populates="invoices")
     lines: Mapped[list[InvoiceLine]] = relationship(
         back_populates="invoice",

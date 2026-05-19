@@ -8,7 +8,7 @@
     2) Klone repo fra GitHub til en malmappe og sette opp der.
 
     Deretter:
-    - sjekker Git og Docker
+    - sjekker Git, WSL og Docker
     - valgfritt apner LAN-port 5173 i Windows-brannmur
     - oppretter .env/.secrets fra eksempel-filer ved behov
     - starter systemet via start.ps1
@@ -137,6 +137,123 @@ function Ensure-Command([string]$CommandName, [string]$InstallHint) {
         Write-Host "  Installer: $InstallHint" -ForegroundColor Yellow
         exit 1
     }
+}
+
+function Ensure-GitReady {
+    if (Get-Command git -ErrorAction SilentlyContinue) {
+        Write-OK "Git er installert"
+        return
+    }
+
+    Write-Warn "Git ble ikke funnet."
+    Write-Host "  Git kreves for kloning/oppdatering av kode fra GitHub." -ForegroundColor Yellow
+
+    $canInstallWithWinget = [bool](Get-Command winget -ErrorAction SilentlyContinue)
+    if ($canInstallWithWinget) {
+        $installNow = Ask-YesNo "Vil du installere Git na med winget?" -DefaultNo:$false
+        if ($installNow) {
+            Write-Info "Installerer Git via winget ..."
+            $wingetOutput = & winget install -e --id Git.Git --accept-package-agreements --accept-source-agreements 2>&1
+            $wingetExit = $LASTEXITCODE
+            $wingetText = ($wingetOutput | Out-String)
+
+            if ($wingetExit -ne 0) {
+                Write-Fail "Git installasjon feilet (winget exit $wingetExit)."
+                Write-Host "  Proev manuell installasjon: https://git-scm.com/download/win" -ForegroundColor Yellow
+                Write-Host "  Winget-output:" -ForegroundColor DarkYellow
+                Write-Host "  $wingetText" -ForegroundColor DarkYellow
+                exit 1
+            }
+
+            Refresh-ProcessPathFromRegistry
+            if (-not (Get-Command git -ErrorAction SilentlyContinue)) {
+                Write-Fail "Git ble installert, men er ikke tilgjengelig i PATH ennå."
+                Write-Host "  Lukk og apne PowerShell pa nytt, eller restart maskinen, og kjor scriptet igjen." -ForegroundColor Yellow
+                exit 1
+            }
+
+            $gitVersion = (& git --version 2>$null)
+            Write-OK "Git er installert: $gitVersion"
+            return
+        }
+    } else {
+        Write-Warn "winget er ikke tilgjengelig pa maskinen."
+    }
+
+    Write-Fail "Git er ikke installert."
+    Write-Host "  Installer med en av disse:" -ForegroundColor Yellow
+    Write-Host "    1) winget install -e --id Git.Git" -ForegroundColor Yellow
+    Write-Host "    2) https://git-scm.com/download/win" -ForegroundColor Yellow
+    Write-Host "  Kjor deretter install.ps1 pa nytt." -ForegroundColor Yellow
+    exit 1
+}
+
+function Get-WslStatusOutput {
+    if (-not (Get-Command wsl -ErrorAction SilentlyContinue)) {
+        return @{
+            Installed = $false
+            Output = "wsl command not found"
+            ExitCode = 127
+        }
+    }
+    $out = (& wsl --status 2>&1 | Out-String)
+    $exitCode = $LASTEXITCODE
+    $installed = ($exitCode -eq 0)
+    return @{
+        Installed = $installed
+        Output = $out
+        ExitCode = $exitCode
+    }
+}
+
+function Install-Wsl {
+    if (-not (Test-IsAdministrator)) {
+        Write-Fail "WSL mangler, og scriptet kjores ikke som administrator."
+        Write-Host "  Kjor PowerShell som Administrator og kjor install.ps1 pa nytt." -ForegroundColor Yellow
+        Write-Host "  Alternativt installer manuelt med: wsl --install --no-distribution" -ForegroundColor Yellow
+        exit 1
+    }
+
+    if (-not (Get-Command wsl -ErrorAction SilentlyContinue)) {
+        Write-Fail "Fant ikke wsl.exe pa systemet."
+        Write-Host "  Oppdater Windows og prover igjen. Eventuelt installer WSL manuelt via Microsoft Docs." -ForegroundColor Yellow
+        exit 1
+    }
+
+    Write-Info "Installerer/aktiverer Windows Subsystem for Linux ..."
+    $installOutput = (& wsl --install --no-distribution 2>&1 | Out-String)
+    $installExit = $LASTEXITCODE
+    if ($installExit -ne 0) {
+        Write-Fail "WSL installasjon feilet (exit $installExit)."
+        Write-Host "  Output:" -ForegroundColor DarkYellow
+        Write-Host "  $installOutput" -ForegroundColor DarkYellow
+        exit 1
+    }
+
+    Write-Warn "WSL installert/oppdatert. Windows ma restartes for a fullfore."
+    Show-RebootGuidance
+    exit 1
+}
+
+function Ensure-WSLReady {
+    $status = Get-WslStatusOutput
+    if ($status.Installed) {
+        Write-OK "WSL er installert"
+        return
+    }
+
+    Write-Warn "WSL er ikke installert eller ikke klart."
+    Write-Host "  Docker Desktop krever normalt WSL2 pa Windows." -ForegroundColor Yellow
+
+    $installNow = Ask-YesNo "Vil du installere/aktivere WSL na?" -DefaultNo:$false
+    if ($installNow) {
+        Install-Wsl
+    }
+
+    Write-Fail "WSL er ikke klart."
+    Write-Host "  Installer med: wsl --install --no-distribution" -ForegroundColor Yellow
+    Write-Host "  Restart Windows, og kjor install.ps1 pa nytt." -ForegroundColor Yellow
+    exit 1
 }
 
 function Start-DockerDesktopApp {
@@ -350,8 +467,6 @@ function Resolve-ProjectRoot {
         return $PSScriptRoot
     }
 
-    Ensure-Command "git" "winget install --id Git.Git -e"
-
     $hasLocalRepo = (Test-Path (Join-Path $PSScriptRoot ".git")) -and (Test-Path (Join-Path $PSScriptRoot "start.ps1"))
     if ($hasLocalRepo) {
         Write-Info "Lokalt repo oppdaget i script-mappen - bruker eksisterende mappe."
@@ -371,12 +486,34 @@ function Resolve-ProjectRoot {
     $hasGit = Test-Path (Join-Path $InstallDir ".git")
     if ($hasGit) {
         Write-Info "Repo finnes fra for - oppdaterer branch '$Branch'."
-        git -C $InstallDir fetch --all --prune
-        git -C $InstallDir checkout $Branch
-        git -C $InstallDir pull --ff-only
+        $gitFetch = (& git -C $InstallDir fetch --all --prune 2>&1 | Out-String)
+        if ($LASTEXITCODE -ne 0) {
+            Write-Fail "git fetch feilet."
+            Write-Host "  $gitFetch" -ForegroundColor DarkYellow
+            exit 1
+        }
+
+        $gitCheckout = (& git -C $InstallDir checkout $Branch 2>&1 | Out-String)
+        if ($LASTEXITCODE -ne 0) {
+            Write-Fail "git checkout $Branch feilet."
+            Write-Host "  $gitCheckout" -ForegroundColor DarkYellow
+            exit 1
+        }
+
+        $gitPull = (& git -C $InstallDir pull --ff-only 2>&1 | Out-String)
+        if ($LASTEXITCODE -ne 0) {
+            Write-Fail "git pull --ff-only feilet."
+            Write-Host "  $gitPull" -ForegroundColor DarkYellow
+            exit 1
+        }
     } else {
         Write-Info "Kloner repo til $InstallDir ..."
-        git clone --branch $Branch $RepoUrl $InstallDir
+        $gitClone = (& git clone --branch $Branch $RepoUrl $InstallDir 2>&1 | Out-String)
+        if ($LASTEXITCODE -ne 0) {
+            Write-Fail "git clone feilet."
+            Write-Host "  $gitClone" -ForegroundColor DarkYellow
+            exit 1
+        }
     }
     return $InstallDir
 }
@@ -386,6 +523,9 @@ $script:IsNonInteractive = [bool]$NonInteractive
 if ($script:IsNonInteractive) {
     Write-Info "NonInteractive-modus aktiv: ingen prompts, bruker standard handlinger."
 }
+
+Ensure-GitReady
+Ensure-WSLReady
 
 $projectRoot = Resolve-ProjectRoot
 Write-OK "Prosjektmappe: $projectRoot"

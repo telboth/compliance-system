@@ -5,18 +5,26 @@ from fastapi import APIRouter
 from app.api.v1 import (
     audit,
     agreements,
+    ai_governance,
+    audit_plans,
+    control_effectiveness,
     customers,
+    policies,
     dashboard,
     health,
     hs_codes,
     invoices,
+    kri,
     models,
     notifications,
+    regulatory_radar,
     report,
+    risk,
     rules,
     sanctions,
     search,
     shipments,
+    vendors,
     watchlist,
 )
 
@@ -76,3 +84,36 @@ api_router.include_router(hs_codes.router, prefix="/hs-codes", tags=["hs-codes"]
 
 # Intern sperreliste
 api_router.include_router(watchlist.router, prefix="/watchlist", tags=["watchlist"])
+
+# Regulatorisk Radar
+api_router.include_router(
+    regulatory_radar.router,
+    prefix="/regulatory-radar",
+    tags=["regulatory-radar"],
+)
+
+# Vendor Register
+api_router.include_router(vendors.router, prefix="/vendors", tags=["vendors"])
+
+# KRI Dashboard
+api_router.include_router(kri.router, prefix="/kri", tags=["kri"])
+
+# Control Effectiveness
+api_router.include_router(
+    control_effectiveness.router,
+    prefix="/control-deviations",
+    tags=["control-effectiveness"],
+)
+
+# Policy Management
+api_router.include_router(policies.router, prefix="/policies", tags=["policies"])
+
+# Audit Plan Management
+api_router.include_router(audit_plans.router, prefix="/audit-plans", tags=["audit-plans"])
+
+# AI Governance
+api_router.include_router(ai_governance.router, prefix="/ai-governance", tags=["ai-governance"])
+
+# Risikokvantifisering — per-invoice under /invoices, admin-bulk under /risk
+api_router.include_router(risk.invoice_router, prefix="/invoices", tags=["risk"])
+api_router.include_router(risk.admin_router, prefix="/risk", tags=["risk"])

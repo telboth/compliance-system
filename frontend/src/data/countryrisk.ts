@@ -57,13 +57,29 @@ function fallbackCountryCodes(): string[] {
 }
 
 function allCountryCodes(): string[] {
-  const fromIntl = (Intl as typeof Intl & {
-    supportedValuesOf?: (key: string) => string[];
-  }).supportedValuesOf?.("region");
-  const codes = (fromIntl ?? fallbackCountryCodes())
-    .filter((value) => /^[A-Z]{2}$/.test(value))
-    .map((value) => value.toUpperCase());
-  return Array.from(new Set(codes));
+  // Intl.supportedValuesOf("region") er ikke standard og kaster RangeError i Chrome/Edge
+  // når funksjonen finnes men ikke støtter "region"-nøkkelen.
+  // Optional chaining hjelper IKKE her (kaster, ikke returnerer undefined).
+  // try-catch er det eneste som sikrer fallback til den statiske listen.
+  try {
+    const intlWithExtra = Intl as typeof Intl & {
+      supportedValuesOf?: (key: string) => string[];
+    };
+    if (typeof intlWithExtra.supportedValuesOf !== "function") {
+      return fallbackCountryCodes();
+    }
+    const fromIntl = intlWithExtra.supportedValuesOf("region");
+    if (fromIntl && fromIntl.length > 0) {
+      const codes = fromIntl
+        .filter((value) => /^[A-Z]{2}$/.test(value))
+        .map((value) => value.toUpperCase());
+      const result = Array.from(new Set(codes));
+      if (result.length > 0) return result;
+    }
+  } catch {
+    // "region" er ikke en gyldig nøkkel i denne nettleseren — bruk statisk fallback
+  }
+  return fallbackCountryCodes();
 }
 
 function buildRiskMap(): Record<string, CountryRiskTier> {

@@ -212,6 +212,30 @@ async def run_extraction(
 
     await _persist_result(session, invoice, result)
 
+    # ── AI Governance — logg AI-beslutning for EU AI Act-sporbarhet ──────────
+    try:
+        from app.services import ai_governance_service
+
+        await ai_governance_service.upsert_decision_record(
+            session,
+            invoice_id=invoice.id,
+            model_id=result.model_id or active_model,
+            model_provider=settings.llm_primary_provider,
+            input_tokens=result.input_tokens,
+            output_tokens=result.output_tokens,
+            overall_confidence=result.overall_confidence,
+            low_confidence_fields=result.low_confidence_fields or [],
+            raw_extraction_meta={
+                "model_id": result.model_id,
+                "overall_confidence": result.overall_confidence,
+                "low_confidence_fields": result.low_confidence_fields,
+                "input_tokens": result.input_tokens,
+                "output_tokens": result.output_tokens,
+            },
+        )
+    except Exception:
+        logger.exception("ai_governance_record_failed", invoice_id=str(invoice.id))
+
     # Avbryt pipeline dersom Trinn 2 avviste dokumentet
     if invoice.status == InvoiceStatus.NOT_INVOICE:
         return invoice, result

@@ -56,6 +56,7 @@ from app.services import audit_service
 from app.services import internal_watchlist_service as wl_svc
 from app.services import notification_service
 from app.services import rule_engine_service
+from app.services import vendor_service
 
 logger = get_logger(__name__)
 
@@ -1506,6 +1507,32 @@ async def screen_invoice(
                 invoice.compliance_score = ComplianceScore.YELLOW
 
         await session.commit()
+
+        # ── Vendor Register — oppdater risikoprofil for SELLER/BUYER-entiteter ─
+        from app.models.entity import EntityRole as _EntityRole
+        vendor_roles = {_EntityRole.SELLER, _EntityRole.BUYER, _EntityRole.CONSIGNOR, _EntityRole.CONSIGNEE}
+        worst_status = (
+            MatchStatus.CONFIRMED_MATCH if any(s == MatchStatus.CONFIRMED_MATCH for s in all_statuses)
+            else MatchStatus.POTENTIAL_MATCH if any(s == MatchStatus.POTENTIAL_MATCH for s in all_statuses)
+            else MatchStatus.NO_MATCH
+        )
+        try:
+            for entity in entities_to_screen:
+                if entity.role in vendor_roles:
+                    vendor = await vendor_service.get_or_create_vendor(
+                        session,
+                        name=entity.name,
+                        country=entity.country,
+                        email=entity.email,
+                    )
+                    await vendor_service.record_screening_outcome(
+                        session,
+                        vendor=vendor,
+                        worst_status=worst_status,
+                    )
+            await session.commit()
+        except Exception:
+            logger.exception("vendor_register_update_failed", invoice_id=str(invoice_id))
 
         logger.info(
             "screening_completed",

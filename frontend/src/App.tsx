@@ -1,4 +1,4 @@
-import { Suspense, lazy } from "react";
+import { Suspense, lazy, Component, type ReactNode, type ErrorInfo } from "react";
 import { NavLink, Navigate, Route, Routes } from "react-router-dom";
 import clsx from "clsx";
 
@@ -67,6 +67,46 @@ const WatchlistPage = lazy(async () => {
   const m = await import("@/pages/Watchlist");
   return { default: m.WatchlistPage };
 });
+
+/** Fanger krasj i lazy-lastede sider og viser feilmelding i stedet for blank side. */
+class PageErrorBoundary extends Component<
+  { children: ReactNode },
+  { error: Error | null }
+> {
+  constructor(props: { children: ReactNode }) {
+    super(props);
+    this.state = { error: null };
+  }
+
+  static getDerivedStateFromError(error: Error) {
+    return { error };
+  }
+
+  componentDidCatch(error: Error, info: ErrorInfo) {
+    console.error("[PageErrorBoundary] side krasjet:", error, info.componentStack);
+  }
+
+  render() {
+    if (this.state.error) {
+      return (
+        <div className="flex min-h-[60vh] flex-col items-center justify-center gap-4 p-8 text-center">
+          <div className="text-4xl">⚠️</div>
+          <h2 className="text-lg font-semibold text-xlent-ink">Siden kunne ikke lastes</h2>
+          <p className="max-w-md text-sm text-xlent-muted">
+            {this.state.error.message || "En uventet feil oppstod."}
+          </p>
+          <button
+            className="rounded bg-xlent-accent px-4 py-2 text-sm font-medium text-white hover:opacity-90"
+            onClick={() => window.location.reload()}
+          >
+            Last inn siden på nytt
+          </button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
 
 function PageFallback() {
   const { t } = useTranslation();
@@ -207,6 +247,7 @@ function AppShell() {
       </header>
 
       <main>
+        <PageErrorBoundary>
         <Suspense fallback={<PageFallback />}>
           <Routes>
             {/* Åpne ruter (alle roller med invoices:view) */}
@@ -304,6 +345,7 @@ function AppShell() {
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </Suspense>
+        </PageErrorBoundary>
       </main>
     </div>
   );

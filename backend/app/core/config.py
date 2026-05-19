@@ -174,6 +174,14 @@ class Settings(BaseSettings):
     geocode_user_agent: str = "xlent-compliance/0.1 (contact: compliance@xlent.no)"
     geocode_max_external_lookups_per_request: int = 20
 
+    # Regulatorisk Radar — RSS/Atom-feed aggregator
+    regulatory_radar_enabled: bool = True
+    # Timer for Celery Beat — daglig oppdatering
+    regulatory_radar_refresh_hour: int = 6
+    regulatory_radar_refresh_minute: int = 30
+    # HTTP-timeout per feed-kall (sekunder)
+    regulatory_radar_feed_timeout_seconds: int = 30
+
     # CORS
     cors_origins: str = "http://localhost:5173"
 
