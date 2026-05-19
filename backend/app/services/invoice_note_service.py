@@ -3,6 +3,7 @@ from __future__ import annotations
 import re
 from collections.abc import Iterable
 
+from app.data.logistics_domains import is_logistics_domain
 from app.models.invoice import Invoice
 from app.services.vat_check_service import evaluate_invoice_vat_mismatch
 
@@ -158,11 +159,17 @@ def derive_email_note(invoice: Invoice) -> tuple[str, str]:
         all_domains.add(domain)
         if domain in _FREE_MAIL_DOMAINS:
             free_domains.add(domain)
-        d_tokens = _domain_tokens(domain)
-        if entity_tokens and d_tokens.intersection(entity_tokens):
+        elif is_logistics_domain(domain):
+            # Kjent logistikkleverandør — behandles som OK uavhengig av entitetsnavn.
+            # Fakturaer inneholder ofte e-poster fra speditør, rederi eller kurerselskap
+            # som er en separat part og ikke nødvendigvis nevnt som entitet.
             matched_domains.add(domain)
         else:
-            unmatched_domains.add(domain)
+            d_tokens = _domain_tokens(domain)
+            if entity_tokens and d_tokens.intersection(entity_tokens):
+                matched_domains.add(domain)
+            else:
+                unmatched_domains.add(domain)
 
     # Litt mer aggressiv modus:
     # Varsle tidligere ved avvik mellom domener og entitetsnavn.

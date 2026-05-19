@@ -27,6 +27,7 @@ from app.models.sanctions_list import SanctionsList
 from app.models.sanctions_refresh_run import SanctionsRefreshRun
 from app.models.screening import MatchStatus, ScreeningResult
 from app.models.screening_run import ScreeningCandidate, ScreeningRun
+from app.models.user_preference import UserPreference
 
 __all__ = [
     "Agreement",
@@ -57,4 +58,5 @@ __all__ = [
     "ScreeningCandidate",
     "ScreeningResult",
     "ScreeningRun",
+    "UserPreference",
 ]

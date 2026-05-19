@@ -14,7 +14,9 @@ import { CountryAutocomplete } from "@/components/CountryAutocomplete";
 import {
   useDeleteInvoice,
   useInvoiceList,
+  useInvoiceListPreferences,
   useSanctionsStatus,
+  useUpdateInvoiceListPreferences,
   type InvoiceListFilters,
 } from "@/hooks/useInvoices";
 import type { ApprovalState, ComplianceScore, InvoiceDirection, InvoiceStatus } from "@/api/types";
@@ -34,7 +36,8 @@ type InvoiceTableColumnKey =
   | "created_at"
   | "actions";
 
-const COL_WIDTH_STORAGE_KEY = "invoice_table_col_widths_v2";
+const COL_WIDTH_STORAGE_KEY_PREFIX = "invoice_table_col_widths_v3";
+const COL_PRESETS_STORAGE_KEY_PREFIX = "invoice_table_col_presets_v1";
 
 const DEFAULT_COL_WIDTHS: Record<InvoiceTableColumnKey, number> = {
   signal: 130,
@@ -66,31 +69,141 @@ const MIN_COL_WIDTHS: Record<InvoiceTableColumnKey, number> = {
   actions: 60,
 };
 
-function loadSavedColWidths(): Record<InvoiceTableColumnKey, number> {
+interface ColumnPreset {
+  id: string;
+  label?: string;
+  widths: Record<InvoiceTableColumnKey, number>;
+}
+
+interface InvoiceListPreferencePayload {
+  table_col_widths: Record<InvoiceTableColumnKey, number>;
+  table_col_presets: Array<{
+    id: string;
+    label: string;
+    widths: Record<InvoiceTableColumnKey, number>;
+  }>;
+}
+
+const BUILTIN_PRESETS: ColumnPreset[] = [
+  { id: "balanced", widths: DEFAULT_COL_WIDTHS },
+  {
+    id: "compact",
+    widths: {
+      signal: 110,
+      file: 180,
+      direction: 80,
+      status: 110,
+      approval: 140,
+      vat: 180,
+      email: 200,
+      llm: 260,
+      invoice_date: 110,
+      amount: 110,
+      created_at: 130,
+      actions: 70,
+    },
+  },
+  {
+    id: "review_focus",
+    widths: {
+      signal: 140,
+      file: 240,
+      direction: 90,
+      status: 140,
+      approval: 190,
+      vat: 260,
+      email: 280,
+      llm: 420,
+      invoice_date: 120,
+      amount: 130,
+      created_at: 150,
+      actions: 80,
+    },
+  },
+];
+
+function colWidthStorageKey(userId: string): string {
+  return `${COL_WIDTH_STORAGE_KEY_PREFIX}:${userId}`;
+}
+
+function colPresetStorageKey(userId: string): string {
+  return `${COL_PRESETS_STORAGE_KEY_PREFIX}:${userId}`;
+}
+
+function normalizeWidths(
+  parsed: Partial<Record<InvoiceTableColumnKey, number>> | null | undefined,
+): Record<InvoiceTableColumnKey, number> {
+  if (!parsed) return DEFAULT_COL_WIDTHS;
+  return {
+    signal: Number(parsed.signal) || DEFAULT_COL_WIDTHS.signal,
+    file: Number(parsed.file) || DEFAULT_COL_WIDTHS.file,
+    direction: Number(parsed.direction) || DEFAULT_COL_WIDTHS.direction,
+    status: Number(parsed.status) || DEFAULT_COL_WIDTHS.status,
+    approval: Number(parsed.approval) || DEFAULT_COL_WIDTHS.approval,
+    vat: Number(parsed.vat) || DEFAULT_COL_WIDTHS.vat,
+    email: Number(parsed.email) || DEFAULT_COL_WIDTHS.email,
+    llm: Number(parsed.llm) || DEFAULT_COL_WIDTHS.llm,
+    invoice_date: Number(parsed.invoice_date) || DEFAULT_COL_WIDTHS.invoice_date,
+    amount: Number(parsed.amount) || DEFAULT_COL_WIDTHS.amount,
+    created_at: Number(parsed.created_at) || DEFAULT_COL_WIDTHS.created_at,
+    actions: Number(parsed.actions) || DEFAULT_COL_WIDTHS.actions,
+  };
+}
+
+function loadSavedColWidths(userId: string): Record<InvoiceTableColumnKey, number> {
   if (typeof window === "undefined") {
     return DEFAULT_COL_WIDTHS;
   }
   try {
-    const raw = window.localStorage.getItem(COL_WIDTH_STORAGE_KEY);
+    const raw =
+      window.localStorage.getItem(colWidthStorageKey(userId))
+      ?? window.localStorage.getItem("invoice_table_col_widths_v2");
     if (!raw) return DEFAULT_COL_WIDTHS;
     const parsed = JSON.parse(raw) as Partial<Record<InvoiceTableColumnKey, number>>;
-    return {
-      signal: Number(parsed.signal) || DEFAULT_COL_WIDTHS.signal,
-      file: Number(parsed.file) || DEFAULT_COL_WIDTHS.file,
-      direction: Number(parsed.direction) || DEFAULT_COL_WIDTHS.direction,
-      status: Number(parsed.status) || DEFAULT_COL_WIDTHS.status,
-      approval: Number(parsed.approval) || DEFAULT_COL_WIDTHS.approval,
-      vat: Number(parsed.vat) || DEFAULT_COL_WIDTHS.vat,
-      email: Number(parsed.email) || DEFAULT_COL_WIDTHS.email,
-      llm: Number(parsed.llm) || DEFAULT_COL_WIDTHS.llm,
-      invoice_date: Number(parsed.invoice_date) || DEFAULT_COL_WIDTHS.invoice_date,
-      amount: Number(parsed.amount) || DEFAULT_COL_WIDTHS.amount,
-      created_at: Number(parsed.created_at) || DEFAULT_COL_WIDTHS.created_at,
-      actions: Number(parsed.actions) || DEFAULT_COL_WIDTHS.actions,
-    };
+    return normalizeWidths(parsed);
   } catch {
     return DEFAULT_COL_WIDTHS;
   }
+}
+
+function loadCustomPresets(userId: string): ColumnPreset[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const raw = window.localStorage.getItem(colPresetStorageKey(userId));
+    if (!raw) return [];
+    const parsed = JSON.parse(raw) as Array<{
+      id: string;
+      label: string;
+      widths: Partial<Record<InvoiceTableColumnKey, number>>;
+    }>;
+    return parsed
+      .filter((row) => row && typeof row.id === "string" && typeof row.label === "string")
+      .map((row) => ({
+        id: row.id,
+        label: row.label,
+        widths: normalizeWidths(row.widths),
+      }));
+  } catch {
+    return [];
+  }
+}
+
+function buildPreferencePayload(
+  colWidths: Record<InvoiceTableColumnKey, number>,
+  customPresets: ColumnPreset[],
+): InvoiceListPreferencePayload {
+  return {
+    table_col_widths: colWidths,
+    table_col_presets: customPresets.map((preset) => ({
+      id: preset.id,
+      label: preset.label ?? "",
+      widths: preset.widths,
+    })),
+  };
+}
+
+function preferencePayloadSignature(payload: InvoiceListPreferencePayload): string {
+  return JSON.stringify(payload);
 }
 
 type NoteStatus = "ok" | "warn" | "error" | null;
@@ -367,7 +480,7 @@ function FilterBar({ filters, onChange }: FilterBarProps) {
 // ── Hoved-komponent ───────────────────────────────────────────────────────────
 
 export function InvoiceList() {
-  const { can } = useAuth();
+  const { can, user } = useAuth();
   const { t, i18n } = useTranslation("invoices");
   const tCommon = useTranslation("common").t;
 
@@ -379,19 +492,93 @@ export function InvoiceList() {
   });
   const { data, isLoading, error } = useInvoiceList(filters);
   const { data: sanctionsStatus, isLoading: sanctionsStatusLoading } = useSanctionsStatus(true);
+  const preferencesQuery = useInvoiceListPreferences(user.id, true);
+  const savePreferences = useUpdateInvoiceListPreferences(user.id);
   const deleteInvoice = useDeleteInvoice();
   const tableScrollerRef = useRef<HTMLDivElement | null>(null);
   const [fixedScrollbarVisible, setFixedScrollbarVisible] = useState(false);
   const [tableScrollLeft, setTableScrollLeft] = useState(0);
   const [tableMaxScroll, setTableMaxScroll] = useState(0);
-  const [colWidths, setColWidths] = useState<Record<InvoiceTableColumnKey, number>>(
-    loadSavedColWidths,
-  );
+  const [colWidths, setColWidths] = useState<Record<InvoiceTableColumnKey, number>>(() => loadSavedColWidths(user.id));
+  const [customPresets, setCustomPresets] = useState<ColumnPreset[]>(() => loadCustomPresets(user.id));
+  const [activePresetId, setActivePresetId] = useState<string>("balanced");
+  const [preferencesHydrated, setPreferencesHydrated] = useState(false);
+  const lastSavedPrefSignatureRef = useRef<string>("");
+
+  useEffect(() => {
+    setColWidths(loadSavedColWidths(user.id));
+    setCustomPresets(loadCustomPresets(user.id));
+    setActivePresetId("balanced");
+    setPreferencesHydrated(false);
+    lastSavedPrefSignatureRef.current = "";
+  }, [user.id]);
+
+  useEffect(() => {
+    if (preferencesHydrated) return;
+    const pref = preferencesQuery.data;
+    if (!pref) return;
+    const widths = pref.table_col_widths ?? {};
+    if (Object.keys(widths).length > 0) {
+      setColWidths(normalizeWidths(widths as Partial<Record<InvoiceTableColumnKey, number>>));
+    }
+    const rawPresets = Array.isArray(pref.table_col_presets) ? pref.table_col_presets : [];
+    const parsedPresets: ColumnPreset[] = [];
+    for (const row of rawPresets) {
+      const id = typeof row.id === "string" ? row.id : null;
+      if (!id) continue;
+      const label = typeof row.label === "string" ? row.label : undefined;
+      const widthsRaw =
+        row.widths && typeof row.widths === "object"
+          ? (row.widths as Partial<Record<InvoiceTableColumnKey, number>>)
+          : undefined;
+      parsedPresets.push({
+        id,
+        label,
+        widths: normalizeWidths(widthsRaw),
+      });
+    }
+    if (parsedPresets.length > 0) {
+      setCustomPresets(parsedPresets);
+    }
+    const serverWidths =
+      Object.keys(widths).length > 0
+        ? normalizeWidths(widths as Partial<Record<InvoiceTableColumnKey, number>>)
+        : DEFAULT_COL_WIDTHS;
+    lastSavedPrefSignatureRef.current = preferencePayloadSignature(
+      buildPreferencePayload(
+        serverWidths,
+        parsedPresets,
+      ),
+    );
+    setPreferencesHydrated(true);
+  }, [preferencesHydrated, preferencesQuery.data]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
-    window.localStorage.setItem(COL_WIDTH_STORAGE_KEY, JSON.stringify(colWidths));
-  }, [colWidths]);
+    window.localStorage.setItem(colWidthStorageKey(user.id), JSON.stringify(colWidths));
+  }, [colWidths, user.id]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    window.localStorage.setItem(colPresetStorageKey(user.id), JSON.stringify(customPresets));
+  }, [customPresets, user.id]);
+
+  useEffect(() => {
+    if (!preferencesHydrated) return;
+    const payload = buildPreferencePayload(colWidths, customPresets);
+    const nextSignature = preferencePayloadSignature(payload);
+    if (nextSignature === lastSavedPrefSignatureRef.current) {
+      return;
+    }
+    const timer = window.setTimeout(() => {
+      savePreferences.mutate(payload, {
+        onSuccess: () => {
+          lastSavedPrefSignatureRef.current = nextSignature;
+        },
+      });
+    }, 700);
+    return () => window.clearTimeout(timer);
+  }, [colWidths, customPresets, preferencesHydrated, savePreferences]);
 
   useEffect(() => {
     function updateScrollbarState() {
@@ -452,6 +639,40 @@ export function InvoiceList() {
 
     window.addEventListener("mousemove", onMouseMove);
     window.addEventListener("mouseup", onMouseUp);
+  }
+
+  const availablePresets = [...BUILTIN_PRESETS, ...customPresets];
+
+  function presetLabel(preset: ColumnPreset): string {
+    if (preset.id === "balanced") return t("table.preset_balanced");
+    if (preset.id === "compact") return t("table.preset_compact");
+    if (preset.id === "review_focus") return t("table.preset_review_focus");
+    return preset.label ?? t("table.preset_custom_label");
+  }
+
+  function applyPreset(presetId: string) {
+    const preset = availablePresets.find((row) => row.id === presetId);
+    if (!preset) return;
+    setColWidths(preset.widths);
+    setActivePresetId(preset.id);
+  }
+
+  function saveCurrentAsPreset() {
+    const baseLabel = t("table.preset_custom_label");
+    const nextIndex = customPresets.length + 1;
+    const id = `custom_${Date.now()}`;
+    const preset: ColumnPreset = {
+      id,
+      label: `${baseLabel} ${nextIndex}`,
+      widths: colWidths,
+    };
+    setCustomPresets((prev) => [...prev, preset]);
+    setActivePresetId(preset.id);
+  }
+
+  function resetColWidths() {
+    setColWidths(DEFAULT_COL_WIDTHS);
+    setActivePresetId("balanced");
   }
 
   function handleDelete(id: string, filename: string | null) {
@@ -570,6 +791,34 @@ export function InvoiceList() {
         <div className="mb-3">
           <FilterBar filters={filters} onChange={setFilters} />
         </div>
+        <div className="mb-3 flex flex-wrap items-center gap-2 text-xs">
+          <label className="text-xlent-muted">{t("table.preset_label")}</label>
+          <select
+            value={activePresetId}
+            onChange={(e) => applyPreset(e.target.value)}
+            className="rounded border border-gray-200 bg-white px-2 py-1 text-xs text-xlent-ink"
+          >
+            {availablePresets.map((preset) => (
+              <option key={preset.id} value={preset.id}>
+                {presetLabel(preset)}
+              </option>
+            ))}
+          </select>
+          <button
+            type="button"
+            onClick={saveCurrentAsPreset}
+            className="rounded border border-gray-200 bg-white px-2 py-1 text-xs text-xlent-muted hover:bg-gray-50 hover:text-xlent-ink"
+          >
+            {t("table.preset_save")}
+          </button>
+          <button
+            type="button"
+            onClick={resetColWidths}
+            className="rounded border border-gray-200 bg-white px-2 py-1 text-xs text-xlent-muted hover:bg-gray-50 hover:text-xlent-ink"
+          >
+            {t("table.preset_reset")}
+          </button>
+        </div>
 
         {isLoading && <p className="text-sm text-xlent-muted">{tCommon("loading")}</p>}
         {error && (
@@ -616,7 +865,7 @@ export function InvoiceList() {
                 </colgroup>
                 <thead className="bg-xlent-surface text-left text-xs uppercase text-xlent-muted">
                   <tr>
-                    <th className="group relative px-3 py-2" title={t("table.col_compliance")}>
+                    <th className="group sticky top-0 z-10 bg-xlent-surface relative px-3 py-2" title={t("table.col_compliance")}>
                       <button
                         type="button"
                         onMouseDown={(e) => { e.preventDefault(); startColumnResize("signal", e.clientX); }}
@@ -624,7 +873,7 @@ export function InvoiceList() {
                         aria-label={`${t("table.resize_prefix")}${t("table.col_compliance")}`}
                       />
                     </th>
-                    <th className="group relative px-3 py-2">
+                    <th className="group sticky top-0 z-10 bg-xlent-surface relative px-3 py-2">
                       {t("table.col_file")}
                       <button
                         type="button"
@@ -633,7 +882,7 @@ export function InvoiceList() {
                         aria-label={`${t("table.resize_prefix")}${t("table.col_file")}`}
                       />
                     </th>
-                    <th className="group relative px-3 py-2">
+                    <th className="group sticky top-0 z-10 bg-xlent-surface relative px-3 py-2">
                       {t("table.col_direction")}
                       <button
                         type="button"
@@ -642,7 +891,7 @@ export function InvoiceList() {
                         aria-label={`${t("table.resize_prefix")}${t("table.col_direction")}`}
                       />
                     </th>
-                    <th className="group relative px-3 py-2">
+                    <th className="group sticky top-0 z-10 bg-xlent-surface relative px-3 py-2">
                       {t("table.col_status")}
                       <button
                         type="button"
@@ -651,7 +900,7 @@ export function InvoiceList() {
                         aria-label={`${t("table.resize_prefix")}${t("table.col_status")}`}
                       />
                     </th>
-                    <th className="group relative px-3 py-2">
+                    <th className="group sticky top-0 z-10 bg-xlent-surface relative px-3 py-2">
                       {t("table.col_approval")}
                       <button
                         type="button"
@@ -660,7 +909,7 @@ export function InvoiceList() {
                         aria-label={`${t("table.resize_prefix")}${t("table.col_approval")}`}
                       />
                     </th>
-                    <th className="group relative px-3 py-2">
+                    <th className="group sticky top-0 z-10 bg-xlent-surface relative px-3 py-2">
                       {t("table.col_vat")}
                       <button
                         type="button"
@@ -669,7 +918,7 @@ export function InvoiceList() {
                         aria-label={`${t("table.resize_prefix")}${t("table.col_vat")}`}
                       />
                     </th>
-                    <th className="group relative px-3 py-2">
+                    <th className="group sticky top-0 z-10 bg-xlent-surface relative px-3 py-2">
                       {t("table.col_email")}
                       <button
                         type="button"
@@ -678,7 +927,7 @@ export function InvoiceList() {
                         aria-label={`${t("table.resize_prefix")}${t("table.col_email")}`}
                       />
                     </th>
-                    <th className="group relative px-3 py-2">
+                    <th className="group sticky top-0 z-10 bg-xlent-surface relative px-3 py-2">
                       {t("table.col_llm")}
                       <button
                         type="button"
@@ -687,7 +936,7 @@ export function InvoiceList() {
                         aria-label={`${t("table.resize_prefix")}${t("table.col_llm")}`}
                       />
                     </th>
-                    <th className="group relative px-3 py-2">
+                    <th className="group sticky top-0 z-10 bg-xlent-surface relative px-3 py-2">
                       {t("table.col_invoice_date")}
                       <button
                         type="button"
@@ -696,7 +945,7 @@ export function InvoiceList() {
                         aria-label={`${t("table.resize_prefix")}${t("table.col_invoice_date")}`}
                       />
                     </th>
-                    <th className="group relative px-3 py-2">
+                    <th className="group sticky top-0 z-10 bg-xlent-surface relative px-3 py-2">
                       {t("table.col_amount")}
                       <button
                         type="button"
@@ -705,7 +954,7 @@ export function InvoiceList() {
                         aria-label={`${t("table.resize_prefix")}${t("table.col_amount")}`}
                       />
                     </th>
-                    <th className="group relative px-3 py-2">
+                    <th className="group sticky top-0 z-10 bg-xlent-surface relative px-3 py-2">
                       {t("table.col_created_at")}
                       <button
                         type="button"
@@ -714,7 +963,7 @@ export function InvoiceList() {
                         aria-label={`${t("table.resize_prefix")}${t("table.col_created_at")}`}
                       />
                     </th>
-                    <th className="group relative px-3 py-2">
+                    <th className="group sticky top-0 z-10 bg-xlent-surface relative px-3 py-2">
                       <button
                         type="button"
                         onMouseDown={(e) => { e.preventDefault(); startColumnResize("actions", e.clientX); }}

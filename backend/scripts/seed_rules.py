@@ -134,20 +134,21 @@ conditions:
                NL, PL, PT, RO, SK, SI, ES]
 """,
     },
-    # ── YELLOW: Forhøyet risiko — krever aktsomhet ────────────────────────────
+    # ── GREEN/YELLOW: Informative og manuelle kontrollsignaler ────────────────
     {
         "name": "Forhøyet risiko: transittland for sanksjonsomgåelse",
         "description": (
             "Entiteter lokalisert i land som er kjent for å benyttes som transittland "
             "for sanksjonsomgåelse mot Russland: UAE, Kasakhstan, Armenia, Georgia, "
-            "Aserbajdsjan, Usbekistan, Turkmenistan, Tadsjikistan, Kirgisistan."
+            "Aserbajdsjan, Usbekistan, Turkmenistan, Tadsjikistan, Kirgisistan. "
+            "Regelen er informativ og skal ikke alene eskalere score."
         ),
-        "severity": "yellow",
+        "severity": "green",
         "comment": "BIS Entity List-vurdering, EU-anneks XI forordning 2023/1214",
         "yaml": """\
 name: "Forhøyet risiko: transittland for sanksjonsomgåelse"
 description: Entiteter i kjente transittland for sanksjonsomgåelse
-severity: yellow
+severity: green
 conditions:
   operator: OR
   rules:

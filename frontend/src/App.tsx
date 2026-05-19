@@ -151,7 +151,7 @@ function useReviewBadge(): number {
 
 function AppShell() {
   const reviewBadge = useReviewBadge();
-  const { role } = useAuth();
+  const { role, can } = useAuth();
   const { t } = useTranslation();
 
   return (
@@ -175,7 +175,7 @@ function AppShell() {
         <div className="mx-auto max-w-6xl px-6 py-3">
           <nav className="flex flex-wrap items-center gap-x-4 gap-y-2">
             {/* Primære sider — synlig for alle */}
-            <NavItem to="/" label={t("nav.invoices")} end />
+            <NavItem to="/invoices" label={t("nav.invoices")} />
             <NavItem to="/dashboard" label={t("nav.dashboard")} />
             <NavItem to="/customers" label={t("nav.customers")} />
 
@@ -210,7 +210,15 @@ function AppShell() {
         <Suspense fallback={<PageFallback />}>
           <Routes>
             {/* Åpne ruter (alle roller med invoices:view) */}
-            <Route path="/" element={<InvoiceList />} />
+            <Route
+              path="/"
+              element={
+                can("invoices:review")
+                  ? <Navigate to="/review-queue" replace />
+                  : <Navigate to="/invoices" replace />
+              }
+            />
+            <Route path="/invoices" element={<InvoiceList />} />
             <Route path="/invoices/:id" element={<InvoiceDetail />} />
             <Route
               path="/invoices/:invoiceId/entities/:entityId/extended-screen/:runId"

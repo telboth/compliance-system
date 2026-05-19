@@ -14,7 +14,7 @@ from typing import Callable
 
 from fastapi import Depends, Header, HTTPException, status
 
-VALID_ROLES = {"admin", "compliance_officer", "controller", "readonly"}
+VALID_ROLES = {"admin", "c_level", "compliance_officer", "controller", "readonly"}
 
 
 @dataclass(frozen=True)
@@ -45,6 +45,9 @@ def get_actor_context(
 
 def require_roles(*allowed_roles: str) -> Callable[[ActorContext], ActorContext]:
     allowed = {r.strip().lower() for r in allowed_roles if r and r.strip()}
+    # C-level skal ha samme tilgang som admin i MVP.
+    if "admin" in allowed:
+        allowed.add("c_level")
 
     if not allowed:
         raise ValueError("require_roles() må få minst én rolle.")
@@ -63,4 +66,3 @@ def require_roles(*allowed_roles: str) -> Callable[[ActorContext], ActorContext]
         return actor
 
     return _dependency
-

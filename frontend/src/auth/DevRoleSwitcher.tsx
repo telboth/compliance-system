@@ -157,12 +157,12 @@ function RolePermissionSummary({ role }: { role: Role }) {
   const capabilities: { label: string; roles: Role[] }[] = [
     {
       label: "Last opp fakturaer",
-      roles: ["admin", "compliance_officer", "controller"],
+      roles: ["admin", "c_level", "compliance_officer", "controller"],
     },
-    { label: "Rediger fakturaer", roles: ["admin", "compliance_officer", "controller"] },
-    { label: "Godkjenn/avvis", roles: ["admin", "compliance_officer"] },
-    { label: "Administrer regler", roles: ["admin", "compliance_officer"] },
-    { label: "Systemadmin", roles: ["admin"] },
+    { label: "Rediger fakturaer", roles: ["admin", "c_level", "compliance_officer", "controller"] },
+    { label: "Godkjenn/avvis", roles: ["admin", "c_level", "compliance_officer"] },
+    { label: "Administrer regler", roles: ["admin", "c_level", "compliance_officer"] },
+    { label: "Systemadmin", roles: ["admin", "c_level"] },
   ];
 
   return (

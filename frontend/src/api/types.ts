@@ -135,6 +135,8 @@ export interface Invoice {
   review_reason: string | null;
   reviewed_by: string | null;
   reviewed_at: string | null;
+  review_claimed_by: string | null;
+  review_claimed_at: string | null;
 }
 
 export interface InvoiceSummary {
@@ -198,6 +200,16 @@ export interface ReviewQueueItem {
   created_at: string;
   review_decision: string | null;
   reviewed_at: string | null;
+  has_sanctions_hit: boolean;
+  has_embargo_hit: boolean;
+  has_ownership_risk: boolean;
+  has_dual_use_risk: boolean;
+  has_vat_deviation: boolean;
+  awaiting_approval: boolean;
+  review_claimed_by: string | null;
+  review_claimed_at: string | null;
+  claim_is_mine: boolean;
+  claim_is_stale: boolean;
 }
 
 export interface ReviewQueueResponse {
@@ -205,9 +217,23 @@ export interface ReviewQueueResponse {
   total: number;
 }
 
+export interface ReviewAndNextResponse {
+  invoice: Invoice;
+  next_invoice_id: string | null;
+}
+
+export interface InvoiceListPreferences {
+  table_col_widths: Record<string, number>;
+  table_col_presets: Array<Record<string, unknown>>;
+  default_filters: Record<string, string | number | null>;
+  updated_at: string | null;
+}
+
 export interface InvoiceUploadResponse {
   // Parsing skjer asynkront — sjekk invoice.status for fremdrift
   invoice: Invoice;
+  duplicate_detected?: boolean;
+  duplicate_of_invoice_id?: string | null;
 }
 
 // ── In-app varsler ────────────────────────────────────────────────────────────
@@ -350,6 +376,22 @@ export interface PipelineLatencySummary {
   average_seconds: number | null;
 }
 
+export interface PipelineEventSummary {
+  stage: string;
+  action: string;
+  count: number;
+}
+
+export interface PipelineRecentEvent {
+  invoice_id: string;
+  stage: string;
+  action: string;
+  status_from: string | null;
+  status_to: string | null;
+  message: string | null;
+  created_at: string;
+}
+
 export interface PipelineMetricsResponse {
   generated_at: string;
   lookback_hours: number;
@@ -357,6 +399,8 @@ export interface PipelineMetricsResponse {
   total_invoices_last_window: number;
   staged: PipelineStageSummary[];
   latencies: PipelineLatencySummary[];
+  event_summaries: PipelineEventSummary[];
+  recent_events: PipelineRecentEvent[];
   alerts: string[];
 }
 

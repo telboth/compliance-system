@@ -10,7 +10,9 @@
     "drop_hint": "Drag and drop one or more invoices (PDF, XLSX, PNG, JPG, GIF), or click to select",
     "size_hint": "Max 25 MB per file. PDF, XLSX, PNG, JPG, GIF.",
     "loading_batch": "Uploading file {{current}} of {{total}}…",
-    "error": "Upload failed. Check that the file is valid and try again."
+    "error": "Upload failed. Check that the file is valid and try again.",
+    "duplicate_title": "Duplicates detected",
+    "duplicate_reused": "{{filename}} was already uploaded. Reusing existing invoice (ID: {{invoiceId}})."
   },
   "pagination": {
     "showing": "Showing {{from}}–{{to}} of {{total}}",

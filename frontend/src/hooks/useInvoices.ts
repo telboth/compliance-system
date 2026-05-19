@@ -6,6 +6,7 @@ import {
   extractInvoice,
   getPipelineMetrics,
   getPipelineRecovery,
+  getInvoiceListPreferences,
   getExtendedScreeningRun,
   getExtendedScreenSources,
   getExtendedScreenClaims,
@@ -26,6 +27,9 @@ import {
   listExtendedScreenFeedback,
   reparseInvoice,
   reviewInvoice,
+  reviewInvoiceAndNext,
+  claimReviewInvoice,
+  releaseReviewClaim,
   escalateInvoiceRisk,
   startExtendedScreening,
   startScreening,
@@ -34,12 +38,14 @@ import {
   updateEntity,
   updateInvoiceFields,
   updateInvoiceLine,
+  updateInvoiceListPreferences,
   uploadInvoice,
   type EntityUpdate,
   type InvoiceFieldsUpdate,
   type InvoiceLineUpdate,
   type ReviewCreate,
   type RiskEscalationCreate,
+  type InvoiceListPreferencesUpdate,
 } from "@/api/invoices";
 import type {
   ApprovalState,
@@ -52,6 +58,8 @@ import type {
   ExtendedScreenRun,
   InvoiceDirection,
   Invoice,
+  InvoiceListPreferences,
+  ReviewAndNextResponse,
   ReviewQueueResponse,
   SanctionsStatusResponse,
   SanctionedEntityListResponse,
@@ -253,12 +261,65 @@ export function useReviewInvoice(invoiceId: string) {
     mutationFn: ({
       decision,
       reason,
+      rule_reference,
+      evidence_summary,
+      deviation_approval,
       actor,
     }: ReviewCreate & { actor?: string }) =>
-      reviewInvoice(invoiceId, { decision, reason }, actor),
+      reviewInvoice(
+        invoiceId,
+        { decision, reason, rule_reference, evidence_summary, deviation_approval },
+        actor,
+      ),
     onSuccess: (data) => {
       queryClient.setQueryData(invoiceKeys.detail(invoiceId), data);
       void queryClient.invalidateQueries({ queryKey: invoiceKeys.lists() });
+      void queryClient.invalidateQueries({ queryKey: reviewQueueKeys.all });
+    },
+  });
+}
+
+export function useReviewInvoiceAndNext(invoiceId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      decision,
+      reason,
+      rule_reference,
+      evidence_summary,
+      deviation_approval,
+      actor,
+    }: ReviewCreate & { actor?: string }) =>
+      reviewInvoiceAndNext(
+        invoiceId,
+        { decision, reason, rule_reference, evidence_summary, deviation_approval },
+        actor,
+      ),
+    onSuccess: (data: ReviewAndNextResponse) => {
+      queryClient.setQueryData(invoiceKeys.detail(invoiceId), data.invoice);
+      void queryClient.invalidateQueries({ queryKey: invoiceKeys.lists() });
+      void queryClient.invalidateQueries({ queryKey: reviewQueueKeys.all });
+    },
+  });
+}
+
+export function useClaimReviewInvoice(invoiceId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () => claimReviewInvoice(invoiceId),
+    onSuccess: (data) => {
+      queryClient.setQueryData(invoiceKeys.detail(invoiceId), data);
+      void queryClient.invalidateQueries({ queryKey: reviewQueueKeys.all });
+    },
+  });
+}
+
+export function useReleaseReviewClaim(invoiceId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () => releaseReviewClaim(invoiceId),
+    onSuccess: (data) => {
+      queryClient.setQueryData(invoiceKeys.detail(invoiceId), data);
       void queryClient.invalidateQueries({ queryKey: reviewQueueKeys.all });
     },
   });
@@ -277,6 +338,25 @@ export function useEscalateInvoiceRisk(invoiceId: string) {
       queryClient.setQueryData(invoiceKeys.detail(invoiceId), data);
       void queryClient.invalidateQueries({ queryKey: invoiceKeys.lists() });
       void queryClient.invalidateQueries({ queryKey: reviewQueueKeys.all });
+    },
+  });
+}
+
+export function useInvoiceListPreferences(scopeKey = "default", enabled = true) {
+  return useQuery<InvoiceListPreferences>({
+    queryKey: ["invoice-list-preferences", scopeKey],
+    queryFn: getInvoiceListPreferences,
+    enabled,
+    staleTime: 30_000,
+  });
+}
+
+export function useUpdateInvoiceListPreferences(scopeKey = "default") {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: InvoiceListPreferencesUpdate) => updateInvoiceListPreferences(payload),
+    onSuccess: (data) => {
+      queryClient.setQueryData(["invoice-list-preferences", scopeKey], data);
     },
   });
 }

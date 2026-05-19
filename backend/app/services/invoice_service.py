@@ -16,6 +16,7 @@ Flyt:
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import re
 import uuid
 from datetime import date
@@ -26,6 +27,7 @@ from typing import TYPE_CHECKING
 import anyio
 from fastapi import UploadFile
 from sqlalchemy import func, literal, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -50,13 +52,66 @@ from app.services import audit_service
 from app.services import file_storage
 
 if TYPE_CHECKING:
-    from app.schemas.invoice import EntityUpdate, InvoiceFieldsUpdate, InvoiceLineUpdate
+    from app.schemas.invoice import (
+        EntityUpdate,
+        InvoiceFieldsUpdate,
+        InvoiceLineUpdate,
+    )
 
 logger = get_logger(__name__)
 
 RAW_TEXT_PREVIEW_LENGTH = 500
 
 APPROVAL_STATES = {"pending", "approved", "blocked", "not_required", "assessing"}
+
+
+def _sha256_for_file(path: Path) -> str:
+    """Beregn SHA-256 for filinnhold (brukes til duplikatvern ved upload)."""
+    digest = hashlib.sha256()
+    with path.open("rb") as fp:
+        for chunk in iter(lambda: fp.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+async def _find_duplicate_invoice(
+    session: AsyncSession,
+    *,
+    file_sha256: str,
+    size_bytes: int,
+) -> Invoice | None:
+    """Finn eksisterende invoice med samme binære innhold.
+
+    1) Foretrekk direkte hash-match (nye rader)
+    2) Fallback for legacy-rader uten hash: sammenlign filer med samme størrelse
+    """
+    exact_stmt = (
+        select(Invoice)
+        .where(Invoice.file_sha256 == file_sha256)
+        .order_by(Invoice.created_at.desc())
+        .limit(1)
+    )
+    exact = (await session.execute(exact_stmt)).scalar_one_or_none()
+    if exact is not None:
+        return exact
+
+    legacy_stmt = (
+        select(Invoice)
+        .where(Invoice.file_sha256.is_(None), Invoice.file_size_bytes == size_bytes)
+        .order_by(Invoice.created_at.desc())
+        .limit(200)
+    )
+    legacy_candidates = list((await session.execute(legacy_stmt)).scalars().all())
+    for candidate in legacy_candidates:
+        path = Path(candidate.pdf_path)
+        if not path.exists():
+            continue
+        try:
+            if _sha256_for_file(path) == file_sha256:
+                return candidate
+        except OSError:
+            continue
+    return None
 
 
 def derive_approval_state(
@@ -141,19 +196,60 @@ async def upload_invoice_only(
     upload: UploadFile,
     direction: InvoiceDirection,
     customer_id: uuid.UUID | None = None,
-) -> Invoice:
+) -> tuple[Invoice, bool]:
     """Lagre fil og opprett invoice-rad. Returnerer umiddelbart — parsing skjer i bakgrunnen."""
     storage_path, size_bytes, _file_type = await file_storage.save_upload(upload)
+    file_sha256 = _sha256_for_file(storage_path)
+
+    existing = await _find_duplicate_invoice(
+        session,
+        file_sha256=file_sha256,
+        size_bytes=size_bytes,
+    )
+    if existing is not None:
+        try:
+            storage_path.unlink(missing_ok=True)
+        except OSError:
+            logger.warning("duplicate_upload_temp_file_delete_failed", path=str(storage_path))
+        logger.info(
+            "invoice_upload_duplicate_detected",
+            duplicate_invoice_id=str(existing.id),
+            filename=upload.filename,
+        )
+        return await get_invoice(session, existing.id), True
+
     invoice = Invoice(
         pdf_path=str(storage_path),
         original_filename=upload.filename,
         file_size_bytes=size_bytes,
+        file_sha256=file_sha256,
         direction=direction,
         status=InvoiceStatus.UPLOADED,
         customer_id=customer_id,
     )
     session.add(invoice)
-    await session.flush()  # Gir invoice.id
+    try:
+        await session.flush()  # Gir invoice.id
+    except IntegrityError:
+        await session.rollback()
+        existing = await _find_duplicate_invoice(
+            session,
+            file_sha256=file_sha256,
+            size_bytes=size_bytes,
+        )
+        try:
+            storage_path.unlink(missing_ok=True)
+        except OSError:
+            logger.warning("duplicate_upload_temp_file_delete_failed", path=str(storage_path))
+        if existing is not None:
+            logger.info(
+                "invoice_upload_duplicate_detected_race",
+                duplicate_invoice_id=str(existing.id),
+                filename=upload.filename,
+            )
+            return await get_invoice(session, existing.id), True
+        raise
+
     await audit_service.log(
         session,
         action="invoice.uploaded",
@@ -169,7 +265,7 @@ async def upload_invoice_only(
     logger.info("invoice_created", invoice_id=str(invoice.id))
 
     # Eager-load relasjoner for serialisering
-    return await get_invoice(session, invoice.id)
+    return await get_invoice(session, invoice.id), False
 
 
 # ── Parsing (asynkron bakgrunnsoppgave) ───────────────────────────────────────
@@ -451,68 +547,24 @@ async def review_invoice(
     *,
     decision: str,
     reason: str,
+    rule_reference: str,
+    evidence_summary: str,
+    deviation_approval: bool,
     actor: str = "system",
 ) -> Invoice:
-    """Sett en manuell review-beslutning (approved / blocked) på en invoice.
+    """Bakoverkompatibel delegasjon til dedikert review-service."""
+    from app.services.invoice_review_service import review_invoice as _review_invoice
 
-    Kun fakturaer med status 'screened' kan reviewes. Beslutningen logges i
-    den hash-kjedete revisjonsloggen og settes som ny status på invoicen.
-    """
-    from datetime import datetime, timezone
-
-    invoice = await get_invoice(session, invoice_id)
-
-    allowed_statuses = {
-        InvoiceStatus.SCREENED,
-        InvoiceStatus.APPROVED,
-        InvoiceStatus.BLOCKED,
-    }
-    if invoice.status not in allowed_statuses:
-        raise ApplicationError(
-            f"Kan ikke reviewe en invoice med status '{invoice.status.value}'. "
-            "Invoicen må være screenet først.",
-            details={"invoice_id": str(invoice_id), "status": invoice.status.value},
-        )
-
-    prev_status = invoice.status.value
-    invoice.status = InvoiceStatus.APPROVED if decision == "approved" else InvoiceStatus.BLOCKED
-    invoice.review_decision = decision
-    invoice.review_reason = reason
-    invoice.reviewed_by = actor
-    invoice.reviewed_at = datetime.now(tz=timezone.utc)
-
-    await audit_service.log(
+    return await _review_invoice(
         session,
-        action=f"invoice.{decision}",
-        actor=actor,
-        invoice_id=invoice.id,
-        details={
-            "decision": decision,
-            "reason": reason,
-            "prev_status": prev_status,
-        },
-    )
-
-    # ── In-app varsel for review-beslutning ───────────────────────────────────
-    from app.services import notification_service
-    inv_label = invoice.original_filename or invoice.invoice_number or str(invoice_id)[:8]
-    decision_icon = "✓" if decision == "approved" else "🔒"
-    await notification_service.create(
-        session,
-        message=f"{decision_icon} {inv_label} ble {'godkjent' if decision == 'approved' else 'blokkert'} av {actor}",
-        level="info" if decision == "approved" else "warn",
-        invoice_id=invoice.id,
-        target_roles=["controller", "admin"],
-    )
-
-    await session.commit()
-    logger.info(
-        "invoice_reviewed",
-        invoice_id=str(invoice_id),
+        invoice_id,
         decision=decision,
+        reason=reason,
+        rule_reference=rule_reference,
+        evidence_summary=evidence_summary,
+        deviation_approval=deviation_approval,
         actor=actor,
     )
-    return await get_invoice(session, invoice_id)
 
 
 # ── Sletting ──────────────────────────────────────────────────────────────────

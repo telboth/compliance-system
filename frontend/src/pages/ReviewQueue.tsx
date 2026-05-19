@@ -7,6 +7,7 @@
 import { Link } from "react-router-dom";
 import clsx from "clsx";
 import { useTranslation } from "react-i18next";
+import { useMemo, useState } from "react";
 
 import { StatusBadge } from "@/components/StatusBadge";
 import { useReviewQueue } from "@/hooks/useInvoices";
@@ -38,6 +39,19 @@ function QueueRow({ item }: { item: ReviewQueueItem }) {
   const isPending = item.status === "screened";
   const { t, i18n } = useTranslation("pages");
   const { t: tCommon } = useTranslation();
+  const claimText = (() => {
+    if (!item.review_claimed_by) return t("review_queue.claim_open");
+    if (item.claim_is_mine) return t("review_queue.claim_mine");
+    if (item.claim_is_stale) return t("review_queue.claim_stale", { name: item.review_claimed_by });
+    return t("review_queue.claim_other", { name: item.review_claimed_by });
+  })();
+  const claimClass = !item.review_claimed_by
+    ? "text-green-700"
+    : item.claim_is_mine
+      ? "text-blue-700"
+      : item.claim_is_stale
+        ? "text-amber-700"
+        : "text-red-700";
   return (
     <tr className="border-t border-gray-100 hover:bg-xlent-surface/50">
       <td className="py-3 pl-4 pr-2">
@@ -77,6 +91,9 @@ function QueueRow({ item }: { item: ReviewQueueItem }) {
           </span>
         )}
       </td>
+      <td className={clsx("py-3 px-2 text-xs font-medium", claimClass)}>
+        {claimText}
+      </td>
       <td className="py-3 pl-2 pr-4 text-xs text-xlent-muted">
         {new Date(item.created_at).toLocaleDateString(i18n.language === "en" ? "en-GB" : "nb-NO")}
       </td>
@@ -106,10 +123,32 @@ function EmptyState() {
 export function ReviewQueuePage() {
   const { t } = useTranslation("pages");
   const { data, isLoading, error } = useReviewQueue({ limit: 100 });
+  const [quickFilter, setQuickFilter] = useState<
+    | "all"
+    | "sanctions"
+    | "embargo"
+    | "ownership"
+    | "dual_use"
+    | "vat"
+    | "awaiting"
+  >("all");
 
-  const pending = data?.items.filter((i) => i.status === "screened") ?? [];
-  const decided = data?.items.filter((i) => i.status !== "screened") ?? [];
+  const filteredItems = useMemo(() => {
+    const items = data?.items ?? [];
+    if (quickFilter === "all") return items;
+    if (quickFilter === "sanctions") return items.filter((i) => i.has_sanctions_hit);
+    if (quickFilter === "embargo") return items.filter((i) => i.has_embargo_hit);
+    if (quickFilter === "ownership") return items.filter((i) => i.has_ownership_risk);
+    if (quickFilter === "dual_use") return items.filter((i) => i.has_dual_use_risk);
+    if (quickFilter === "vat") return items.filter((i) => i.has_vat_deviation);
+    if (quickFilter === "awaiting") return items.filter((i) => i.awaiting_approval);
+    return items;
+  }, [data?.items, quickFilter]);
+
+  const pending = filteredItems.filter((i) => i.status === "screened");
+  const decided = filteredItems.filter((i) => i.status !== "screened");
   const total = data?.total ?? 0;
+  const shownTotal = filteredItems.length;
 
   return (
     <div className="mx-auto max-w-5xl space-y-6 p-6">
@@ -119,6 +158,36 @@ export function ReviewQueuePage() {
           {t("review_queue.subtitle")}
         </p>
       </header>
+
+      {/* Hurtigfiltre */}
+      <div className="flex flex-wrap gap-2">
+        {[
+          ["all", t("review_queue.filter_all")],
+          ["sanctions", t("review_queue.filter_sanctions")],
+          ["embargo", t("review_queue.filter_embargo")],
+          ["ownership", t("review_queue.filter_ownership")],
+          ["dual_use", t("review_queue.filter_dual_use")],
+          ["vat", t("review_queue.filter_vat")],
+          ["awaiting", t("review_queue.filter_awaiting")],
+        ].map(([key, label]) => {
+          const active = quickFilter === key;
+          return (
+            <button
+              key={key}
+              type="button"
+              onClick={() => setQuickFilter(key as typeof quickFilter)}
+              className={clsx(
+                "rounded-full border px-3 py-1 text-xs font-medium",
+                active
+                  ? "border-xlent-primary bg-xlent-primary text-white"
+                  : "border-gray-300 bg-white text-xlent-muted hover:bg-gray-50",
+              )}
+            >
+              {label}
+            </button>
+          );
+        })}
+      </div>
 
       {/* Oppsummering */}
       {data && (
@@ -132,8 +201,10 @@ export function ReviewQueuePage() {
             <div className="text-xs text-xlent-muted">{t("review_queue.decided")}</div>
           </div>
           <div className="rounded-lg border border-gray-200 bg-white px-4 py-3 text-center">
-            <div className="text-2xl font-bold text-xlent-ink">{total}</div>
-            <div className="text-xs text-xlent-muted">{t("review_queue.total")}</div>
+            <div className="text-2xl font-bold text-xlent-ink">{shownTotal}</div>
+            <div className="text-xs text-xlent-muted">
+              {t("review_queue.total")} ({t("review_queue.of_total", { total })})
+            </div>
           </div>
         </div>
       )}
@@ -148,9 +219,9 @@ export function ReviewQueuePage() {
         </div>
       )}
 
-      {!isLoading && !error && total === 0 && <EmptyState />}
+      {!isLoading && !error && shownTotal === 0 && <EmptyState />}
 
-      {!isLoading && !error && total > 0 && (
+      {!isLoading && !error && shownTotal > 0 && (
         <div className="overflow-hidden rounded-lg border border-gray-200 bg-white">
           <table className="min-w-full">
             <thead>
@@ -162,6 +233,7 @@ export function ReviewQueuePage() {
                 <th className="px-2 py-2">{t("review_queue.col_amount")}</th>
                 <th className="px-2 py-2">{t("review_queue.col_status")}</th>
                 <th className="px-2 py-2">{t("review_queue.col_decision")}</th>
+                <th className="px-2 py-2">{t("review_queue.col_claim")}</th>
                 <th className="pl-2 pr-4 py-2">{t("review_queue.col_date")}</th>
               </tr>
             </thead>
@@ -180,7 +252,7 @@ export function ReviewQueuePage() {
                   {pending.length > 0 && (
                     <tr>
                       <td
-                        colSpan={8}
+                        colSpan={9}
                         className="bg-gray-50 px-4 py-2 text-[11px] font-semibold uppercase tracking-wider text-xlent-muted"
                       >
                         {t("review_queue.section_decided")}

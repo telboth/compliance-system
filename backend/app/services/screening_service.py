@@ -29,11 +29,12 @@ Feilhåndtering:
 from __future__ import annotations
 
 import asyncio
+import difflib
 import hashlib
 import re
 import uuid
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from typing import Any
 
@@ -42,8 +43,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
 from app.core.logging import get_logger
+from app.data.logistics_domains import LOGISTICS_DOMAINS, is_logistics_domain
 from app.models.entity import Entity, EntityRole
-from app.models.invoice import ComplianceScore, Invoice, InvoiceStatus
+from app.models.invoice import ComplianceScore, Invoice, InvoiceDirection, InvoiceStatus
 from app.models.screening import MatchStatus, ScreeningResult
 from app.models.screening_run import ScreeningCandidate, ScreeningRun
 from app.sanctions.embargo import EmbargoEntry, check_country
@@ -210,6 +212,52 @@ _RAW_TEXT_SKIPPED_HEADINGS = {
     "exporter seller",
     "buyer consignee",
 }
+_PLAUSIBILITY_TRANSIT_COUNTRIES = {"AE", "KZ", "AM", "GE", "AZ", "UZ", "TM", "TJ", "KG"}
+_PLAUSIBILITY_FOOD_KEYWORDS = {
+    "seafood",
+    "fish",
+    "fisheries",
+    "food",
+    "beverage",
+    "meat",
+    "dairy",
+    "agri",
+    "agriculture",
+    "farm",
+}
+_PLAUSIBILITY_INDUSTRIAL_KEYWORDS = {
+    "hydraulic",
+    "actuator",
+    "impeller",
+    "bearing",
+    "gear",
+    "gearbox",
+    "pump",
+    "valve",
+    "servo",
+    "plc",
+    "sensor",
+    "coupling",
+    "machined",
+}
+_PLAUSIBILITY_FREE_ZONE_KEYWORDS = {
+    "free zone",
+    "fze",
+    "ftz",
+    "special economic zone",
+    "saif zone",
+    "jafza",
+}
+_PLAUSIBILITY_INTERMEDIARY_NAME_KEYWORDS = {
+    "trading",
+    "trader",
+    "stores",
+    "fze",
+    "fzco",
+    "general trading",
+    "import export",
+}
+_DUPLICATE_ROLE_GROUP = {EntityRole.BUYER, EntityRole.CONSIGNEE, EntityRole.END_USER}
 
 
 @dataclass
@@ -308,6 +356,13 @@ def _extract_emails(text: str | None) -> set[str]:
 
 
 def _email_hints(email: str) -> list[str]:
+    """Generer navnehints fra en e-postadresse for sanksjonsscreening.
+
+    For e-poster med kjente logistikkdomener (fedex.com, dhl.com, maersk.com,
+    osv.) hoppes domenedelen over — logistikkselskapets navn er ikke relevant
+    som sanksjonskandidatnavn for parten bak fakturaen. Local-part-hints
+    (f.eks. «john doe» fra «john.doe@dhl.com») screenes likevel som normalt.
+    """
     if "@" not in email:
         return []
     local, domain = email.lower().split("@", 1)
@@ -323,7 +378,9 @@ def _email_hints(email: str) -> list[str]:
     elif local_tokens and len(local_tokens[0]) >= 8:
         hints.add(local_tokens[0])
 
-    if domain not in _PUBLIC_EMAIL_DOMAINS:
+    # Hopp over domenehint dersom domenet tilhører et kjent logistikkselskap.
+    # Disse selskapene er legitime transportører og generer støy i screeningen.
+    if domain not in _PUBLIC_EMAIL_DOMAINS and domain not in LOGISTICS_DOMAINS:
         root = domain.split(".", 1)[0]
         root_tokens = [
             token
@@ -470,6 +527,15 @@ def _build_screening_candidates(
             email = entity.email.lower()
             domain = email.split("@", 1)[1]
             domain_anchor[domain] = entity.id
+            if is_logistics_domain(domain):
+                # Logistikkdomene — generer ikke domenehint (se _email_hints),
+                # men logg for sporbarhet slik at UI kan vise informasjonen.
+                logger.debug(
+                    "logistics_domain_skipped",
+                    entity_id=str(entity.id),
+                    entity_name=entity.name,
+                    domain=domain,
+                )
             for hint in _email_hints(email):
                 _add_candidate(
                     anchor=entity,
@@ -619,6 +685,274 @@ def _make_embargo_result(
             "check_type": "country_embargo",
         },
     )
+
+
+def _collect_trade_plausibility_results(
+    *,
+    invoice: Invoice,
+    entities_to_screen: list[Entity],
+) -> list[ScreeningResult]:
+    """Heuristisk plausibilitetskontroll (ikke direkte sanksjonstreff).
+
+    Legger inn POTENTIAL_MATCH ved tydelige avvik:
+      1) Bransje-vare mismatch (f.eks. seafood + hydrauliske industrideler)
+      2) Frihandelssone-transitt i kjent omgaelsesland med tredjeland-destinasjon
+    """
+    raw_text = (invoice.raw_text or "").lower()
+    destination = (invoice.destination_country or "").strip().upper()
+    if not raw_text:
+        return []
+
+    buyers = [
+        entity
+        for entity in entities_to_screen
+        if entity.role in {EntityRole.BUYER, EntityRole.CONSIGNEE, EntityRole.END_USER}
+    ]
+    if not buyers:
+        return []
+
+    records: list[ScreeningResult] = []
+    seen_checks: set[tuple[uuid.UUID, str]] = set()
+
+    for buyer in buyers:
+        buyer_name = (buyer.name or "").lower()
+        buyer_addr = (buyer.address or "").lower()
+        buyer_country = (buyer.country or "").strip().upper()
+        cross_border = bool(destination and buyer_country and buyer_country != destination)
+
+        food_hits = sorted(
+            keyword for keyword in _PLAUSIBILITY_FOOD_KEYWORDS if keyword in buyer_name
+        )
+        industrial_hits = sorted(
+            keyword for keyword in _PLAUSIBILITY_INDUSTRIAL_KEYWORDS if keyword in raw_text
+        )
+
+        if food_hits and cross_border and len(industrial_hits) >= 2:
+            dedupe_key = (buyer.id, "industry_mismatch")
+            if dedupe_key not in seen_checks:
+                seen_checks.add(dedupe_key)
+                records.append(
+                    ScreeningResult(
+                        id=uuid.uuid4(),
+                        invoice_id=invoice.id,
+                        entity_id=buyer.id,
+                        dataset="trade_plausibility",
+                        dataset_entity_id="industry_mismatch",
+                        matched_name=buyer.name,
+                        score=Decimal("0.7800"),
+                        listed_on=None,
+                        status=MatchStatus.POTENTIAL_MATCH,
+                        raw_response={
+                            "check_type": "trade_plausibility_industry_mismatch",
+                            "buyer_country": buyer_country or None,
+                            "destination_country": destination or None,
+                            "food_name_hits": food_hits[:5],
+                            "industrial_text_hits": industrial_hits[:6],
+                        },
+                    )
+                )
+
+        free_zone_hits = sorted(
+            keyword
+            for keyword in _PLAUSIBILITY_FREE_ZONE_KEYWORDS
+            if keyword in buyer_name or keyword in buyer_addr
+        )
+        intermediary_hits = sorted(
+            keyword
+            for keyword in _PLAUSIBILITY_INTERMEDIARY_NAME_KEYWORDS
+            if keyword in buyer_name
+        )
+        transit_route = buyer_country in _PLAUSIBILITY_TRANSIT_COUNTRIES
+        if transit_route and cross_border and free_zone_hits and industrial_hits and intermediary_hits:
+            dedupe_key = (buyer.id, "free_zone_transit")
+            if dedupe_key not in seen_checks:
+                seen_checks.add(dedupe_key)
+                records.append(
+                    ScreeningResult(
+                        id=uuid.uuid4(),
+                        invoice_id=invoice.id,
+                        entity_id=buyer.id,
+                        dataset="trade_plausibility",
+                        dataset_entity_id="free_zone_transit",
+                        matched_name=buyer.name,
+                        score=Decimal("0.7600"),
+                        listed_on=None,
+                        status=MatchStatus.POTENTIAL_MATCH,
+                        raw_response={
+                            "check_type": "trade_plausibility_free_zone_transit",
+                            "buyer_country": buyer_country or None,
+                            "destination_country": destination or None,
+                            "free_zone_hits": free_zone_hits[:5],
+                            "intermediary_name_hits": intermediary_hits[:4],
+                            "industrial_text_hits": industrial_hits[:6],
+                        },
+                    )
+                )
+
+    return records
+
+
+def _normalize_duplicate_name(value: str | None) -> str:
+    if not value:
+        return ""
+    cleaned = re.sub(r"[^a-z0-9]+", " ", value.lower()).strip()
+    return re.sub(r"\s+", " ", cleaned)
+
+
+def _similarity_ratio(left: str, right: str) -> float:
+    if not left or not right:
+        return 0.0
+    return float(difflib.SequenceMatcher(None, left, right).ratio())
+
+
+def _compact_text_for_duplicate(raw_text: str | None, max_chars: int = 1800) -> str:
+    if not raw_text:
+        return ""
+    normalized = re.sub(r"\s+", " ", raw_text.lower()).strip()
+    return normalized[:max_chars]
+
+
+async def _collect_duplicate_invoice_results(
+    *,
+    session: AsyncSession,
+    invoice: Invoice,
+    entities_to_screen: list[Entity],
+) -> list[ScreeningResult]:
+    """Heuristisk duplikatkontroll for incoming invoices.
+
+    Konservativ MVP:
+      - Samme valuta og omtrent samme beløp
+      - Lignende buyer/consignee-navn
+      - Lignende tekst/fakturanummer
+      - Unntar typiske manedlige gjentakelser
+    """
+    if invoice.direction != InvoiceDirection.INCOMING:
+        return []
+    if invoice.total_amount is None or not invoice.currency:
+        return []
+
+    current_buyer_names = [
+        _normalize_duplicate_name(entity.name)
+        for entity in entities_to_screen
+        if entity.role in _DUPLICATE_ROLE_GROUP and entity.name
+    ]
+    current_buyer_names = [name for name in current_buyer_names if name]
+    if not current_buyer_names:
+        return []
+
+    amount = Decimal(invoice.total_amount)
+    if amount <= 0:
+        return []
+
+    lower = amount * Decimal("0.98")
+    upper = amount * Decimal("1.02")
+    cutoff = datetime.now(tz=UTC) - timedelta(days=365)
+
+    candidate_stmt = (
+        select(Invoice)
+        .where(Invoice.id != invoice.id)
+        .where(Invoice.direction == invoice.direction)
+        .where(Invoice.currency == invoice.currency)
+        .where(Invoice.total_amount.is_not(None))
+        .where(Invoice.created_at >= cutoff)
+        .where(Invoice.total_amount >= lower)
+        .where(Invoice.total_amount <= upper)
+        .order_by(Invoice.created_at.desc())
+        .limit(120)
+    )
+    candidate_invoices = list((await session.execute(candidate_stmt)).scalars().all())
+    if not candidate_invoices:
+        return []
+
+    candidate_ids = [inv.id for inv in candidate_invoices]
+    entity_stmt = select(Entity).where(
+        Entity.invoice_id.in_(candidate_ids),
+        Entity.role.in_(list(_DUPLICATE_ROLE_GROUP)),
+    )
+    entity_rows = list((await session.execute(entity_stmt)).scalars().all())
+    buyer_names_by_invoice: dict[uuid.UUID, list[str]] = {}
+    for row in entity_rows:
+        key = row.invoice_id
+        buyer_names_by_invoice.setdefault(key, [])
+        normalized = _normalize_duplicate_name(row.name)
+        if normalized:
+            buyer_names_by_invoice[key].append(normalized)
+
+    current_number = _normalize_duplicate_name(invoice.invoice_number)
+    current_text = _compact_text_for_duplicate(invoice.raw_text)
+    current_date = invoice.invoice_date
+
+    out: list[ScreeningResult] = []
+    for candidate in candidate_invoices:
+        previous_names = buyer_names_by_invoice.get(candidate.id, [])
+        if not previous_names:
+            continue
+
+        name_similarity = max(
+            (_similarity_ratio(now_name, prev_name) for now_name in current_buyer_names for prev_name in previous_names),
+            default=0.0,
+        )
+        if name_similarity < 0.88:
+            continue
+
+        prev_amount = Decimal(candidate.total_amount or 0)
+        if prev_amount <= 0:
+            continue
+        amount_ratio_diff = float(abs(amount - prev_amount) / max(amount, prev_amount))
+        prev_number = _normalize_duplicate_name(candidate.invoice_number)
+        number_similarity = _similarity_ratio(current_number, prev_number)
+        text_similarity = _similarity_ratio(current_text, _compact_text_for_duplicate(candidate.raw_text))
+
+        date_delta_days: int | None = None
+        if current_date and candidate.invoice_date:
+            date_delta_days = abs((current_date - candidate.invoice_date).days)
+
+        # Unnta tydelig manedlig gjentakelse (abonnement/tjeneste)
+        recurring_pattern = (
+            date_delta_days is not None
+            and 25 <= date_delta_days <= 40
+            and amount_ratio_diff <= 0.01
+            and number_similarity < 0.80
+        )
+        if recurring_pattern:
+            continue
+
+        suspicious = (
+            (amount_ratio_diff <= 0.005 and name_similarity >= 0.92 and (date_delta_days is None or date_delta_days <= 14))
+            or (number_similarity >= 0.90 and amount_ratio_diff <= 0.02 and name_similarity >= 0.88)
+            or (text_similarity >= 0.97 and amount_ratio_diff <= 0.02 and (date_delta_days is None or date_delta_days <= 21))
+        )
+        if not suspicious:
+            continue
+
+        matched_name = candidate.invoice_number or candidate.original_filename or str(candidate.id)
+        score = max(0.72, min(0.89, 0.72 + (name_similarity * 0.09) + (number_similarity * 0.05)))
+        out.append(
+            ScreeningResult(
+                id=uuid.uuid4(),
+                invoice_id=invoice.id,
+                entity_id=entities_to_screen[0].id,
+                dataset="duplicate_invoice",
+                dataset_entity_id=str(candidate.id),
+                matched_name=matched_name,
+                score=Decimal(f"{score:.4f}"),
+                listed_on=None,
+                status=MatchStatus.POTENTIAL_MATCH,
+                raw_response={
+                    "check_type": "duplicate_invoice_similarity",
+                    "matched_invoice_id": str(candidate.id),
+                    "matched_invoice_number": candidate.invoice_number,
+                    "matched_filename": candidate.original_filename,
+                    "name_similarity": round(name_similarity, 4),
+                    "number_similarity": round(number_similarity, 4),
+                    "text_similarity": round(text_similarity, 4),
+                    "amount_ratio_diff": round(amount_ratio_diff, 4),
+                    "date_delta_days": date_delta_days,
+                },
+            )
+        )
+        break  # ett sterkt treff holder for MVP
+    return out
 
 
 async def screen_invoice(
@@ -830,6 +1164,24 @@ async def screen_invoice(
                     )
         except Exception:
             logger.exception("internal_watchlist_check_failed", invoice_id=str(invoice_id))
+
+        # ── Heuristikk: trade plausibility (ikke direkte sanksjonstreff) ─────
+        plausibility_records = _collect_trade_plausibility_results(
+            invoice=invoice,
+            entities_to_screen=entities_to_screen,
+        )
+        for row in plausibility_records:
+            screening_records.append(row)
+            all_statuses.append(row.status)
+
+        duplicate_records = await _collect_duplicate_invoice_results(
+            session=session,
+            invoice=invoice,
+            entities_to_screen=entities_to_screen,
+        )
+        for row in duplicate_records:
+            screening_records.append(row)
+            all_statuses.append(row.status)
 
         # ══════════════════════════════════════════════════════════════════════
         # FASE 2 — Yente entity-name matching

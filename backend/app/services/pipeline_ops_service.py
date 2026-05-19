@@ -14,8 +14,10 @@ from app.core.config import get_settings
 from app.models.invoice import Invoice, InvoiceStatus
 from app.models.invoice_pipeline_event import InvoicePipelineEvent
 from app.schemas.screening import (
+    PipelineEventSummary,
     PipelineLatencySummary,
     PipelineMetricsResponse,
+    PipelineRecentEvent,
     PipelineRecoveryItem,
     PipelineRecoveryResponse,
     PipelineStageSummary,
@@ -222,6 +224,26 @@ async def get_pipeline_metrics(
             .order_by(InvoicePipelineEvent.invoice_id.asc(), InvoicePipelineEvent.created_at.asc())
         )
     ).scalars().all()
+    window_rows = [row for row in event_rows if row.created_at >= since]
+    event_counter: dict[tuple[str, str], int] = defaultdict(int)
+    for row in window_rows:
+        event_counter[(row.stage, row.action)] += 1
+    event_summaries = [
+        PipelineEventSummary(stage=stage, action=action, count=count)
+        for (stage, action), count in sorted(event_counter.items(), key=lambda kv: (kv[0][0], kv[0][1]))
+    ]
+    recent_events = [
+        PipelineRecentEvent(
+            invoice_id=row.invoice_id,
+            stage=row.stage,
+            action=row.action,
+            status_from=row.status_from,
+            status_to=row.status_to,
+            message=row.message,
+            created_at=row.created_at,
+        )
+        for row in sorted(window_rows, key=lambda r: r.created_at, reverse=True)[:25]
+    ]
     for row in event_rows:
         if row.action == "completed" and row.created_at >= since:
             completed_events[row.stage] = completed_events.get(row.stage, 0) + 1
@@ -305,6 +327,8 @@ async def get_pipeline_metrics(
         total_invoices_last_window=total_recent,
         staged=staged,
         latencies=latencies,
+        event_summaries=event_summaries,
+        recent_events=recent_events,
         alerts=alerts,
     )
 

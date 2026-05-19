@@ -112,6 +112,7 @@ class Invoice(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     pdf_path: Mapped[str] = mapped_column(String(512), nullable=False)
     original_filename: Mapped[str | None] = mapped_column(String(512), nullable=True)
     file_size_bytes: Mapped[int | None] = mapped_column(nullable=True)
+    file_sha256: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
     raw_text: Mapped[str | None] = mapped_column(Text, nullable=True)
     status: Mapped[InvoiceStatus] = mapped_column(
         Enum(InvoiceStatus, name="invoice_status", values_callable=lambda e: [x.value for x in e]),
@@ -172,6 +173,8 @@ class Invoice(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     reviewed_by: Mapped[str | None] = mapped_column(String(128), nullable=True)
     """Bruker-ID eller navn på den som fattet beslutningen."""
     reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True, index=True)
+    review_claimed_by: Mapped[str | None] = mapped_column(String(128), nullable=True, index=True)
+    review_claimed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True, index=True)
 
     customer: Mapped[Customer | None] = relationship(back_populates="invoices")
     lines: Mapped[list[InvoiceLine]] = relationship(

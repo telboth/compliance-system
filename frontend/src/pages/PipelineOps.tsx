@@ -140,6 +140,62 @@ export function PipelineOpsPage() {
               </table>
             </div>
 
+            <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-2">
+              <div className="overflow-x-auto rounded border border-gray-200">
+                <div className="border-b border-gray-200 bg-gray-50 px-2 py-1.5 text-xs font-semibold text-xlent-muted">
+                  {t("pipeline_ops.events_summary")}
+                </div>
+                <table className="w-full min-w-[360px] text-left text-xs">
+                  <thead className="bg-white text-xlent-muted">
+                    <tr>
+                      <th className="px-2 py-1.5">{t("pipeline_ops.col_stage")}</th>
+                      <th className="px-2 py-1.5">{t("pipeline_ops.col_action")}</th>
+                      <th className="px-2 py-1.5">{t("pipeline_ops.col_count")}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(metrics.data.event_summaries ?? []).slice(0, 12).map((row) => (
+                      <tr key={`${row.stage}-${row.action}`} className="border-t border-gray-100 text-xlent-ink">
+                        <td className="px-2 py-1.5">{row.stage}</td>
+                        <td className="px-2 py-1.5">{row.action}</td>
+                        <td className="px-2 py-1.5">{row.count}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              <div className="overflow-x-auto rounded border border-gray-200">
+                <div className="border-b border-gray-200 bg-gray-50 px-2 py-1.5 text-xs font-semibold text-xlent-muted">
+                  {t("pipeline_ops.recent_events")}
+                </div>
+                <table className="w-full min-w-[520px] text-left text-xs">
+                  <thead className="bg-white text-xlent-muted">
+                    <tr>
+                      <th className="px-2 py-1.5">{t("pipeline_ops.col_time")}</th>
+                      <th className="px-2 py-1.5">{t("pipeline_ops.col_stage")}</th>
+                      <th className="px-2 py-1.5">{t("pipeline_ops.col_action")}</th>
+                      <th className="px-2 py-1.5">{t("pipeline_ops.col_transition")}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(metrics.data.recent_events ?? []).slice(0, 12).map((row) => (
+                      <tr key={`${row.invoice_id}-${row.created_at}-${row.action}`} className="border-t border-gray-100 text-xlent-ink">
+                        <td className="px-2 py-1.5 text-xlent-muted">
+                          {new Date(row.created_at).toLocaleString()}
+                        </td>
+                        <td className="px-2 py-1.5">{row.stage}</td>
+                        <td className="px-2 py-1.5">{row.action}</td>
+                        <td className="px-2 py-1.5 text-xlent-muted">
+                          {(row.status_from ?? "—")} → {(row.status_to ?? "—")}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
             {metrics.data.alerts.length > 0 && (
               <div className="mt-3 rounded border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
                 <div className="font-medium">{t("pipeline_ops.alerts")}</div>

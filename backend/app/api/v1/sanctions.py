@@ -177,6 +177,24 @@ def _build_match_explanation(
                 "(potensielt treff)."
             )
         return f"Landembargo-treff mot '{country_name or 'ukjent land'}'."
+    if check_type == "trade_plausibility_industry_mismatch":
+        return (
+            "Handelsplausibilitet: vareinnhold ser uvanlig ut i forhold til oppgitt "
+            "kjoper/bransje og rute. Bør vurderes manuelt."
+        )
+    if check_type == "trade_plausibility_free_zone_transit":
+        return (
+            "Handelsplausibilitet: frihandelssone/transittmønster med industrivarer "
+            "kan indikere omgaelsesrisiko. Bør vurderes manuelt."
+        )
+    if check_type == "duplicate_invoice_similarity":
+        matched_invoice = _get_payload_str(raw_response, "matched_invoice_number")
+        matched_file = _get_payload_str(raw_response, "matched_filename")
+        label = matched_invoice or matched_file or "tidligere faktura"
+        return (
+            f"Mulig duplikat: høy likhet mot {label} "
+            "(navn/beløp/tekst/fakturanummer)."
+        )
 
     query_source = _get_payload_str(raw_response, "query_source")
     query_name = _get_payload_str(raw_response, "query_name")

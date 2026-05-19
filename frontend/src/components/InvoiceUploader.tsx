@@ -12,6 +12,7 @@ export function InvoiceUploader() {
   const [direction, setDirection] = useState<InvoiceDirection>("incoming");
   const [customerId, setCustomerId] = useState<string>("");
   const [error, setError] = useState<string | null>(null);
+  const [warnings, setWarnings] = useState<string[]>([]);
   const [batchProgress, setBatchProgress] = useState<{
     current: number;
     total: number;
@@ -26,10 +27,12 @@ export function InvoiceUploader() {
   const onDrop = useCallback(
     async (acceptedFiles: File[]) => {
       setError(null);
+      setWarnings([]);
       setBatchProgress(null);
       if (acceptedFiles.length === 0) return;
 
       const failures: string[] = [];
+      const duplicateWarnings: string[] = [];
       let lastInvoiceId: string | null = null;
 
       for (let i = 0; i < acceptedFiles.length; i += 1) {
@@ -42,6 +45,14 @@ export function InvoiceUploader() {
             direction,
             customerId: customerId || null,
           });
+          if (result.duplicate_detected) {
+            duplicateWarnings.push(
+              t("uploader.duplicate_reused", {
+                filename: file.name,
+                invoiceId: result.duplicate_of_invoice_id ?? result.invoice.id,
+              }),
+            );
+          }
           lastInvoiceId = result.invoice.id;
         } catch (err) {
           const message =
@@ -52,6 +63,9 @@ export function InvoiceUploader() {
       }
 
       setBatchProgress(null);
+      if (duplicateWarnings.length > 0) {
+        setWarnings(duplicateWarnings);
+      }
       if (failures.length > 0) {
         setError(failures.join(" | "));
       }
@@ -160,6 +174,17 @@ export function InvoiceUploader() {
       {error && (
         <div className="rounded border border-traffic-red/50 bg-red-50 px-3 py-2 text-sm text-traffic-red">
           {error}
+        </div>
+      )}
+
+      {warnings.length > 0 && (
+        <div className="rounded border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+          <p className="font-medium">{t("uploader.duplicate_title")}</p>
+          <ul className="mt-1 list-disc space-y-1 pl-5">
+            {warnings.map((warning, idx) => (
+              <li key={`${warning}-${idx}`}>{warning}</li>
+            ))}
+          </ul>
         </div>
       )}
     </div>

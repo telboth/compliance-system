@@ -7,7 +7,7 @@
  *   - `User`-typen matcher /api/v1/me-responsen
  */
 
-export type Role = "admin" | "compliance_officer" | "controller" | "readonly";
+export type Role = "admin" | "c_level" | "compliance_officer" | "controller" | "readonly";
 
 export type Permission =
   // Fakturaer
@@ -56,6 +56,7 @@ const ALL_PERMISSIONS: Permission[] = [
 
 export const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
   admin: ALL_PERMISSIONS,
+  c_level: ALL_PERMISSIONS,
 
   compliance_officer: [
     "invoices:view",
@@ -114,6 +115,12 @@ export const DEV_USERS: Record<Role, User> = {
     email: "ada@technord.no",
     role: "admin",
   },
+  c_level: {
+    id: "dev-c-level",
+    name: "Sigurd Sjef",
+    email: "sigurd@technord.no",
+    role: "c_level",
+  },
   compliance_officer: {
     id: "dev-co",
     name: "Carl Compliance",
@@ -136,6 +143,7 @@ export const DEV_USERS: Record<Role, User> = {
 
 export const ROLE_LABELS: Record<Role, string> = {
   admin: "Admin",
+  c_level: "C-level",
   compliance_officer: "Compliance officer",
   controller: "Controller",
   readonly: "Lesetilgang",
@@ -143,6 +151,7 @@ export const ROLE_LABELS: Record<Role, string> = {
 
 export const ROLE_COLORS: Record<Role, string> = {
   admin: "bg-red-100 text-red-800",
+  c_level: "bg-indigo-100 text-indigo-800",
   compliance_officer: "bg-purple-100 text-purple-800",
   controller: "bg-blue-100 text-blue-800",
   readonly: "bg-gray-100 text-gray-600",

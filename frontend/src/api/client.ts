@@ -5,6 +5,7 @@ const DEV_ROLE_KEY = "xlent_dev_role";
 
 const ROLE_TO_NAME: Record<string, string> = {
   admin: "Ada Admin",
+  c_level: "Sigurd Sjef",
   compliance_officer: "Carl Compliance",
   controller: "Kari Controller",
   readonly: "Roy Readonly",

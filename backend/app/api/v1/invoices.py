@@ -24,9 +24,12 @@ from app.schemas.invoice import (
     InvoiceLineRead,
     InvoiceLineUpdate,
     InvoiceListResponse,
+    InvoiceListPreferences,
+    InvoiceListPreferencesUpdate,
     InvoiceRead,
     InvoiceSummary,
     InvoiceUploadResponse,
+    ReviewAndNextResponse,
     RiskEscalationCreate,
     ReviewCreate,
     ReviewQueueItem,
@@ -35,6 +38,7 @@ from app.schemas.invoice import (
     VatMismatchListResponse,
 )
 from app.services import extraction_service, invoice_service
+from app.services import invoice_preferences_service, invoice_review_service
 from app.services.vat_check_service import evaluate_invoice_vat_mismatch, list_vat_mismatch_invoices
 
 router = APIRouter()
@@ -81,12 +85,19 @@ async def upload_invoice(
     Hvis auto-ekstraksjon er aktivert i settings, starter LLM-ekstraksjon
     automatisk etter vellykket parsing.
     """
-    invoice = await invoice_service.upload_invoice_only(
+    invoice, duplicate_detected = await invoice_service.upload_invoice_only(
         session=session,
         upload=file,
         direction=direction,
         customer_id=customer_id,
     )
+    if duplicate_detected:
+        return InvoiceUploadResponse(
+            invoice=_to_invoice_read(invoice),
+            duplicate_detected=True,
+            duplicate_of_invoice_id=invoice.id,
+        )
+
     settings = get_settings()
     if settings.use_celery_background:
         try:
@@ -389,6 +400,50 @@ async def list_invoices_endpoint(
 
 
 @router.get(
+    "/preferences/invoice-list",
+    response_model=InvoiceListPreferences,
+    summary="Hent lagrede kolonne-/filterpreferanser for bruker",
+)
+async def get_invoice_list_preferences_endpoint(
+    session: SessionDep,
+    actor_ctx: ActorContext = Depends(require_roles("admin", "compliance_officer", "controller", "readonly")),
+) -> InvoiceListPreferences:
+    payload, updated_at = await invoice_preferences_service.get_invoice_list_preferences(
+        session,
+        actor_name=actor_ctx.name,
+    )
+    return InvoiceListPreferences(
+        table_col_widths=payload.get("table_col_widths") or {},
+        table_col_presets=payload.get("table_col_presets") or [],
+        default_filters=payload.get("default_filters") or {},
+        updated_at=updated_at,
+    )
+
+
+@router.put(
+    "/preferences/invoice-list",
+    response_model=InvoiceListPreferences,
+    summary="Lagre kolonne-/filterpreferanser for bruker",
+)
+async def update_invoice_list_preferences_endpoint(
+    body: InvoiceListPreferencesUpdate,
+    session: SessionDep,
+    actor_ctx: ActorContext = Depends(require_roles("admin", "compliance_officer", "controller", "readonly")),
+) -> InvoiceListPreferences:
+    payload, updated_at = await invoice_preferences_service.update_invoice_list_preferences(
+        session,
+        actor_name=actor_ctx.name,
+        update=body,
+    )
+    return InvoiceListPreferences(
+        table_col_widths=payload.get("table_col_widths") or {},
+        table_col_presets=payload.get("table_col_presets") or [],
+        default_filters=payload.get("default_filters") or {},
+        updated_at=updated_at,
+    )
+
+
+@router.get(
     "/export",
     summary="Eksporter fakturaliste som CSV",
 )
@@ -539,13 +594,115 @@ async def review_invoice_endpoint(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="actor-query matcher ikke autentisert bruker.",
         )
-    invoice = await invoice_service.review_invoice(
-        session,
-        invoice_id,
-        decision=body.decision,
-        reason=body.reason,
-        actor=actor_ctx.name,
+    try:
+        invoice = await invoice_review_service.review_invoice(
+            session,
+            invoice_id,
+            decision=body.decision,
+            reason=body.reason,
+            rule_reference=body.rule_reference,
+            evidence_summary=body.evidence_summary,
+            deviation_approval=body.deviation_approval,
+            actor=actor_ctx.name,
+        )
+    except invoice_review_service.ReviewClaimConflictError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=exc.message,
+        ) from exc
+    return _to_invoice_read(invoice)
+
+
+@router.post(
+    "/{invoice_id}/review-and-next",
+    response_model=ReviewAndNextResponse,
+    summary="Godkjenn/blokker invoice og hent neste sak atomisk",
+)
+async def review_invoice_and_next_endpoint(
+    invoice_id: uuid.UUID,
+    body: ReviewCreate,
+    session: SessionDep,
+    actor_ctx: ActorContext = Depends(require_roles("admin", "compliance_officer")),
+    actor: str | None = Query(default=None, description="Bakoverkompatibilitet (ignoreres hvis ulik header)."),
+) -> ReviewAndNextResponse:
+    if actor and actor.strip() and actor.strip() != actor_ctx.name:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="actor-query matcher ikke autentisert bruker.",
+        )
+    settings = get_settings()
+    try:
+        invoice, next_invoice_id = await invoice_review_service.review_invoice_and_next(
+            session,
+            invoice_id,
+            decision=body.decision,
+            reason=body.reason,
+            rule_reference=body.rule_reference,
+            evidence_summary=body.evidence_summary,
+            deviation_approval=body.deviation_approval,
+            actor=actor_ctx.name,
+            stale_minutes=settings.review_claim_stale_minutes,
+        )
+    except invoice_review_service.ReviewClaimConflictError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=exc.message,
+        ) from exc
+    return ReviewAndNextResponse(
+        invoice=_to_invoice_read(invoice),
+        next_invoice_id=next_invoice_id,
     )
+
+
+@router.post(
+    "/{invoice_id}/claim",
+    response_model=InvoiceRead,
+    summary="Claim en invoice i review-køen",
+)
+async def claim_review_invoice_endpoint(
+    invoice_id: uuid.UUID,
+    session: SessionDep,
+    actor_ctx: ActorContext = Depends(require_roles("admin", "compliance_officer")),
+) -> InvoiceRead:
+    settings = get_settings()
+    try:
+        invoice = await invoice_review_service.claim_review_invoice(
+            session,
+            invoice_id,
+            actor=actor_ctx.name,
+            stale_minutes=settings.review_claim_stale_minutes,
+        )
+    except invoice_review_service.ReviewClaimConflictError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=exc.message,
+        ) from exc
+    return _to_invoice_read(invoice)
+
+
+@router.delete(
+    "/{invoice_id}/claim",
+    response_model=InvoiceRead,
+    summary="Frigi claim på en invoice",
+)
+async def release_review_claim_endpoint(
+    invoice_id: uuid.UUID,
+    session: SessionDep,
+    actor_ctx: ActorContext = Depends(require_roles("admin", "compliance_officer")),
+) -> InvoiceRead:
+    settings = get_settings()
+    try:
+        invoice = await invoice_review_service.release_review_claim(
+            session,
+            invoice_id,
+            actor=actor_ctx.name,
+            stale_minutes=settings.review_claim_stale_minutes,
+        )
+    except invoice_review_service.ReviewClaimConflictError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=exc.message,
+        ) from exc
     return _to_invoice_read(invoice)
 
 
@@ -589,52 +746,16 @@ async def escalate_invoice_risk_endpoint(
 )
 async def get_review_queue(
     session: SessionDep,
-    _actor: ActorContext = Depends(require_roles("admin", "compliance_officer")),
+    actor_ctx: ActorContext = Depends(require_roles("admin", "compliance_officer")),
     limit: int = Query(default=100, ge=1, le=500),
     offset: int = Query(default=0, ge=0),
     score: ComplianceScore | None = Query(default=None, description="Filtrer på compliance_score"),
 ) -> ReviewQueueResponse:
-    """Returnerer screende fakturaer med gul eller rød score, sortert etter alvorlighetsgrad."""
-    from sqlalchemy import select, case, func
-
-    stmt = (
-        select(Invoice)
-        .where(
-            Invoice.status.in_([
-                InvoiceStatus.SCREENED,
-                InvoiceStatus.APPROVED,
-                InvoiceStatus.BLOCKED,
-            ])
-        )
-        .where(
-            Invoice.compliance_score.in_([
-                ComplianceScore.RED,
-                ComplianceScore.YELLOW,
-            ])
-        )
-    )
-    if score is not None:
-        stmt = stmt.where(Invoice.compliance_score == score)
-
-    count_stmt = select(func.count()).select_from(stmt.subquery())
-    total = (await session.execute(count_stmt)).scalar_one()
-
-    # Sorter: RED øverst, deretter YELLOW, deretter nyeste
-    severity_order = case(
-        (Invoice.compliance_score == ComplianceScore.RED, 0),
-        (Invoice.compliance_score == ComplianceScore.YELLOW, 1),
-        else_=2,
-    )
-    # Ubehandlede (screened) øverst
-    review_order = case(
-        (Invoice.status == InvoiceStatus.SCREENED, 0),
-        else_=1,
-    )
-    stmt = stmt.order_by(review_order, severity_order, Invoice.created_at.desc())
-    stmt = stmt.limit(limit).offset(offset)
-
-    invoices = list((await session.execute(stmt)).scalars().all())
-    return ReviewQueueResponse(
-        items=[ReviewQueueItem.model_validate(inv) for inv in invoices],
-        total=total,
+    """Returnerer compliance-kø sortert: høyeste risiko først, deretter eldste først."""
+    return await invoice_review_service.list_review_queue(
+        session,
+        actor_name=actor_ctx.name,
+        limit=limit,
+        offset=offset,
+        score=score,
     )

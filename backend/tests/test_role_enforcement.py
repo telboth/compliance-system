@@ -38,3 +38,9 @@ def test_require_roles_allows_inside_role() -> None:
     dep = require_roles("admin", "compliance_officer")
     actor = dep(actor=ActorContext(role="admin", name="Admin"))
     assert actor.role == "admin"
+
+
+def test_require_roles_allows_c_level_when_admin_allowed() -> None:
+    dep = require_roles("admin", "compliance_officer")
+    actor = dep(actor=ActorContext(role="c_level", name="Sigurd Sjef"))
+    assert actor.role == "c_level"

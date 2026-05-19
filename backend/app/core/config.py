@@ -155,6 +155,8 @@ class Settings(BaseSettings):
     screening_watchdog_stale_minutes: int = 3
     screening_watchdog_batch_size: int = 20
     screening_watchdog_interval_minutes: int = 1
+    # Myk lås i review-kø: claim anses som stale etter N minutter.
+    review_claim_stale_minutes: int = 30
 
     # Invoice RAG-søk (hybrid BM25 + vector)
     rag_embedding_model: str = "text-embedding-3-small"

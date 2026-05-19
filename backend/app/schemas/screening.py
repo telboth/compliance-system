@@ -382,6 +382,26 @@ class PipelineLatencySummary(BaseModel):
     average_seconds: float | None = None
 
 
+class PipelineEventSummary(BaseModel):
+    """Aggregert antall events per stage/action i valgt vindu."""
+
+    stage: str
+    action: str
+    count: int
+
+
+class PipelineRecentEvent(BaseModel):
+    """Siste pipeline-events for operativ feilsøking."""
+
+    invoice_id: uuid.UUID
+    stage: str
+    action: str
+    status_from: str | None = None
+    status_to: str | None = None
+    message: str | None = None
+    created_at: datetime
+
+
 class PipelineMetricsResponse(BaseModel):
     """Overordnet driftsbilde for ingest/screening-pipeline."""
 
@@ -391,6 +411,8 @@ class PipelineMetricsResponse(BaseModel):
     total_invoices_last_window: int
     staged: list[PipelineStageSummary]
     latencies: list[PipelineLatencySummary]
+    event_summaries: list[PipelineEventSummary] = Field(default_factory=list)
+    recent_events: list[PipelineRecentEvent] = Field(default_factory=list)
     alerts: list[str] = Field(default_factory=list)
 
 

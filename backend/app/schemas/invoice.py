@@ -117,6 +117,8 @@ class InvoiceRead(BaseModel):
     review_reason: str | None = None
     reviewed_by: str | None = None
     reviewed_at: datetime | None = None
+    review_claimed_by: str | None = None
+    review_claimed_at: datetime | None = None
 
 
 class InvoiceSummary(BaseModel):
@@ -181,6 +183,8 @@ class InvoiceUploadResponse(BaseModel):
     """
 
     invoice: InvoiceRead
+    duplicate_detected: bool = False
+    duplicate_of_invoice_id: uuid.UUID | None = None
 
 
 class ReviewCreate(BaseModel):
@@ -190,6 +194,12 @@ class ReviewCreate(BaseModel):
     """'approved' eller 'blocked'."""
     reason: str
     """Obligatorisk begrunnelse — minimum 10 tegn."""
+    rule_reference: str
+    """Regelreferanse eller policy som beslutningen bygger på."""
+    evidence_summary: str
+    """Kort oppsummering av evidens/funn som støtter beslutningen."""
+    deviation_approval: bool
+    """Om beslutningen er en eksplisitt avviksgodkjenning."""
 
     @field_validator("decision")
     @classmethod
@@ -203,6 +213,21 @@ class ReviewCreate(BaseModel):
     def validate_reason(cls, v: str) -> str:
         if not v or len(v.strip()) < 10:
             raise ValueError("reason må være minst 10 tegn")
+        return v.strip()
+
+
+    @field_validator("rule_reference")
+    @classmethod
+    def validate_rule_reference(cls, v: str) -> str:
+        if not v or len(v.strip()) < 3:
+            raise ValueError("rule_reference må være minst 3 tegn")
+        return v.strip()
+
+    @field_validator("evidence_summary")
+    @classmethod
+    def validate_evidence_summary(cls, v: str) -> str:
+        if not v or len(v.strip()) < 10:
+            raise ValueError("evidence_summary må være minst 10 tegn")
         return v.strip()
 
 
@@ -246,11 +271,39 @@ class ReviewQueueItem(BaseModel):
     created_at: datetime
     review_decision: str | None = None
     reviewed_at: datetime | None = None
+    has_sanctions_hit: bool = False
+    has_embargo_hit: bool = False
+    has_ownership_risk: bool = False
+    has_dual_use_risk: bool = False
+    has_vat_deviation: bool = False
+    awaiting_approval: bool = False
+    review_claimed_by: str | None = None
+    review_claimed_at: datetime | None = None
+    claim_is_mine: bool = False
+    claim_is_stale: bool = False
 
 
 class ReviewQueueResponse(BaseModel):
     items: list[ReviewQueueItem]
     total: int
+
+
+class ReviewAndNextResponse(BaseModel):
+    invoice: InvoiceRead
+    next_invoice_id: uuid.UUID | None = None
+
+
+class InvoiceListPreferences(BaseModel):
+    table_col_widths: dict[str, int] = Field(default_factory=dict)
+    table_col_presets: list[dict] = Field(default_factory=list)
+    default_filters: dict[str, str | int | None] = Field(default_factory=dict)
+    updated_at: datetime | None = None
+
+
+class InvoiceListPreferencesUpdate(BaseModel):
+    table_col_widths: dict[str, int] | None = None
+    table_col_presets: list[dict] | None = None
+    default_filters: dict[str, str | int | None] | None = None
 
 
 class InvoiceFieldsUpdate(BaseModel):

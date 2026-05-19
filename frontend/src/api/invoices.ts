@@ -16,11 +16,13 @@ import type {
   ApprovalState,
   InvoiceDirection,
   InvoiceListResponse,
+  InvoiceListPreferences,
   InvoiceUploadResponse,
   ReindexResponse,
   PipelineMetricsResponse,
   PipelineRecoveryActionResponse,
   PipelineRecoveryResponse,
+  ReviewAndNextResponse,
   ReviewQueueResponse,
   SanctionsStatusResponse,
   SanctionsRefreshResponse,
@@ -407,11 +409,20 @@ export async function reindexInvoicesRAG(): Promise<ReindexResponse> {
 export interface ReviewCreate {
   decision: "approved" | "blocked";
   reason: string;
+  rule_reference: string;
+  evidence_summary: string;
+  deviation_approval: boolean;
 }
 
 export interface RiskEscalationCreate {
   target_score: "yellow" | "red";
   reason: string;
+}
+
+export interface InvoiceListPreferencesUpdate {
+  table_col_widths?: Record<string, number>;
+  table_col_presets?: Array<Record<string, unknown>>;
+  default_filters?: Record<string, string | number | null>;
 }
 
 export async function reviewInvoice(
@@ -425,6 +436,46 @@ export async function reviewInvoice(
     `/invoices/${id}/review`,
     request,
     { params },
+  );
+  return data;
+}
+
+export async function reviewInvoiceAndNext(
+  id: string,
+  request: ReviewCreate,
+  actor?: string,
+): Promise<ReviewAndNextResponse> {
+  const params: Record<string, string> = {};
+  if (actor) params.actor = actor;
+  const { data } = await apiClient.post<ReviewAndNextResponse>(
+    `/invoices/${id}/review-and-next`,
+    request,
+    { params },
+  );
+  return data;
+}
+
+export async function claimReviewInvoice(id: string): Promise<Invoice> {
+  const { data } = await apiClient.post<Invoice>(`/invoices/${id}/claim`);
+  return data;
+}
+
+export async function releaseReviewClaim(id: string): Promise<Invoice> {
+  const { data } = await apiClient.delete<Invoice>(`/invoices/${id}/claim`);
+  return data;
+}
+
+export async function getInvoiceListPreferences(): Promise<InvoiceListPreferences> {
+  const { data } = await apiClient.get<InvoiceListPreferences>("/invoices/preferences/invoice-list");
+  return data;
+}
+
+export async function updateInvoiceListPreferences(
+  payload: InvoiceListPreferencesUpdate,
+): Promise<InvoiceListPreferences> {
+  const { data } = await apiClient.put<InvoiceListPreferences>(
+    "/invoices/preferences/invoice-list",
+    payload,
   );
   return data;
 }

@@ -18,6 +18,7 @@ import {
   useInvoice,
   useReparseInvoice,
   useReviewInvoice,
+  useReviewInvoiceAndNext,
   useSanctionsStatus,
   useScreeningCandidates,
   useScreeningResults,
@@ -603,6 +604,8 @@ const DATASET_NAMES: Record<string, string> = {
   us_ofac_cons: "US OFAC Consolidated",
   no_un_sanctions: "Norsk FN-sanksjoner",
   no_legacies: "Norge legacies",
+  trade_plausibility: "Handelsplausibilitet",
+  duplicate_invoice: "Mulig duplikat",
   all: "Alle lister",
 };
 
@@ -1003,6 +1006,68 @@ function screeningMood(score: number, t: (key: string) => string): { icon: strin
   return { icon: "🙂", cls: "text-traffic-green", label: t("detail.screening.mood_low") };
 }
 
+function EvidencePanel({ invoiceId }: { invoiceId: string }) {
+  const { t, i18n } = useTranslation("invoices");
+  const { data } = useScreeningResults(invoiceId);
+  const locale = i18n.language === "en" ? "en-GB" : "nb-NO";
+
+  if (!data) {
+    return (
+      <section className="rounded-lg border border-gray-200 bg-white p-4">
+        <h2 className="text-sm font-semibold text-xlent-ink">{t("detail.evidence.title")}</h2>
+        <p className="mt-1 text-xs text-xlent-muted">{t("detail.evidence.awaiting")}</p>
+      </section>
+    );
+  }
+
+  const relevant = data.results
+    .filter((r) => r.status !== "clear")
+    .sort((a, b) => Number(b.score) - Number(a.score))
+    .slice(0, 3);
+
+  if (relevant.length === 0) {
+    return (
+      <section className="rounded-lg border border-green-200 bg-green-50 p-4">
+        <h2 className="text-sm font-semibold text-green-800">{t("detail.evidence.title")}</h2>
+        <p className="mt-1 text-xs text-green-800">{t("detail.evidence.none")}</p>
+      </section>
+    );
+  }
+
+  return (
+    <section className="rounded-lg border border-amber-200 bg-amber-50 p-4">
+      <h2 className="text-sm font-semibold text-amber-900">{t("detail.evidence.title")}</h2>
+      <p className="mt-1 text-xs text-amber-800">{t("detail.evidence.subtitle")}</p>
+      <div className="mt-3 space-y-2">
+        {relevant.map((row) => (
+          <div key={row.id} className="rounded border border-amber-200 bg-white p-2 text-xs">
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+              <span className="font-semibold text-xlent-ink">
+                {row.entity_name ?? t("detail.evidence.unknown_entity")}
+              </span>
+              <span className="text-xlent-muted">
+                {t("detail.evidence.where")} {row.matched_name ?? t("detail.evidence.unknown_match")}
+              </span>
+              <span className="font-medium text-amber-800">
+                {t("detail.evidence.score")} {(Number(row.score) * 100).toFixed(1)}%
+              </span>
+              <span className="text-xlent-muted">
+                {t("detail.evidence.source")} {DATASET_NAMES[row.dataset] ?? row.dataset}
+              </span>
+              <span className="text-xlent-muted">
+                {t("detail.evidence.time")} {new Date(row.screened_at).toLocaleString(locale)}
+              </span>
+            </div>
+            {row.match_explanation && (
+              <div className="mt-1 text-xlent-ink">{row.match_explanation}</div>
+            )}
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
 function ScreeningResultRow({ result }: { result: ScreeningResult }) {
   const { t } = useTranslation("invoices");
   const score = parseFloat(result.score);
@@ -1302,7 +1367,7 @@ function RiskAndScreeningSection({
   invoice: Invoice;
   hasBeenScreened: boolean;
 }) {
-  const { t } = useTranslation("invoices");
+  const { t, i18n } = useTranslation("invoices");
   const { data: screeningData, isLoading: screeningLoading } = useScreeningResults(invoice.id);
   const { risk, reasonKeys } = computeOverallRisk(invoice);
   const countryInfo = getCountryRisk(invoice.destination_country);
@@ -1364,6 +1429,7 @@ function RiskAndScreeningSection({
   const strongestScreeningMatch = screeningData?.results.find(
     (row) => Number.parseFloat(row.score) === maxScreeningScore,
   );
+  const locale = i18n.language === "en" ? "en-GB" : "nb-NO";
 
   const conclusion = (() => {
     if (
@@ -1475,33 +1541,73 @@ function RiskAndScreeningSection({
         <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-xlent-muted">
           {t("detail.conclusion.title")}
         </h3>
-        {screeningPending ? (
+
+        <div className="grid gap-3 md:grid-cols-2">
           <div className="rounded-lg border border-gray-200 bg-gray-50 p-3">
-            <p className="text-sm font-semibold text-xlent-ink">
-              {t("detail.conclusion.awaiting")}
+            <p className="text-xs font-semibold uppercase tracking-wide text-xlent-muted">
+              {t("detail.conclusion.auto_title")}
             </p>
-            <p className="mt-1 text-xs text-xlent-muted">
-              {t("detail.conclusion.awaiting_detail")}
-            </p>
+            {screeningPending ? (
+              <>
+                <p className="mt-1 text-sm font-semibold text-xlent-ink">
+                  {t("detail.conclusion.awaiting")}
+                </p>
+                <p className="mt-1 text-xs text-xlent-muted">
+                  {t("detail.conclusion.awaiting_detail")}
+                </p>
+              </>
+            ) : (
+              <>
+                <div className={clsx("mt-2 rounded-lg border p-3", conclusion.boxCls)}>
+                  <div className="flex items-center gap-2">
+                    <span className={clsx("text-2xl leading-none", conclusion.cls)}>{conclusion.icon}</span>
+                    <p className={clsx("text-sm font-semibold", conclusion.cls)}>{conclusion.label}</p>
+                  </div>
+                  <p className="mt-1 text-xs text-xlent-ink">{conclusion.detail}</p>
+                  {strongestScreeningMatch && (
+                    <p className="mt-1 text-xs text-xlent-muted">
+                      {t("detail.conclusion.strongest_match")} {strongestScreeningMatch.matched_name ?? "ukjent navn"} (
+                      {strongestScreeningMatch.dataset}, score {(
+                        Number.parseFloat(strongestScreeningMatch.score) * 100
+                      ).toFixed(1)}
+                      %)
+                    </p>
+                  )}
+                </div>
+              </>
+            )}
           </div>
-        ) : (
-          <div className={clsx("rounded-lg border p-3", conclusion.boxCls)}>
-            <div className="flex items-center gap-2">
-              <span className={clsx("text-2xl leading-none", conclusion.cls)}>{conclusion.icon}</span>
-              <p className={clsx("text-sm font-semibold", conclusion.cls)}>{conclusion.label}</p>
-            </div>
-            <p className="mt-1 text-xs text-xlent-ink">{conclusion.detail}</p>
-            {strongestScreeningMatch && (
+
+          <div className="rounded-lg border border-gray-200 bg-white p-3">
+            <p className="text-xs font-semibold uppercase tracking-wide text-xlent-muted">
+              {t("detail.conclusion.manual_title")}
+            </p>
+            {invoice.review_decision ? (
+              <>
+                <p className="mt-1 text-sm font-semibold text-xlent-ink">
+                  {invoice.review_decision === "approved"
+                    ? t("detail.review.approved_title")
+                    : t("detail.review.blocked_title")}
+                </p>
+                <p className="mt-1 text-xs text-xlent-muted">
+                  {t("detail.conclusion.manual_by")} {invoice.reviewed_by ?? "—"}
+                </p>
+                <p className="text-xs text-xlent-muted">
+                  {t("detail.conclusion.manual_when")}{" "}
+                  {invoice.reviewed_at ? new Date(invoice.reviewed_at).toLocaleString(locale) : "—"}
+                </p>
+                <p className="mt-1 text-xs text-xlent-ink">
+                  {t("detail.review.reason_label")}: {invoice.review_reason ?? "—"}
+                </p>
+              </>
+            ) : (
               <p className="mt-1 text-xs text-xlent-muted">
-                {t("detail.conclusion.strongest_match")} {strongestScreeningMatch.matched_name ?? "ukjent navn"} (
-                {strongestScreeningMatch.dataset}, score {(
-                  Number.parseFloat(strongestScreeningMatch.score) * 100
-                ).toFixed(1)}
-                %)
+                {t("detail.conclusion.manual_pending")}
               </p>
             )}
           </div>
-        )}
+        </div>
+
         {reasonKeys.length > 0 && (
           <ul className="mt-2 space-y-1 text-xs text-xlent-muted">
             {reasonKeys.map((reason, idx) => (
@@ -1621,10 +1727,17 @@ function ManualRiskEscalationPanel({ invoice }: { invoice: Invoice }) {
 function ReviewDecisionPanel({ invoice }: { invoice: Invoice }) {
   const { t, i18n } = useTranslation("invoices");
   const { user, can } = useAuth();
+  const navigate = useNavigate();
   const [decision, setDecision] = useState<"approved" | "blocked" | null>(null);
   const [reason, setReason] = useState("");
+  const [ruleReference, setRuleReference] = useState("");
+  const [evidenceSummary, setEvidenceSummary] = useState("");
+  const [deviationApproval, setDeviationApproval] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [submitInfo, setSubmitInfo] = useState<string | null>(null);
   const reviewMutation = useReviewInvoice(invoice.id);
+  const reviewAndNextMutation = useReviewInvoiceAndNext(invoice.id);
+  const isReviewSubmitting = reviewMutation.isPending || reviewAndNextMutation.isPending;
 
   const locale = i18n.language === "en" ? "en-GB" : "nb-NO";
 
@@ -1638,23 +1751,58 @@ function ReviewDecisionPanel({ invoice }: { invoice: Invoice }) {
 
   const hasDecision = invoice.status === "approved" || invoice.status === "blocked";
 
-  async function handleSubmit() {
+  async function handleSubmit(openNext: boolean) {
     if (!decision) return;
     if (reason.trim().length < 10) {
-      setSubmitError("Begrunnelse må være minst 10 tegn.");
+      setSubmitError(t("detail.review.error_reason_short"));
+      return;
+    }
+    if (ruleReference.trim().length < 3) {
+      setSubmitError(t("detail.review.error_rule_reference_short"));
+      return;
+    }
+    if (evidenceSummary.trim().length < 10) {
+      setSubmitError(t("detail.review.error_evidence_short"));
       return;
     }
     setSubmitError(null);
+    setSubmitInfo(null);
     try {
-      await reviewMutation.mutateAsync({
-        decision,
-        reason: reason.trim(),
-        actor: user.name,
-      });
+      if (openNext) {
+        const response = await reviewAndNextMutation.mutateAsync({
+          decision,
+          reason: reason.trim(),
+          rule_reference: ruleReference.trim(),
+          evidence_summary: evidenceSummary.trim(),
+          deviation_approval: deviationApproval,
+          actor: user.name,
+        });
+        const nextInvoiceId = response.next_invoice_id;
+        if (nextInvoiceId) {
+          navigate(`/invoices/${nextInvoiceId}`);
+          return;
+        }
+        setSubmitInfo(t("detail.review.next_none"));
+      } else {
+        await reviewMutation.mutateAsync({
+          decision,
+          reason: reason.trim(),
+          rule_reference: ruleReference.trim(),
+          evidence_summary: evidenceSummary.trim(),
+          deviation_approval: deviationApproval,
+          actor: user.name,
+        });
+      }
       setDecision(null);
       setReason("");
-    } catch {
-      setSubmitError("Kunne ikke lagre beslutning. Prøv igjen.");
+      setRuleReference("");
+      setEvidenceSummary("");
+      setDeviationApproval(false);
+    } catch (err) {
+      const detail =
+        (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail ??
+        null;
+      setSubmitError(detail || t("detail.review.save_error"));
     }
   }
 
@@ -1727,11 +1875,24 @@ function ReviewDecisionPanel({ invoice }: { invoice: Invoice }) {
             <ReviewReasonForm
               decision={decision}
               reason={reason}
+              ruleReference={ruleReference}
+              evidenceSummary={evidenceSummary}
+              deviationApproval={deviationApproval}
               onReasonChange={setReason}
+              onRuleReferenceChange={setRuleReference}
+              onEvidenceSummaryChange={setEvidenceSummary}
+              onDeviationApprovalChange={setDeviationApproval}
               onSubmit={handleSubmit}
-              onCancel={() => { setDecision(null); setReason(""); }}
-              isLoading={reviewMutation.isPending}
+              onCancel={() => {
+                setDecision(null);
+                setReason("");
+                setRuleReference("");
+                setEvidenceSummary("");
+                setDeviationApproval(false);
+              }}
+              isLoading={isReviewSubmitting}
               error={submitError}
+              info={submitInfo}
             />
           )}
         </div>
@@ -1776,11 +1937,24 @@ function ReviewDecisionPanel({ invoice }: { invoice: Invoice }) {
         <ReviewReasonForm
           decision={decision}
           reason={reason}
+          ruleReference={ruleReference}
+          evidenceSummary={evidenceSummary}
+          deviationApproval={deviationApproval}
           onReasonChange={setReason}
+          onRuleReferenceChange={setRuleReference}
+          onEvidenceSummaryChange={setEvidenceSummary}
+          onDeviationApprovalChange={setDeviationApproval}
           onSubmit={handleSubmit}
-          onCancel={() => { setDecision(null); setReason(""); }}
-          isLoading={reviewMutation.isPending}
+          onCancel={() => {
+            setDecision(null);
+            setReason("");
+            setRuleReference("");
+            setEvidenceSummary("");
+            setDeviationApproval(false);
+          }}
+          isLoading={isReviewSubmitting}
           error={submitError}
+          info={submitInfo}
         />
       )}
     </section>
@@ -1791,19 +1965,33 @@ function ReviewDecisionPanel({ invoice }: { invoice: Invoice }) {
 function ReviewReasonForm({
   decision,
   reason,
+  ruleReference,
+  evidenceSummary,
+  deviationApproval,
   onReasonChange,
+  onRuleReferenceChange,
+  onEvidenceSummaryChange,
+  onDeviationApprovalChange,
   onSubmit,
   onCancel,
   isLoading,
   error,
+  info,
 }: {
   decision: "approved" | "blocked";
   reason: string;
+  ruleReference: string;
+  evidenceSummary: string;
+  deviationApproval: boolean;
   onReasonChange: (v: string) => void;
-  onSubmit: () => void;
+  onRuleReferenceChange: (v: string) => void;
+  onEvidenceSummaryChange: (v: string) => void;
+  onDeviationApprovalChange: (v: boolean) => void;
+  onSubmit: (openNext: boolean) => void;
   onCancel: () => void;
   isLoading: boolean;
   error: string | null;
+  info: string | null;
 }) {
   const { t } = useTranslation("invoices");
   const remainingChars = Math.max(0, 10 - reason.trim().length);
@@ -1820,6 +2008,34 @@ function ReviewReasonForm({
         placeholder={t("detail.review.reason_placeholder")}
         className="w-full rounded border border-gray-300 px-3 py-2 text-sm text-xlent-ink placeholder-gray-400 focus:border-xlent-primary focus:outline-none focus:ring-1 focus:ring-xlent-primary"
       />
+      <label className="mb-1 mt-2 block text-xs font-medium text-xlent-ink">
+        {t("detail.review.rule_reference_label")}
+      </label>
+      <input
+        value={ruleReference}
+        onChange={(e) => onRuleReferenceChange(e.target.value)}
+        placeholder={t("detail.review.rule_reference_placeholder")}
+        className="w-full rounded border border-gray-300 px-3 py-2 text-sm text-xlent-ink placeholder-gray-400 focus:border-xlent-primary focus:outline-none focus:ring-1 focus:ring-xlent-primary"
+      />
+      <label className="mb-1 mt-2 block text-xs font-medium text-xlent-ink">
+        {t("detail.review.evidence_label")}
+      </label>
+      <textarea
+        value={evidenceSummary}
+        onChange={(e) => onEvidenceSummaryChange(e.target.value)}
+        rows={3}
+        placeholder={t("detail.review.evidence_placeholder")}
+        className="w-full rounded border border-gray-300 px-3 py-2 text-sm text-xlent-ink placeholder-gray-400 focus:border-xlent-primary focus:outline-none focus:ring-1 focus:ring-xlent-primary"
+      />
+      <label className="mt-2 inline-flex items-center gap-2 text-xs text-xlent-ink">
+        <input
+          type="checkbox"
+          checked={deviationApproval}
+          onChange={(e) => onDeviationApprovalChange(e.target.checked)}
+          className="h-4 w-4 rounded border-gray-300 text-xlent-primary focus:ring-xlent-primary"
+        />
+        {t("detail.review.deviation_approval_label")}
+      </label>
       {remainingChars > 0 && (
         <p className="mt-0.5 text-[11px] text-xlent-muted">
           {t("detail.review.chars_remaining")} {remainingChars} {t("detail.review.chars_suffix")}
@@ -1828,10 +2044,18 @@ function ReviewReasonForm({
       {error && (
         <p className="mt-1 text-xs text-traffic-red">{error}</p>
       )}
+      {info && !error && (
+        <p className="mt-1 text-xs text-blue-700">{info}</p>
+      )}
       <div className="mt-2 flex gap-2">
         <button
-          onClick={onSubmit}
-          disabled={isLoading || reason.trim().length < 10}
+          onClick={() => onSubmit(false)}
+          disabled={
+            isLoading ||
+            reason.trim().length < 10 ||
+            ruleReference.trim().length < 3 ||
+            evidenceSummary.trim().length < 10
+          }
           className={clsx(
             "rounded px-3 py-1.5 text-xs font-medium text-white transition-colors",
             decision === "approved"
@@ -1841,6 +2065,18 @@ function ReviewReasonForm({
           )}
         >
           {isLoading ? t("detail.review.saving") : decision === "approved" ? t("detail.review.confirm_approve") : t("detail.review.confirm_block")}
+        </button>
+        <button
+          onClick={() => onSubmit(true)}
+          disabled={
+            isLoading ||
+            reason.trim().length < 10 ||
+            ruleReference.trim().length < 3 ||
+            evidenceSummary.trim().length < 10
+          }
+          className="rounded border border-xlent-primary px-3 py-1.5 text-xs font-medium text-xlent-primary hover:bg-xlent-surface disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          {t("detail.review.confirm_and_next")}
         </button>
         <button
           onClick={onCancel}
@@ -2218,6 +2454,11 @@ export function InvoiceDetail() {
             </span>
           </span>
         </div>
+      )}
+
+      {/* Evidenspanel (øverst) */}
+      {invoice.status !== "not_invoice" && (
+        <EvidencePanel invoiceId={invoice.id} />
       )}
 
       {/* Dokument-inspektor */}

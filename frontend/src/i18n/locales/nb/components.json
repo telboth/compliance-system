@@ -10,7 +10,9 @@
     "drop_hint": "Dra og slipp en eller flere invoices (PDF, XLSX, PNG, JPG, GIF), eller klikk for å velge",
     "size_hint": "Maks 25 MB per fil. PDF, XLSX, PNG, JPG, GIF.",
     "loading_batch": "Laster opp fil {{current}} av {{total}} …",
-    "error": "Opplasting feilet. Sjekk at filen er gyldig og prøv igjen."
+    "error": "Opplasting feilet. Sjekk at filen er gyldig og prøv igjen.",
+    "duplicate_title": "Duplikater oppdaget",
+    "duplicate_reused": "{{filename}} var allerede lastet opp. Bruker eksisterende invoice (ID: {{invoiceId}})."
   },
   "pagination": {
     "showing": "Viser {{from}}–{{to}} av {{total}}",
