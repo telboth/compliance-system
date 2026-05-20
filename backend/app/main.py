@@ -121,6 +121,17 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
         upload_dir=str(settings.upload_dir),
     )
 
+    # V1: Advar ved oppstart om usikker standardnøkkel.
+    if settings.app_secret_key.get_secret_value() == "change-me":
+        logger.warning(
+            "insecure_default_secret_key",
+            message=(
+                "APP_SECRET_KEY er ikke satt — standardverdien 'change-me' brukes. "
+                "Sett APP_SECRET_KEY til en tilfeldig, lang streng i .secrets "
+                "før systemet eksponeres eksternt."
+            ),
+        )
+
     # Pre-warm Docling i bakgrunnen (se _warm_docling for detaljer).
     asyncio.get_running_loop().run_in_executor(None, _warm_docling, logger)
 

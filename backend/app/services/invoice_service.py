@@ -107,7 +107,9 @@ async def _find_duplicate_invoice(
         if not path.exists():
             continue
         try:
-            if _sha256_for_file(path) == file_sha256:
+            # V3: SHA-256 er synkron disk-I/O — kjør i thread-pool for å ikke blokkere event-loopen.
+            candidate_hash = await anyio.to_thread.run_sync(lambda p=path: _sha256_for_file(p))
+            if candidate_hash == file_sha256:
                 return candidate
         except OSError:
             continue
@@ -199,7 +201,8 @@ async def upload_invoice_only(
 ) -> tuple[Invoice, bool]:
     """Lagre fil og opprett invoice-rad. Returnerer umiddelbart — parsing skjer i bakgrunnen."""
     storage_path, size_bytes, _file_type = await file_storage.save_upload(upload)
-    file_sha256 = _sha256_for_file(storage_path)
+    # V3: SHA-256 er synkron disk-I/O — kjør i thread-pool for å ikke blokkere event-loopen.
+    file_sha256 = await anyio.to_thread.run_sync(lambda p=storage_path: _sha256_for_file(p))
 
     existing = await _find_duplicate_invoice(
         session,

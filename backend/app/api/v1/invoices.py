@@ -5,6 +5,7 @@ from __future__ import annotations
 import csv
 import io
 import mimetypes
+import re
 import uuid
 from datetime import date
 from pathlib import Path
@@ -53,6 +54,19 @@ def _parse_date(s: str | None) -> date | None:
         return date.fromisoformat(s) if s else None
     except ValueError:
         return None
+
+
+# V7: Fjern kontrollkarakterer og anførselstegn som kan brekke Content-Disposition-headeren.
+_CONTENT_DISPOSITION_UNSAFE = re.compile(r'[\x00-\x1f\x7f"\\]')
+
+def _safe_filename(name: str) -> str:
+    """Sanitér filnavn for bruk i Content-Disposition-header (RFC 6266).
+
+    Erstatter tegn som kan forårsake header-splitting eller header-injection
+    med understrek. Sikrer at resultatet aldri er tomt.
+    """
+    sanitized = _CONTENT_DISPOSITION_UNSAFE.sub("_", name).strip()
+    return sanitized or "file"
 
 
 def _to_invoice_read(invoice: Invoice) -> InvoiceRead:
@@ -286,11 +300,11 @@ async def reparse_invoice_endpoint(
 async def delete_invoice_endpoint(
     invoice_id: uuid.UUID,
     session: SessionDep,
-    _actor: ActorContext = Depends(require_roles("admin", "compliance_officer", "controller")),
+    _actor: ActorContext = Depends(require_roles("admin")),
 ) -> Response:
     """Slett en invoice permanent (inkl. fil på disk og alle linjer/entiteter).
 
-    Primært for testing og rydding under utvikling.
+    Kun tilgjengelig for admin — sletting fjerner også audit-loggen for facturaen.
     """
     await invoice_service.delete_invoice(session, invoice_id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
@@ -324,7 +338,7 @@ async def get_invoice_file(
     if not file_path.exists():
         raise HTTPException(status_code=404, detail="Filen finnes ikke på disk.")
 
-    original_name = invoice.original_filename or file_path.name
+    original_name = _safe_filename(invoice.original_filename or file_path.name)
     media_type, _ = mimetypes.guess_type(original_name)
 
     return FileResponse(
@@ -455,6 +469,7 @@ async def update_invoice_list_preferences_endpoint(
 )
 async def export_invoices_csv(
     session: SessionDep,
+    _actor: ActorContext = Depends(require_roles("admin", "compliance_officer", "controller")),
     status_filter: InvoiceStatus | None = Query(None, alias="status"),
     direction: InvoiceDirection | None = Query(None),
     compliance_score: ComplianceScore | None = Query(None),
