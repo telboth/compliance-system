@@ -468,7 +468,7 @@ function Try-CopySecretsFromMedia(
     foreach ($file in $secretFiles) {
         $target = Join-Path $resolvedProjectRoot $file.Name
         if (Test-Path $target) {
-            Write-Info "Hopper over '$($file.Name)' — finnes allerede i prosjektmappen."
+            Write-Info "Hopper over '$($file.Name)' - finnes allerede i prosjektmappen."
             $skipped++
             continue
         }
@@ -477,7 +477,7 @@ function Try-CopySecretsFromMedia(
         $copied++
     }
     if ($copied -eq 0 -and $skipped -gt 0) {
-        Write-Info "Alle .secrets*-filer fantes allerede — ingen endringer."
+        Write-Info "Alle .secrets*-filer fantes allerede - ingen endringer."
     } else {
         Write-Info "$copied fil(er) kopiert, $skipped hoppet over."
     }
@@ -622,7 +622,7 @@ function Update-ProjectCode([string]$ProjectPath) {
     Write-Info "Gjenoppretter lokale endringer (git stash pop) ..."
     $popOut = (& git -C $ProjectPath stash pop 2>&1 | Out-String)
     if ($LASTEXITCODE -ne 0) {
-        Write-Warn "git stash pop feilet — dine endringer ligger i 'git stash list'."
+        Write-Warn "git stash pop feilet - dine endringer ligger i 'git stash list'."
         Write-Host "  $popOut" -ForegroundColor DarkYellow
         Write-Host "  Kjor 'git stash pop' manuelt for a gjenopprette dem." -ForegroundColor Yellow
     } else {
@@ -660,7 +660,7 @@ function Stop-System {
         try {
             & $stopScript
             if ($LASTEXITCODE -ne 0) {
-                Write-Warn "stop.ps1 returnerte exit $LASTEXITCODE — fortsetter."
+                Write-Warn "stop.ps1 returnerte exit $LASTEXITCODE - fortsetter."
             }
         } finally {
             Pop-Location
@@ -723,7 +723,7 @@ function Resolve-ProjectRoot {
 
         $gitPull = (& git -C $InstallDir pull --ff-only 2>&1 | Out-String)
         if ($LASTEXITCODE -ne 0) {
-            Write-Warn "git pull --ff-only feilet — lokale endringer kan blokkere oppdatering."
+            Write-Warn "git pull --ff-only feilet - lokale endringer kan blokkere oppdatering."
             Write-Host "  $gitPull" -ForegroundColor DarkYellow
             $gitStatus = (& git -C $InstallDir status --short 2>&1 | Out-String).Trim()
             if ($gitStatus) {
