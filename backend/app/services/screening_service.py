@@ -1514,7 +1514,7 @@ async def screen_invoice(
         worst_status = (
             MatchStatus.CONFIRMED_MATCH if any(s == MatchStatus.CONFIRMED_MATCH for s in all_statuses)
             else MatchStatus.POTENTIAL_MATCH if any(s == MatchStatus.POTENTIAL_MATCH for s in all_statuses)
-            else MatchStatus.NO_MATCH
+            else MatchStatus.CLEAR
         )
         try:
             for entity in entities_to_screen:
