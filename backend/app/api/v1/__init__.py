@@ -7,6 +7,7 @@ from app.api.v1 import (
     agreements,
     ai_governance,
     audit_plans,
+    config,
     control_effectiveness,
     customers,
     policies,
@@ -30,6 +31,7 @@ from app.api.v1 import (
 
 api_router = APIRouter()
 api_router.include_router(health.router, tags=["health"])
+api_router.include_router(config.router, prefix="/config", tags=["config"])
 api_router.include_router(invoices.router, prefix="/invoices", tags=["invoices"])
 api_router.include_router(customers.router, prefix="/customers", tags=["customers"])
 api_router.include_router(models.router, tags=["models"])

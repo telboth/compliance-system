@@ -14,6 +14,8 @@ import { ProtectedRoute } from "@/auth/ProtectedRoute";
 import { useAuth } from "@/auth/AuthContext";
 import type { Permission } from "@/auth/permissions";
 import { useReviewQueue } from "@/hooks/useInvoices";
+import { APP_VERSION } from "@/version";
+import { ApiKeysModal } from "@/components/ApiKeysModal";
 
 const InvoiceList = lazy(async () => {
   const m = await import("@/pages/InvoiceList");
@@ -207,6 +209,9 @@ function AppShell() {
               <img src={xlentLogoWhite} alt="XLENT" className="h-6 w-auto" />
             </NavLink>
             <span className="text-base font-medium text-white/90">{t("header_title")}</span>
+            <span className="rounded bg-white/10 px-1.5 py-0.5 font-mono text-[11px] text-white/60">
+              {APP_VERSION}
+            </span>
             <div className="ml-auto flex items-center gap-2">
               <DevRoleSwitcher />
               <LanguageSwitcher variant="dark" />
@@ -252,6 +257,9 @@ function AppShell() {
           </nav>
         </div>
       </header>
+
+      {/* Nøkkelstatus-sjekk: blokkerende modal eller advarselsbanner */}
+      <ApiKeysModal />
 
       <main>
         <PageErrorBoundary>

@@ -528,9 +528,16 @@ Bruk:
 
 VANLIGE OPSJONER:
   -Help              Vis denne hjelpen og avslutt.
-  -Update            Last ned siste versjon fra GitHub og start systemet pa nytt
+                     Alternativ: --help / -h / /?
+  -Update            Hent siste versjon fra GitHub og start systemet pa nytt
                      med re-bygging av containere (-Build implisert).
+                     Virker pa maskiner der systemet allerede er installert.
+                     Alternativ: --update
   -Stop              Stopp kjorende containere og avslutt.
+                     Alternativ: --stop
+
+OBS: PowerShell bruker enkelt-strek: -Help, -Update, -Stop
+     Dobbel-strek (--help, --update) stottees ogsa for Unix-vane brukere.
 
 INSTALLASJON / OPPSTART:
   -SkipClone         Ikke klon/pull repo — bruk mappen scriptet ligger i.
@@ -569,6 +576,12 @@ function Update-ProjectCode([string]$ProjectPath) {
         Forsøker git pull --ff-only; tilbyr stash + pull + stash-pop dersom
         lokale endringer blokkerer oppdateringen.
     #>
+    # Git skriver informasjonslinjer til stderr (f.eks. "From https://...").
+    # Med $ErrorActionPreference = "Stop" kaster PowerShell NativeCommandError
+    # paa disse linjene selv om git-kommandoen lyktes. "Continue" i funksjonscope
+    # skygger over den globale innstillingen uten aa pavirke resten av scriptet.
+    $ErrorActionPreference = "Continue"
+
     Write-Info "Henter siste kode fra GitHub (branch: $Branch) ..."
 
     $gitFetch = (& git -C $ProjectPath fetch --all --prune 2>&1 | Out-String)
@@ -679,6 +692,10 @@ function Stop-System {
 }
 
 function Resolve-ProjectRoot {
+    # Samme grunn som i Update-ProjectCode: git stderr-linjer utloser
+    # NativeCommandError under $ErrorActionPreference = "Stop".
+    $ErrorActionPreference = "Continue"
+
     if ($SkipClone) {
         if (-not (Test-Path (Join-Path $PSScriptRoot "start.ps1"))) {
             Write-Fail "-SkipClone ble brukt, men start.ps1 finnes ikke i script-mappen."
@@ -754,14 +771,34 @@ function Resolve-ProjectRoot {
     return $InstallDir
 }
 
+# ── Bind unix-style dobbel-strek og vanlige hjelpflagg manuelt ───────────────
+# Scriptet bruker plain param()-blokk (ikke [CmdletBinding()]), noe som gjor
+# at ukjente argumenter (som --help og --update) legges stille i $args fremfor
+# aa gi feil eller binde seg til switch-parametrene. Vi henter dem ut eksplisitt.
+foreach ($rawArg in $args) {
+    switch ($rawArg.ToLowerInvariant()) {
+        "--help"             { $Help             = $true }
+        "-h"                 { $Help             = $true }
+        "/?"                 { $Help             = $true }
+        "--update"           { $Update           = $true }
+        "--stop"             { $Stop             = $true }
+        "--build"            { $Build            = $true }
+        "--nobrowser"        { $NoBrowser        = $true }
+        "--nostart"          { $NoStart          = $true }
+        "--skipclone"        { $SkipClone        = $true }
+        "--openlanfirewall"  { $OpenLanFirewall  = $true }
+        "--noninteractive"   { $NonInteractive   = $true }
+    }
+}
+
+# -Help avslutter foer alt annet (ingen header, ingen systemsjekker)
+if ($Help) { Show-Help }   # avslutter med exit 0
+
 Write-Header "XLENT Compliance - installasjon"
 $script:IsNonInteractive = [bool]$NonInteractive
 if ($script:IsNonInteractive) {
     Write-Info "NonInteractive-modus aktiv: ingen prompts, bruker standard handlinger."
 }
-
-# ── Tidlig avslutning for -Help og -Stop ──────────────────────────────────────
-if ($Help) { Show-Help }   # avslutter med exit 0
 
 Ensure-GitReady
 Ensure-WSLReady

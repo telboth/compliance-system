@@ -213,3 +213,8 @@ class Settings(BaseSettings):
 def get_settings() -> Settings:
     """Hent applikasjonsinnstillinger som en cached singleton."""
     return Settings()
+
+
+def get_secrets_path() -> Path:
+    """Returnerer absolutt sti til .secrets-filen (repo-rot)."""
+    return _REPO_ROOT / ".secrets"
