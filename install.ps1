@@ -53,6 +53,9 @@
     .\install.ps1 -RepoUrl https://github.com/<org>/<repo>.git -InstallDir C:\apps\compliance-system
 #>
 param(
+    [switch]$Help,
+    [switch]$Update,
+    [switch]$Stop,
     [switch]$SkipClone,
     [string]$RepoUrl = "https://github.com/telboth/compliance-system.git",
     [string]$InstallDir = "$env:USERPROFILE\compliance-system",
@@ -393,36 +396,90 @@ function Ensure-FileFromExample([string]$TargetPath, [string]$ExamplePath) {
     Write-Warn "Opprettet $([IO.Path]::GetFileName($TargetPath)) fra eksempel."
 }
 
-function Try-CopyMissingSeedFiles(
+function Find-InstallMedia {
+    <#
+    .SYNOPSIS
+        Prøver å finne install-mediet (USB e.l.) med .secrets*-filer.
+        Sjekker først om scriptet kjøres fra en flyktig enhet,
+        deretter scanner alle removable-stasjoner på maskinen.
+    .OUTPUTS
+        Full sti til mappen som inneholder .secrets*-filer, eller $null.
+    #>
+
+    # 1. Kjøres scriptet fra en USB/flyktig stasjon?
+    $scriptDriveLetter = (Split-Path -Qualifier $PSScriptRoot).TrimEnd(':')
+    try {
+        $scriptDisk = Get-CimInstance Win32_LogicalDisk `
+            -Filter "DeviceID='${scriptDriveLetter}:'" -ErrorAction SilentlyContinue
+        if ($scriptDisk -and $scriptDisk.DriveType -eq 2) {
+            $found = Get-ChildItem -Path $PSScriptRoot -Filter ".secrets*" -Force -ErrorAction SilentlyContinue
+            if ($found) {
+                return $PSScriptRoot
+            }
+        }
+    } catch { }
+
+    # 2. Søk gjennom alle removable-stasjoner etter .secrets*-filer
+    try {
+        $removable = Get-CimInstance Win32_LogicalDisk -Filter "DriveType=2" -ErrorAction SilentlyContinue
+        foreach ($disk in $removable) {
+            $root = $disk.DeviceID + "\"
+            $found = Get-ChildItem -Path $root -Filter ".secrets*" -Force -ErrorAction SilentlyContinue
+            if ($found) {
+                return $root
+            }
+        }
+    } catch { }
+
+    return $null
+}
+
+function Try-CopySecretsFromMedia(
     [string]$ProjectRootPath,
-    [string]$SeedDirPath
+    [string]$MediaDirPath
 ) {
-    if ([string]::IsNullOrWhiteSpace($SeedDirPath)) {
+    <#
+    .SYNOPSIS
+        Kopierer alle .secrets*-filer fra install-mediet til prosjektmappen.
+        Eksisterende filer overskrives IKKE.
+    #>
+    if ([string]::IsNullOrWhiteSpace($MediaDirPath)) {
         return
     }
-    if (-not (Test-Path $SeedDirPath)) {
-        Write-Warn "SeedFilesDir finnes ikke: $SeedDirPath"
+    if (-not (Test-Path $MediaDirPath)) {
+        Write-Warn "Install-media-mappe finnes ikke: $MediaDirPath"
         return
     }
 
     $resolvedProjectRoot = (Resolve-Path $ProjectRootPath).Path
-    $resolvedSeedDir = (Resolve-Path $SeedDirPath).Path
-    if ($resolvedProjectRoot -eq $resolvedSeedDir) {
+    $resolvedMediaDir    = (Resolve-Path $MediaDirPath).Path
+    if ($resolvedProjectRoot -eq $resolvedMediaDir) {
         return
     }
 
-    $seedNames = @(".env", ".env.example", ".secrets", ".secrets.example")
-    foreach ($name in $seedNames) {
-        $target = Join-Path $resolvedProjectRoot $name
+    $secretFiles = Get-ChildItem -Path $resolvedMediaDir -Filter ".secrets*" -Force -ErrorAction SilentlyContinue
+    if (-not $secretFiles) {
+        Write-Warn "Ingen .secrets*-filer funnet på installasjonsmedia: $resolvedMediaDir"
+        return
+    }
+
+    $copied  = 0
+    $skipped = 0
+    foreach ($file in $secretFiles) {
+        $target = Join-Path $resolvedProjectRoot $file.Name
         if (Test-Path $target) {
+            Write-Info "Hopper over '$($file.Name)' — finnes allerede i prosjektmappen."
+            $skipped++
             continue
         }
-        $source = Join-Path $resolvedSeedDir $name
-        if (-not (Test-Path $source)) {
-            continue
-        }
-        Copy-Item $source $target
-        Write-Info "Kopierte manglende '$name' fra seed-mappe: $resolvedSeedDir"
+        Copy-Item $file.FullName $target
+        Write-OK "Kopierte '$($file.Name)' fra installasjonsmedia"
+        $copied++
+    }
+    if ($copied -eq 0 -and $skipped -gt 0) {
+        Write-Info "Alle .secrets*-filer fantes allerede — ingen endringer."
+    } else {
+        Write-Info "$copied fil(er) kopiert, $skipped hoppet over."
     }
 }
 
@@ -432,7 +489,7 @@ function Get-KeyValueMap([string]$Path) {
         return $map
     }
     foreach ($line in Get-Content $Path) {
-        if ($line -notmatch "^\s*[^#].*=.*") { continue }
+        if ($line -notmatch "^\s*[A-Za-z_][A-Za-z0-9_]*\s*=") { continue }
         $parts = $line -split "=", 2
         $key = $parts[0].Trim()
         $value = $parts[1].Trim()
@@ -455,6 +512,170 @@ function Ensure-FirewallRule5173 {
         -LocalPort 5173 `
         -Action Allow | Out-Null
     Write-OK "Brannmurregel opprettet for port 5173"
+}
+
+function Show-Help {
+    $defaultRepo   = $RepoUrl
+    $defaultDir    = $InstallDir
+    $defaultBranch = $Branch
+    Write-Host @"
+
+XLENT Compliance - installasjonscript
+======================================
+
+Bruk:
+  .\install.ps1 [opsjoner]
+
+VANLIGE OPSJONER:
+  -Help              Vis denne hjelpen og avslutt.
+  -Update            Last ned siste versjon fra GitHub og start systemet pa nytt
+                     med re-bygging av containere (-Build implisert).
+  -Stop              Stopp kjorende containere og avslutt.
+
+INSTALLASJON / OPPSTART:
+  -SkipClone         Ikke klon/pull repo — bruk mappen scriptet ligger i.
+  -RepoUrl <url>     GitHub-URL til repoet.
+                     (standard: $defaultRepo)
+  -InstallDir <sti>  Lokal mappe der repoet skal ligge.
+                     (standard: $defaultDir)
+  -Branch <branch>   Branch som klones/sjekkes ut.
+                     (standard: $defaultBranch)
+  -SeedFilesDir <sti> Mappe med .secrets*-filer (USB e.l.) — brukes automatisk
+                     hvis tom og scriptet kjores fra en USB-stasjon.
+
+  -Build             Tving re-bygging av Docker-containere.
+  -NoBrowser         Ikke apne nettleser automatisk etter oppstart.
+  -NoStart           Sett opp filene, men ikke start systemet.
+  -OpenLanFirewall   Apne TCP-port 5173 i Windows-brannmur (krever admin).
+  -NonInteractive    Ingen sporsmalsett — bruk standardvalg overalt.
+
+EKSEMPLER:
+  .\install.ps1                          # Vanlig forrestegangs-installasjon
+  .\install.ps1 -Update                  # Oppdater til siste versjon og restart
+  .\install.ps1 -Stop                    # Stopp systemet
+  .\install.ps1 -Help                    # Vis denne hjelpen
+  .\install.ps1 -Build                   # Tving re-bygging av containere
+  .\install.ps1 -NoStart                 # Sett opp uten oppstart
+  .\install.ps1 -SeedFilesDir E:\        # Bruk E:\ som kilde for .secrets*-filer
+
+"@
+    exit 0
+}
+
+function Update-ProjectCode([string]$ProjectPath) {
+    <#
+    .SYNOPSIS
+        Henter siste versjon fra GitHub.
+        Forsøker git pull --ff-only; tilbyr stash + pull + stash-pop dersom
+        lokale endringer blokkerer oppdateringen.
+    #>
+    Write-Info "Henter siste kode fra GitHub (branch: $Branch) ..."
+
+    $gitFetch = (& git -C $ProjectPath fetch --all --prune 2>&1 | Out-String)
+    if ($LASTEXITCODE -ne 0) {
+        Write-Fail "git fetch feilet."
+        Write-Host "  $gitFetch" -ForegroundColor DarkYellow
+        exit 1
+    }
+
+    $gitPull = (& git -C $ProjectPath pull --ff-only 2>&1 | Out-String)
+    if ($LASTEXITCODE -eq 0) {
+        Write-OK "Kode oppdatert til siste versjon."
+        return
+    }
+
+    Write-Warn "Direkte oppdatering blokkert av lokale endringer:"
+    Write-Host "  $gitPull" -ForegroundColor DarkYellow
+
+    $gitStatus = (& git -C $ProjectPath status --short 2>&1 | Out-String).Trim()
+    if ($gitStatus) {
+        Write-Info "Lokale endringer:"
+        foreach ($line in ($gitStatus -split "`n")) {
+            if ($line.Trim()) { Write-Host "    $line" -ForegroundColor DarkYellow }
+        }
+    }
+
+    Write-Warn "Foreslatt losning: midlertidig lagre endringene (git stash), oppdater, gjenopprett."
+    $stashAndPull = Ask-YesNo "Lagre lokale endringer, oppdater og gjenopprett (anbefalt)?" -DefaultNo:$false
+    if (-not $stashAndPull) {
+        Write-Fail "Avbrutt. Los konflikten manuelt og kjor -Update igjen."
+        exit 1
+    }
+
+    Write-Info "Lagrer lokale endringer midlertidig (git stash) ..."
+    $stashOut = (& git -C $ProjectPath stash push --include-untracked -m "install.ps1 -Update backup" 2>&1 | Out-String)
+    if ($LASTEXITCODE -ne 0) {
+        Write-Fail "git stash feilet."
+        Write-Host "  $stashOut" -ForegroundColor DarkYellow
+        exit 1
+    }
+
+    $pullOut = (& git -C $ProjectPath pull --ff-only 2>&1 | Out-String)
+    if ($LASTEXITCODE -ne 0) {
+        Write-Fail "git pull feilet selv etter stash. Gjenoppretter lokale endringer ..."
+        Write-Host "  $pullOut" -ForegroundColor DarkYellow
+        & git -C $ProjectPath stash pop 2>&1 | Out-Null
+        exit 1
+    }
+
+    Write-OK "Kode oppdatert til siste versjon."
+    Write-Info "Gjenoppretter lokale endringer (git stash pop) ..."
+    $popOut = (& git -C $ProjectPath stash pop 2>&1 | Out-String)
+    if ($LASTEXITCODE -ne 0) {
+        Write-Warn "git stash pop feilet — dine endringer ligger i 'git stash list'."
+        Write-Host "  $popOut" -ForegroundColor DarkYellow
+        Write-Host "  Kjor 'git stash pop' manuelt for a gjenopprette dem." -ForegroundColor Yellow
+    } else {
+        Write-OK "Lokale endringer gjenopprettet."
+    }
+}
+
+function Stop-System {
+    <#
+    .SYNOPSIS
+        Finner prosjektmappen og kjorer stop.ps1 (eller docker compose down direkte).
+        Krever ikke --SkipClone eller git — finner rot via PSScriptRoot / InstallDir.
+    #>
+    $stopRoot = $null
+    if (Test-Path (Join-Path $PSScriptRoot "stop.ps1")) {
+        $stopRoot = $PSScriptRoot
+    } elseif (Test-Path (Join-Path $PSScriptRoot "docker-compose.yml")) {
+        $stopRoot = $PSScriptRoot
+    } elseif (Test-Path (Join-Path $InstallDir "stop.ps1")) {
+        $stopRoot = $InstallDir
+    } elseif (Test-Path (Join-Path $InstallDir "docker-compose.yml")) {
+        $stopRoot = $InstallDir
+    }
+
+    if (-not $stopRoot) {
+        Write-Fail "Fant ikke stop.ps1 eller docker-compose.yml i kjent plassering."
+        Write-Host "  Stopp manuelt med: docker compose down" -ForegroundColor Yellow
+        exit 1
+    }
+
+    $stopScript = Join-Path $stopRoot "stop.ps1"
+    if (Test-Path $stopScript) {
+        Write-Info "Stopper systemet via stop.ps1 i $stopRoot ..."
+        Push-Location $stopRoot
+        try {
+            & $stopScript
+            if ($LASTEXITCODE -ne 0) {
+                Write-Warn "stop.ps1 returnerte exit $LASTEXITCODE — fortsetter."
+            }
+        } finally {
+            Pop-Location
+        }
+    } else {
+        Write-Info "Stopper Docker-containere (docker compose down) i $stopRoot ..."
+        Push-Location $stopRoot
+        try {
+            & docker compose down
+        } finally {
+            Pop-Location
+        }
+    }
+
+    Write-OK "Systemet er stoppet."
 }
 
 function Resolve-ProjectRoot {
@@ -502,9 +723,24 @@ function Resolve-ProjectRoot {
 
         $gitPull = (& git -C $InstallDir pull --ff-only 2>&1 | Out-String)
         if ($LASTEXITCODE -ne 0) {
-            Write-Fail "git pull --ff-only feilet."
+            Write-Warn "git pull --ff-only feilet — lokale endringer kan blokkere oppdatering."
             Write-Host "  $gitPull" -ForegroundColor DarkYellow
-            exit 1
+            $gitStatus = (& git -C $InstallDir status --short 2>&1 | Out-String).Trim()
+            if ($gitStatus) {
+                Write-Info "Lokale endringer i repoet:"
+                foreach ($statusLine in ($gitStatus -split "`n")) {
+                    if ($statusLine.Trim()) { Write-Host "    $statusLine" -ForegroundColor DarkYellow }
+                }
+            }
+            Write-Warn "Alternativer:"
+            Write-Host "    A) Fortsett uten kode-oppdatering (beholder lokale endringer)" -ForegroundColor Yellow
+            Write-Host "    B) Avbryt og løs git-konflikten manuelt før du kjører scriptet igjen" -ForegroundColor Yellow
+            $skipUpdate = Ask-YesNo "Vil du fortsette uten kode-oppdatering (A)?" -DefaultNo:$false
+            if (-not $skipUpdate) {
+                Write-Fail "Avbrutt. Tips: 'git stash' -> kjør scriptet -> 'git stash pop'"
+                exit 1
+            }
+            Write-Warn "Fortsetter uten kode-oppdatering. Lokale endringer er beholdt."
         }
     } else {
         Write-Info "Kloner repo til $InstallDir ..."
@@ -524,13 +760,25 @@ if ($script:IsNonInteractive) {
     Write-Info "NonInteractive-modus aktiv: ingen prompts, bruker standard handlinger."
 }
 
+# ── Tidlig avslutning for -Help og -Stop ──────────────────────────────────────
+if ($Help) { Show-Help }   # avslutter med exit 0
+
 Ensure-GitReady
 Ensure-WSLReady
+Ensure-DockerDesktopReady
+
+if ($Stop) {
+    Stop-System
+    exit 0
+}
 
 $projectRoot = Resolve-ProjectRoot
 Write-OK "Prosjektmappe: $projectRoot"
 
-Ensure-DockerDesktopReady
+if ($Update) {
+    Write-Header "Oppdaterer kode"
+    Update-ProjectCode -ProjectPath $projectRoot
+}
 
 if ($OpenLanFirewall) {
     if (-not (Test-IsAdministrator)) {
@@ -540,16 +788,34 @@ if ($OpenLanFirewall) {
     }
 }
 
-$envFile = Join-Path $projectRoot ".env"
-$envExample = Join-Path $projectRoot ".env.example"
+$envFile     = Join-Path $projectRoot ".env"
+$envExample  = Join-Path $projectRoot ".env.example"
 $secretsFile = Join-Path $projectRoot ".secrets"
 $secretsExample = Join-Path $projectRoot ".secrets.example"
 
-$effectiveSeedDir = if ([string]::IsNullOrWhiteSpace($SeedFilesDir)) { $PSScriptRoot } else { $SeedFilesDir }
-Try-CopyMissingSeedFiles -ProjectRootPath $projectRoot -SeedDirPath $effectiveSeedDir
-
-Ensure-FileFromExample -TargetPath $envFile -ExamplePath $envExample
+# Opprett .env og .secrets fra eksempel-filer om de mangler (fallback)
+Ensure-FileFromExample -TargetPath $envFile     -ExamplePath $envExample
 Ensure-FileFromExample -TargetPath $secretsFile -ExamplePath $secretsExample
+
+# ── Kopier .secrets*-filer fra installasjonsmedia (USB e.l.) ─────────────────
+Write-Header "Installasjonsmedia"
+if (-not [string]::IsNullOrWhiteSpace($SeedFilesDir)) {
+    $mediaDir = $SeedFilesDir
+    Write-Info "Bruker angitt install-media-mappe: $mediaDir"
+} else {
+    Write-Info "Søker etter installasjonsmedia med .secrets*-filer ..."
+    $mediaDir = Find-InstallMedia
+    if ($mediaDir) {
+        Write-OK "Installasjonsmedia funnet: $mediaDir"
+    } else {
+        Write-Warn "Fant ikke installasjonsmedia (USB e.l.) med .secrets*-filer."
+        Write-Info "Tips: Bruk -SeedFilesDir <sti> for å angi mappen manuelt."
+        Write-Info "      Rediger .secrets manuelt med dine API-nøkler ved behov."
+    }
+}
+if ($mediaDir) {
+    Try-CopySecretsFromMedia -ProjectRootPath $projectRoot -MediaDirPath $mediaDir
+}
 
 $secrets = Get-KeyValueMap -Path $secretsFile
 $openai = ""
@@ -569,7 +835,30 @@ if ($NoStart) {
     exit 0
 }
 
+# Sjekk om systemet allerede kjorer
 Write-Header "Starter systemet"
+$frontendAlive = Test-HttpAvailable -Url "http://localhost:5173" -TimeoutSeconds 3
+$apiAlive = Test-HttpAvailable -Url "http://localhost:8000/docs" -TimeoutSeconds 3
+if ($frontendAlive -and $apiAlive) {
+    Write-OK "Systemet kjorer allerede (frontend og API svarer)."
+    if ($Update) {
+        # -Update betyr alltid restart — ikke spor
+        Write-Info "-Update angitt: oppdaterer og starter containerne pa nytt ..."
+    } else {
+        $restartAnyway = Ask-YesNo "Vil du starte/oppdatere containerne likevel?" -DefaultNo:$true
+        if (-not $restartAnyway) {
+            Write-Header "Installasjon ferdig"
+            Write-OK "Frontend:      http://localhost:5173"
+            Write-OK "API:           http://localhost:8000"
+            Write-OK "API docs:      http://localhost:8000/docs"
+            Write-Info "Stopp med: .\\stop.ps1"
+            exit 0
+        }
+        Write-Info "Fortsetter med oppstart (kan midlertidig avbryte tjenestene) ..."
+    }
+} elseif ($frontendAlive -or $apiAlive) {
+    Write-Warn "Systemet er delvis oppe. Starter/reparerer containerne ..."
+}
 $startScript = Join-Path $projectRoot "start.ps1"
 if (-not (Test-Path $startScript)) {
     Write-Fail "Fant ikke start.ps1 i $projectRoot"
@@ -577,7 +866,7 @@ if (-not (Test-Path $startScript)) {
 }
 
 $startArgs = @()
-if ($Build) { $startArgs += "-Build" }
+if ($Build -or $Update) { $startArgs += "-Build" }   # -Update impliserer re-bygging
 if ($NoBrowser) { $startArgs += "-NoBrowser" }
 
 Push-Location $projectRoot

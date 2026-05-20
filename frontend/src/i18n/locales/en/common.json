@@ -13,6 +13,7 @@
     "invoice_search": "Invoice Search",
     "shipments_map": "Shipments Map",
     "pipeline_ops": "Pipeline Ops",
+    "about": "About",
     "no_access": "You do not have access to this page with your current role"
   },
   "status": {

@@ -13,6 +13,7 @@
     "invoice_search": "Invoice-søk",
     "shipments_map": "Forsendelseskart",
     "pipeline_ops": "Pipeline drift",
+    "about": "Om systemet",
     "no_access": "Du har ikke tilgang til denne siden med din nåværende rolle"
   },
   "status": {

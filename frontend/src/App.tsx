@@ -67,6 +67,10 @@ const WatchlistPage = lazy(async () => {
   const m = await import("@/pages/Watchlist");
   return { default: m.WatchlistPage };
 });
+const AboutPage = lazy(async () => {
+  const m = await import("@/pages/About");
+  return { default: m.AboutPage };
+});
 
 /** Fanger krasj i lazy-lastede sider og viser feilmelding i stedet for blank side. */
 class PageErrorBoundary extends Component<
@@ -242,6 +246,9 @@ function AppShell() {
             {/* Drift — skjules helt for ikke-admins */}
             <NavItem to="/pipeline-ops" label={t("nav.pipeline_ops")} adminOnly />
 
+            {/* Om systemet — synlig for alle */}
+            <NavItem to="/about" label={t("nav.about")} />
+
           </nav>
         </div>
       </header>
@@ -340,6 +347,9 @@ function AppShell() {
                 </ProtectedRoute>
               }
             />
+
+            {/* Om systemet */}
+            <Route path="/about" element={<AboutPage />} />
 
             {/* Fallback */}
             <Route path="*" element={<Navigate to="/" replace />} />
