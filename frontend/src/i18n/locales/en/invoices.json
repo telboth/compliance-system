@@ -134,7 +134,9 @@
       "rescreen": "Screening failed.",
       "sanctions_status": "Could not fetch sanctions engine status.",
       "parsing_failed_title": "Parsing failed",
-      "extraction_failed_title": "Extraction failed"
+      "extraction_failed_title": "Extraction failed",
+      "screening_failed_title": "Sanctions screening failed",
+      "screening_failed_body": "Screening could not complete — the sanctions engine (Yente / Elasticsearch) is likely unavailable. Check that the Docker containers are running, then use the «Re-screen» button to try again."
     },
     "sanctions_motor": {
       "checking": "Sanctions engine: checking …",

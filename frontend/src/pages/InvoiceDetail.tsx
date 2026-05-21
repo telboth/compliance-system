@@ -2353,13 +2353,15 @@ export function InvoiceDetail() {
     invoice.status === "screening";
   const canExtract =
     can("invoices:extract") &&
-    (invoice.status === "extracted" ||
+    (invoice.status === "parsed" ||        // manuell trigger hvis auto-ekstraksjon ikke startet
+      invoice.status === "extracted" ||
       invoice.status === "screened" ||
       invoice.status === "extraction_failed");
   const canScreen =
     can("invoices:screen") &&
     (invoice.status === "extracted" ||
       invoice.status === "screened" ||
+      invoice.status === "screening_failed" || // backend godtar dette — frontend manglet det
       invoice.status === "reviewed" ||
       invoice.status === "approved" ||
       invoice.status === "blocked");
@@ -2488,6 +2490,12 @@ export function InvoiceDetail() {
         <section className="rounded-lg border border-traffic-red/50 bg-red-50 p-4">
           <h2 className="mb-1 text-sm font-semibold text-traffic-red">{t("detail.errors.extraction_failed_title")}</h2>
           <pre className="whitespace-pre-wrap text-xs text-traffic-red">{invoice.extraction_error}</pre>
+        </section>
+      )}
+      {invoice.status === "screening_failed" && (
+        <section className="rounded-lg border border-traffic-red/50 bg-red-50 p-4">
+          <h2 className="mb-1 text-sm font-semibold text-traffic-red">{t("detail.errors.screening_failed_title")}</h2>
+          <p className="text-xs text-traffic-red">{t("detail.errors.screening_failed_body")}</p>
         </section>
       )}
 

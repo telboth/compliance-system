@@ -134,7 +134,9 @@
       "rescreen": "Screening feilet.",
       "sanctions_status": "Kunne ikke hente status for sanksjonsmotor.",
       "parsing_failed_title": "Parsing feilet",
-      "extraction_failed_title": "Ekstraksjon feilet"
+      "extraction_failed_title": "Ekstraksjon feilet",
+      "screening_failed_title": "Sanksjonsscreening feilet",
+      "screening_failed_body": "Screeningen kunne ikke fullføres — sannsynligvis er sanksjonstjenesten (Yente / Elasticsearch) ikke tilgjengelig. Sjekk at Docker-containerne kjører, og bruk «Re-screen»-knappen til å prøve på nytt."
     },
     "sanctions_motor": {
       "checking": "Sanksjonsmotor: sjekker …",
