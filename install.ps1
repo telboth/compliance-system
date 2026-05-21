@@ -134,6 +134,57 @@ function Test-IsAdministrator {
     return $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
 }
 
+function Ensure-ExecutionPolicy {
+    <#
+    .SYNOPSIS
+        Sjekker at PowerShell-execution policy ikke blokkerer scriptet.
+
+        Dersom policy er Restricted eller AllSigned tilbyr scriptet to losninger:
+          A) Sette policy til RemoteSigned for den innloggede brukeren (ingen admin nodvendig).
+          B) Vise instruksjon om a bruke install.cmd eller -ExecutionPolicy Bypass.
+
+        NB: Dersom policy er 'Restricted' KAN det hende PowerShell nektet a starte
+        scriptet foer denne funksjonen ble naadd — i saa fall er install.cmd losningen.
+    #>
+    $effective = Get-ExecutionPolicy
+    # Bypass, Unrestricted og RemoteSigned (for lokale filer) er alle OK.
+    if ($effective -in @('Bypass', 'Unrestricted', 'RemoteSigned')) {
+        return
+    }
+
+    Write-Warn "PowerShell execution policy er '$effective' pa denne maskinen."
+    Write-Warn "Scriptet kan bli blokkert fra a kjore, eller blokkere andre scripts det kaller."
+    Write-Host ""
+    Write-Host "  Tre losninger (velg én):" -ForegroundColor Yellow
+    Write-Host ""
+    Write-Host "  [1] Bruk install.cmd i stedet — bypasser policy automatisk (enklest):" -ForegroundColor Yellow
+    Write-Host "        .\install.cmd" -ForegroundColor Cyan
+    Write-Host ""
+    Write-Host "  [2] Kjor PowerShell eksplisitt med bypass (engangslossning):" -ForegroundColor Yellow
+    Write-Host "        powershell -ExecutionPolicy Bypass -File .\install.ps1" -ForegroundColor Cyan
+    Write-Host ""
+    Write-Host "  [3] Endre policy permanent for din Windows-bruker (krever ikke admin):" -ForegroundColor Yellow
+    Write-Host "        Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned" -ForegroundColor Cyan
+    Write-Host ""
+
+    $fix = Ask-YesNo "Vil du at scriptet skal sette policy til RemoteSigned for din bruker na (losning 3)?" -DefaultNo:$false
+    if (-not $fix) {
+        Write-Fail "Avbrutt. Bruk install.cmd eller en av losningene beskrevet over."
+        exit 1
+    }
+
+    try {
+        Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned -Force
+        Write-OK "Execution policy satt til RemoteSigned for din bruker — scriptet fortsetter."
+    } catch {
+        Write-Warn "Klarte ikke endre execution policy automatisk: $_"
+        Write-Host "  Kjor dette i et nytt PowerShell-vindu:" -ForegroundColor Yellow
+        Write-Host "    Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned" -ForegroundColor Cyan
+        Write-Host "  Eller bruk install.cmd som bypasser policyen uten endringer." -ForegroundColor Yellow
+        exit 1
+    }
+}
+
 function Ensure-Command([string]$CommandName, [string]$InstallHint) {
     if (-not (Get-Command $CommandName -ErrorAction SilentlyContinue)) {
         Write-Fail "'$CommandName' ble ikke funnet."
@@ -356,32 +407,34 @@ function Ensure-DockerDesktopReady {
 
     $dockerInfo = & docker info 2>&1
     if ($LASTEXITCODE -ne 0) {
-        Write-Warn "Docker CLI finnes, men Docker Desktop/Engine svarer ikke."
-        $startNow = Ask-YesNo "Vil du at scriptet skal proeve aa starte Docker Desktop na?" -DefaultNo:$false
-        if ($startNow) {
-            if (-not (Start-DockerDesktopApp)) {
-                Write-Warn "Klarte ikke starte Docker Desktop automatisk."
-            } else {
-                Write-Info "Docker Desktop startet. Venter pa Engine (inntil 4 min) ..."
-                if (Wait-DockerEngine -TimeoutSeconds 240) {
-                    Write-OK "Docker Desktop er installert og kjører"
-                    return
-                }
+        Write-Warn "Docker Desktop er installert, men kjorer ikke."
+        Write-Info "Starter Docker Desktop automatisk ..."
+
+        $started = Start-DockerDesktopApp
+        if ($started) {
+            Write-Info "Venter pa at Docker Engine blir klar (kan ta 1-3 min) ..."
+            if (Wait-DockerEngine -TimeoutSeconds 240) {
+                Write-OK "Docker Desktop er startet og kjorer"
+                return
             }
+            Write-Fail "Docker Engine ble ikke klar innen 4 minutter."
+            Write-Host "  Docker Desktop ble startet, men engine svarer fortsatt ikke." -ForegroundColor Yellow
+        } else {
+            Write-Fail "Klarte ikke starte Docker Desktop automatisk."
+            Write-Host "  Sjekk at Docker Desktop er korrekt installert." -ForegroundColor Yellow
         }
 
-        Write-Fail "Docker Desktop/Engine er ikke klar."
-        Write-Host "  Hva du ma gjore:" -ForegroundColor Yellow
-        Write-Host "    1) Start 'Docker Desktop' fra Start-menyen" -ForegroundColor Yellow
-        Write-Host "    2) Vent til status er 'Engine running'" -ForegroundColor Yellow
-        Write-Host "    3) Verifiser med: docker info" -ForegroundColor Yellow
+        Write-Host "  Hva du kan gjore:" -ForegroundColor Yellow
+        Write-Host "    1) Start Docker Desktop manuelt fra Start-menyen" -ForegroundColor Yellow
+        Write-Host "    2) Vent til statusen er 'Engine running' (grott ikon i systemtray)" -ForegroundColor Yellow
+        Write-Host "    3) Kjor install.ps1 pa nytt" -ForegroundColor Yellow
         Write-Host "  Teknisk feilmelding fra docker info:" -ForegroundColor Yellow
         Write-Host "  $dockerInfo" -ForegroundColor DarkYellow
         Show-RebootGuidance
         exit 1
     }
 
-    Write-OK "Docker Desktop er installert og kjører"
+    Write-OK "Docker Desktop er installert og kjorer"
 }
 
 function Ensure-FileFromExample([string]$TargetPath, [string]$ExamplePath) {
@@ -525,6 +578,13 @@ XLENT Compliance - installasjonscript
 
 Bruk:
   .\install.ps1 [opsjoner]
+  .\install.cmd  [opsjoner]   # Bruk denne dersom PowerShell viser permissions-feil
+
+PERMISSIONS-FEIL?
+  Dersom du ser "cannot be loaded because running scripts is disabled on this system"
+  er PowerShell execution policy satt til Restricted. Bruk da install.cmd i stedet:
+    .\install.cmd
+  install.cmd kaller install.ps1 automatisk med -ExecutionPolicy Bypass.
 
 VANLIGE OPSJONER:
   -Help              Vis denne hjelpen og avslutt.
@@ -800,6 +860,7 @@ if ($script:IsNonInteractive) {
     Write-Info "NonInteractive-modus aktiv: ingen prompts, bruker standard handlinger."
 }
 
+Ensure-ExecutionPolicy
 Ensure-GitReady
 Ensure-WSLReady
 Ensure-DockerDesktopReady
