@@ -158,6 +158,14 @@ def _get_xlsx_converter() -> DocumentConverter:
     return _xlsx_converter
 
 
+def _get_simple_converter() -> DocumentConverter:
+    """Bakoverkompatibel alias for XLSX-konverteren.
+
+    Noen tester og eldre kallsteder bruker fortsatt det gamle navnet.
+    """
+    return _get_xlsx_converter()
+
+
 def _get_image_converter() -> DocumentConverter:
     """Returner (og opprett ved behov) Docling-konverter for bildefiler (EasyOCR-fallback).
 
@@ -347,7 +355,7 @@ def _extract_xlsx(file_path: Path, log: object) -> ParsedDocument:
     """
     try:
         log.info("docling_xlsx_conversion_started")  # type: ignore[attr-defined]
-        result = _get_xlsx_converter().convert(str(file_path))
+        result = _get_simple_converter().convert(str(file_path))
     except Exception as exc:
         raise ParsingError(
             "Docling klarte ikke å lese Excel-filen.",

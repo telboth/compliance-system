@@ -1,18 +1,17 @@
 import { Suspense, lazy, Component, type ReactNode, type ErrorInfo } from "react";
 import { NavLink, Navigate, Route, Routes } from "react-router-dom";
-import clsx from "clsx";
 
 import { useTranslation } from "react-i18next";
 
 import { ModelSelector } from "@/components/ModelSelector";
 import { NotificationBell } from "@/components/NotificationBell";
 import { LanguageSwitcher } from "@/components/LanguageSwitcher";
+import { MainNav } from "@/components/MainNav";
 import xlentLogoWhite from "@/assets/xlent-logo-white.svg";
 import { AuthProvider } from "@/auth/AuthContext";
 import { DevRoleSwitcher } from "@/auth/DevRoleSwitcher";
 import { ProtectedRoute } from "@/auth/ProtectedRoute";
 import { useAuth } from "@/auth/AuthContext";
-import type { Permission } from "@/auth/permissions";
 import { useReviewQueue } from "@/hooks/useInvoices";
 import { APP_VERSION } from "@/version";
 import { ApiKeysModal } from "@/components/ApiKeysModal";
@@ -85,25 +84,13 @@ const VendorsPage = lazy(async () => {
   const m = await import("@/pages/Vendors");
   return { default: m.VendorsPage };
 });
-const VatMismatchPage = lazy(async () => {
-  const m = await import("@/pages/VatMismatch");
-  return { default: m.VatMismatchPage };
-});
 const ControlEffectivenessPage = lazy(async () => {
   const m = await import("@/pages/ControlEffectiveness");
   return { default: m.ControlEffectivenessPage };
 });
-const ExportControlPage = lazy(async () => {
-  const m = await import("@/pages/ExportControl");
-  return { default: m.ExportControlPage };
-});
 const ExportControlReferencePage = lazy(async () => {
   const m = await import("@/pages/ExportControlReference");
   return { default: m.ExportControlReferencePage };
-});
-const CatchAllPage = lazy(async () => {
-  const m = await import("@/pages/CatchAll");
-  return { default: m.CatchAllPage };
 });
 const ListAdminPage = lazy(async () => {
   const m = await import("@/pages/ListAdmin");
@@ -155,71 +142,6 @@ function PageFallback() {
   return <div className="p-6 text-sm text-xlent-muted">{t("loading_page")}</div>;
 }
 
-/**
- * Nav-lenke med rettighets-bevissthet.
- *
- * - `require` mangler / oppfylt  → vanlig aktiv NavLink
- * - `require` ikke oppfylt       → grå span med tooltip (minimal skjuling)
- * - `adminOnly`                  → skjules helt for ikke-admins
- * - `badge`                      → rød teller-boble (f.eks. antall ventende reviews)
- */
-function NavItem({
-  to,
-  label,
-  end,
-  require,
-  adminOnly,
-  badge,
-}: {
-  to: string;
-  label: string;
-  end?: boolean;
-  /** Rettighet som kreves — mangler den vises lenken grå */
-  require?: Permission;
-  /** Skjul siden helt for alle uten system:admin */
-  adminOnly?: boolean;
-  /** Vises som rød boble bak label-teksten */
-  badge?: number;
-}) {
-  const { can } = useAuth();
-  const { t } = useTranslation();
-
-  if (adminOnly && !can("system:admin")) return null;
-
-  const allowed = !require || can(require);
-
-  if (!allowed) {
-    return (
-      <span
-        title={t("nav.no_access")}
-        className="cursor-not-allowed text-sm text-gray-300 select-none"
-      >
-        {label}
-      </span>
-    );
-  }
-
-  return (
-    <NavLink
-      to={to}
-      end={end}
-      className={({ isActive }) =>
-        clsx(
-          "relative inline-flex items-center gap-1.5 text-sm hover:text-xlent-primary",
-          isActive ? "text-xlent-primary" : "text-xlent-muted",
-        )
-      }
-    >
-      {label}
-      {badge != null && badge > 0 && (
-        <span className="inline-flex h-4 min-w-[1rem] items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold leading-none text-white">
-          {badge > 99 ? "99+" : badge}
-        </span>
-      )}
-    </NavLink>
-  );
-}
-
 /** Henter antall fakturaer som venter på review (status=screened, score red/yellow). */
 function useReviewBadge(): number {
   const { can } = useAuth();
@@ -258,57 +180,7 @@ function AppShell() {
         </div>
 
         <div className="mx-auto max-w-6xl px-6 py-3">
-          <nav className="flex flex-wrap items-center gap-x-4 gap-y-2">
-            {/* Primære sider — synlig for alle */}
-            <NavItem to="/invoices" label={t("nav.invoices")} />
-            <NavItem to="/dashboard" label={t("nav.dashboard")} />
-            <NavItem to="/customers" label={t("nav.customers")} />
-            <NavItem to="/vendors" label={t("nav.vendors")} require="customers:view" />
-
-            {/* Review-kø — synlig for compliance_officer og admin */}
-            <NavItem
-              to="/review-queue"
-              label={t("nav.review_queue")}
-              require="invoices:review"
-              badge={reviewBadge}
-            />
-
-            {/* Arbeidslister for controlleren */}
-            <NavItem to="/vat-mismatch" label={t("nav.vat_mismatch")} />
-            <NavItem to="/export-control" label={t("nav.export_control")} />
-            <NavItem to="/catch-all" label={t("nav.catch_all")} />
-
-            {/* Compliance-verktøy */}
-            <NavItem to="/rules" label={t("nav.rules")} require="rules:view" />
-            <NavItem to="/watchlist" label={t("nav.watchlist")} require="rules:edit" />
-            <NavItem to="/agreements" label={t("nav.agreements")} />
-            <NavItem
-              to="/control-effectiveness"
-              label={t("nav.control_effectiveness")}
-              require="invoices:review"
-            />
-
-            {/* Kart og screening — synlig for alle */}
-            <NavItem to="/maps" label={t("nav.maps")} />
-            <NavItem to="/sanctioned-entities" label={t("nav.sanctioned_entities")} />
-
-            {/* Søk */}
-            <NavItem to="/invoice-search" label={t("nav.invoice_search")} />
-
-            {/* Analyser og varsler */}
-            <NavItem to="/kri" label={t("nav.kri")} />
-            <NavItem to="/regulatory-radar" label={t("nav.regulatory_radar")} />
-
-            {/* Liste-admin — synkronisering av DEKSA-lister og embargo */}
-            <NavItem to="/list-admin" label={t("nav.list_admin")} />
-
-            {/* Drift — skjules helt for ikke-admins */}
-            <NavItem to="/pipeline-ops" label={t("nav.pipeline_ops")} adminOnly />
-
-            {/* Om systemet — synlig for alle */}
-            <NavItem to="/about" label={t("nav.about")} />
-
-          </nav>
+          <MainNav reviewBadge={reviewBadge} />
         </div>
       </header>
 
@@ -336,7 +208,8 @@ function AppShell() {
             />
             <Route path="/dashboard" element={<DashboardPage />} />
             <Route path="/maps" element={<MapsPage />} />
-            <Route path="/invoice-search" element={<InvoiceSearchPage />} />
+            <Route path="/invoices/search" element={<InvoiceSearchPage />} />
+            <Route path="/invoice-search" element={<Navigate to="/invoices/search" replace />} />
             <Route path="/risk-map" element={<Navigate to="/maps" replace />} />
             <Route path="/shipments-map" element={<Navigate to="/maps" replace />} />
 
@@ -425,14 +298,14 @@ function AppShell() {
             />
 
             {/* MVA-avvik — arbeidsliste for controlleren */}
-            <Route path="/vat-mismatch" element={<VatMismatchPage />} />
+            <Route path="/vat-mismatch" element={<Navigate to="/review-queue?filter=vat" replace />} />
 
             {/* Eksportkontroll — listematch mot Vareliste I/II */}
-            <Route path="/export-control" element={<ExportControlPage />} />
+            <Route path="/export-control" element={<Navigate to="/review-queue?filter=export_control" replace />} />
             <Route path="/export-control/reference" element={<ExportControlReferencePage />} />
 
             {/* Catch-all — sluttbruker-/sluttbruk-screening */}
-            <Route path="/catch-all" element={<CatchAllPage />} />
+            <Route path="/catch-all" element={<Navigate to="/review-queue?filter=catch_all" replace />} />
 
             {/* Liste-admin — månedlig synkronisering av DEKSA/embargo */}
             <Route path="/list-admin" element={<ListAdminPage />} />

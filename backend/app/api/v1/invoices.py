@@ -172,12 +172,14 @@ async def upload_invoice(
                 invoice_service.parse_invoice_in_background,
                 invoice.id,
                 Path(invoice.pdf_path),
+                engine=session.bind,
             )
     else:
         background_tasks.add_task(
             invoice_service.parse_invoice_in_background,
             invoice.id,
             Path(invoice.pdf_path),
+            engine=session.bind,
         )
     return InvoiceUploadResponse(invoice=_to_invoice_read(invoice))
 
@@ -305,12 +307,14 @@ async def reparse_invoice_endpoint(
                 invoice_service.parse_invoice_in_background,
                 invoice.id,
                 Path(invoice.pdf_path),
+                engine=session.bind,
             )
     else:
         background_tasks.add_task(
             invoice_service.parse_invoice_in_background,
             invoice.id,
             Path(invoice.pdf_path),
+            engine=session.bind,
         )
     return _to_invoice_read(invoice)
 
@@ -628,7 +632,7 @@ async def review_invoice_endpoint(
     invoice_id: uuid.UUID,
     body: ReviewCreate,
     session: SessionDep,
-    actor_ctx: ActorContext = Depends(require_roles("admin", "compliance_officer")),
+    actor_ctx: ActorContext = Depends(require_roles("admin", "compliance_officer", "controller")),
 ) -> InvoiceRead:
     """Sett en manuell beslutning på en screenet invoice.
 

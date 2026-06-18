@@ -27,7 +27,14 @@ Denne filen samler designnotater som ikke fanges av OpenAPI-spesifikasjonen.
 
 ## Autentisering
 
-Sprint 6: JWT via `Authorization: Bearer <token>`. Endepunkter for webhook bruker API-nøkkel via `X-API-Key`-header.
+Dagens kode bruker server-side rollevalidering via `X-Actor-Role` og `X-Actor-Name`.
+
+- Gyldige roller: `admin`, `c_level`, `compliance_officer`, `controller`, `readonly`.
+- Mange muterende ruter bruker `require_roles(...)`, men ikke alle ruter er låst ennå.
+- `GET /api/v1/health` og `GET /api/v1/config/keys/status` er åpne.
+- JWT via `Authorization: Bearer <token>` er planlagt senere, ikke implementert i denne checkouten.
+- API-nøkkelbasert webhook-auth er også planlagt senere.
+- `rules`- og `agreements`-rutene er fortsatt uten eksplisitt `require_roles(...)` i dagens kode.
 
 ## Endepunkter per sprint
 

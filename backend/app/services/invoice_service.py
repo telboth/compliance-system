@@ -28,7 +28,7 @@ import anyio
 from fastapi import UploadFile
 from sqlalchemy import func, literal, select
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 from sqlalchemy.orm import selectinload
 
 from app.core.config import get_settings
@@ -267,13 +267,23 @@ async def upload_invoice_only(
 # ── Parsing (asynkron bakgrunnsoppgave) ───────────────────────────────────────
 
 
-async def parse_invoice_in_background(invoice_id: uuid.UUID, storage_path: Path) -> None:
+async def parse_invoice_in_background(
+    invoice_id: uuid.UUID,
+    storage_path: Path,
+    *,
+    engine: AsyncEngine | None = None,
+) -> None:
     """BackgroundTask — oppretter egen DB-sesjon og parser med Docling i thread-pool.
 
     Docling er CPU-bundet og blokkerende; vi kjører den via run_in_executor
     slik at FastAPI-event-loopen ikke blokkeres mens OCR pågår.
     """
-    async with get_session_factory()() as session:
+    session_factory = (
+        get_session_factory()
+        if engine is None
+        else async_sessionmaker(engine, expire_on_commit=False, class_=AsyncSession)
+    )
+    async with session_factory() as session:
         invoice = await get_invoice(session, invoice_id)
         prev_status = invoice.status.value
         invoice.status = InvoiceStatus.PARSING

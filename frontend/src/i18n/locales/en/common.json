@@ -1,6 +1,11 @@
 {
   "nav": {
     "invoices": "Invoices",
+    "invoice_overview": "Overview",
+    "worklists_group": "Worklists",
+    "analysis_group": "Analysis",
+    "configuration_group": "Configuration",
+    "operations_group": "Operations",
     "dashboard": "📊 Dashboard",
     "customers": "Customers",
     "review_queue": "Review Queue",
@@ -10,7 +15,7 @@
     "maps": "Maps",
     "risk_map": "🌍 Risk Countries",
     "sanctioned_entities": "Sanctioned Entities",
-    "invoice_search": "Invoice Search",
+    "invoice_search": "Search",
     "shipments_map": "Shipments Map",
     "pipeline_ops": "Pipeline Ops",
     "kri": "📈 KRI",

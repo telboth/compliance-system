@@ -76,7 +76,6 @@ class AIDecisionRecord(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     raw_extraction_meta: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
 
     __table_args__ = (
-        Index("ix_ai_decision_records_invoice_id", "invoice_id", unique=True),
         Index("ix_ai_decision_records_model_id", "model_id"),
         Index("ix_ai_decision_records_eu_ai_act_category", "eu_ai_act_category"),
     )

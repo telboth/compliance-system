@@ -455,16 +455,6 @@ export async function reviewInvoiceAndNext(
   return data;
 }
 
-export async function claimReviewInvoice(id: string): Promise<Invoice> {
-  const { data } = await apiClient.post<Invoice>(`/invoices/${id}/claim`);
-  return data;
-}
-
-export async function releaseReviewClaim(id: string): Promise<Invoice> {
-  const { data } = await apiClient.delete<Invoice>(`/invoices/${id}/claim`);
-  return data;
-}
-
 export async function getInvoiceListPreferences(): Promise<InvoiceListPreferences> {
   const { data } = await apiClient.get<InvoiceListPreferences>("/invoices/preferences/invoice-list");
   return data;

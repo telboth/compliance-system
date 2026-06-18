@@ -256,11 +256,16 @@ async def load_cache_from_db(session: object) -> int:
 
 
 async def seed_db_from_static(session: object) -> int:
-    """Skriv seed-lista til DB hvis tabellen er tom. Returnerer antall nye rader."""
+    """Skriv seed-lista til DB hvis tabellen er tom, og bootstrap sync-status
+    når databasen fortsatt matcher den statiske seed-lista.
+
+    Returnerer antall nye embargo-land som ble lagt inn.
+    """
     from sqlalchemy import func as _func
     from sqlalchemy import select as _select
 
     from app.models.embargo_country import EmbargoCountry
+    from app.services.export_list_sync_service import bootstrap_seed_state
 
     count: int = (
         await session.execute(  # type: ignore[union-attr]
@@ -268,23 +273,58 @@ async def seed_db_from_static(session: object) -> int:
         )
     ).scalar_one()
 
-    if count > 0:
-        return 0
+    inserted = 0 if count > 0 else len(SEED_LIST)
+    bootstrap_item_count: int | None = None
+    bootstrap_version: str | None = None
 
-    for entry in SEED_LIST:
-        session.add(  # type: ignore[union-attr]
-            EmbargoCountry(
-                iso2=entry.iso2.upper(),
-                name=entry.name,
-                sources=", ".join(entry.sources),
-                scope=entry.scope,
-                note=entry.note,
-                is_active=True,
-                source_version="seed",
+    if count == 0:
+        for entry in SEED_LIST:
+            session.add(  # type: ignore[union-attr]
+                EmbargoCountry(
+                    iso2=entry.iso2.upper(),
+                    name=entry.name,
+                    sources=", ".join(entry.sources),
+                    scope=entry.scope,
+                    note=entry.note,
+                    is_active=True,
+                    source_version="seed",
+                )
             )
+        bootstrap_item_count = len(SEED_LIST)
+        bootstrap_version = "seed"
+    else:
+        active_count: int = (
+            await session.execute(  # type: ignore[union-attr]
+                _select(_func.count())
+                .select_from(EmbargoCountry)
+                .where(EmbargoCountry.is_active.is_(True))
+            )
+        ).scalar_one()
+        if active_count > 0:
+            active_versions = {
+                version
+                for version in (
+                    await session.execute(  # type: ignore[union-attr]
+                        _select(EmbargoCountry.source_version)
+                        .where(EmbargoCountry.is_active.is_(True))
+                        .distinct()
+                    )
+                ).scalars().all()
+            }
+            if active_versions == {"seed"}:
+                bootstrap_item_count = active_count
+                bootstrap_version = "seed"
+
+    if bootstrap_version is not None:
+        await bootstrap_seed_state(
+            session,  # type: ignore[arg-type]
+            "EMBG",
+            current_version=bootstrap_version,
+            status_message="Seedet fra statisk embargo-liste",
+            item_count=bootstrap_item_count,
         )
     await session.commit()  # type: ignore[union-attr]
-    return len(SEED_LIST)
+    return inserted
 
 
 # ── Offentlig API (synkron, uendret signaturer) ───────────────────────────────

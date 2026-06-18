@@ -5,8 +5,8 @@ Tre moduser:
 
   --seed
       Last inn kategori-baselinen fra den statiske referansen
-      (app/data/export_control_reference.py). Gjør at referanse-UI og
-      arbeidsliste har innhold umiddelbart. Kjør denne først.
+      (app/data/export_control_reference.py). Gjør at referanse-UI,
+      arbeidsliste og sync-status har innhold umiddelbart. Kjør denne først.
 
   --excel PATH [--version V] [--list II]
       Parse EU-kommisjonens offisielle Annex I-Excel (Vareliste II / dual-use)

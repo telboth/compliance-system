@@ -31,7 +31,6 @@ class ControlDeviation(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         UUID(as_uuid=True),
         ForeignKey("invoices.id", ondelete="CASCADE"),
         nullable=False,
-        index=True,
     )
 
     # Score da avviket ble registrert ("yellow" | "red")
@@ -41,10 +40,10 @@ class ControlDeviation(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     reviewed_by: Mapped[str] = mapped_column(String(128), nullable=False)
 
     # Avvikstype: "approved_despite_yellow" | "approved_despite_red"
-    deviation_type: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    deviation_type: Mapped[str] = mapped_column(String(64), nullable=False)
 
     # Normalisert leverandørnavn (sist sett SELLER/BUYER/CONSIGNOR fra invoice)
-    vendor_name: Mapped[str | None] = mapped_column(String(512), nullable=True, index=True)
+    vendor_name: Mapped[str | None] = mapped_column(String(512), nullable=True)
 
     # Landkode fra destination_country
     destination_country: Mapped[str | None] = mapped_column(String(2), nullable=True)

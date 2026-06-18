@@ -31,13 +31,13 @@ class CompliancePolicy(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     __tablename__ = "compliance_policies"
 
     title: Mapped[str] = mapped_column(String(256), nullable=False)
-    category: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    category: Mapped[str] = mapped_column(String(64), nullable=False)
     """Kategori: 'sanctions' | 'export_control' | 'aml' | 'data_privacy' | 'other'"""
 
     owner: Mapped[str] = mapped_column(String(128), nullable=False)
     """Ansvarlig person eller rolle (f.eks. 'compliance_officer')."""
 
-    is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True, index=True)
+    is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     """False → policyen er trukket tilbake og vises ikke i aktiv liste."""
 
     # Relasjon til versjoner
@@ -66,13 +66,13 @@ class CompliancePolicyVersion(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         UUID(as_uuid=True),
         ForeignKey("compliance_policies.id", ondelete="CASCADE"),
         nullable=False,
-        index=True,
+        index=False,
     )
 
     version_number: Mapped[int] = mapped_column(Integer, nullable=False)
     """Monotont stigende per policy_id, starter på 1."""
 
-    is_current: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, index=True)
+    is_current: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     """Kun én versjon per policy skal ha is_current=True."""
 
     content: Mapped[str] = mapped_column(Text, nullable=False)

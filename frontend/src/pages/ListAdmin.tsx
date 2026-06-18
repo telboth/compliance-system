@@ -121,6 +121,7 @@ function SyncCard({
   const { t } = useTranslation("pages");
 
   const status = state?.status ?? "idle";
+  const hasSourceUrl = Boolean(state?.source_url);
   const hasUpdate = status === "update_available";
   const isBusy = status === "checking" || status === "importing" || checking || importing;
 
@@ -190,14 +191,14 @@ function SyncCard({
 
       <div className="mt-4 flex flex-wrap items-center gap-2">
         <button
-          disabled={isBusy}
+          disabled={isBusy || !hasSourceUrl}
           onClick={onCheck}
           className="rounded-lg border border-gray-300 px-3 py-1.5 text-xs font-medium text-xlent-ink hover:bg-gray-50 disabled:opacity-50"
         >
           {checking ? t("list_admin.checking") : t("list_admin.check_now")}
         </button>
         <button
-          disabled={isBusy}
+          disabled={isBusy || !hasSourceUrl}
           onClick={onImport}
           className={clsx(
             "rounded-lg px-3 py-1.5 text-xs font-medium text-white disabled:opacity-50",
@@ -209,6 +210,11 @@ function SyncCard({
           {importing ? t("list_admin.importing") : t("list_admin.import_now")}
         </button>
       </div>
+      {!hasSourceUrl && state && (
+        <p className="mt-2 text-[11px] text-xlent-muted">
+          {t("list_admin.no_source_url")}
+        </p>
+      )}
 
       {isAdmin && (
         <div className="mt-3 border-t border-gray-100 pt-3">
@@ -322,7 +328,7 @@ export function ListAdminPage() {
         />
         <SyncCard
           label={t("list_admin.list_embargo")}
-          listCode="embargo"
+          listCode="EMBG"
           state={embargoState}
           isLoading={loadingEmbargo}
           onCheck={() => checkEmbargo.mutate()}

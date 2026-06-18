@@ -599,10 +599,11 @@ async def upsert_item(
 async def seed_reference_categories(session: AsyncSession) -> int:
     """Seed kategori-baselinen fra den statiske referansen (source 'deksa-seed').
 
-    Gjør at referanse-UI og worklist har innhold før den fulle EU-Excel-lista
-    importeres. Returnerer antall nye rader.
+    Gjør at referanse-UI, worklist og sync-status har innhold før den fulle
+    EU-Excel-lista importeres. Returnerer antall nye rader.
     """
     created = 0
+    counts: dict[str, int] = {"I": 0, "II": 0}
     for cat in ref.ALL_CATEGORIES:
         is_new = await upsert_item(
             session,
@@ -615,6 +616,24 @@ async def seed_reference_categories(session: AsyncSession) -> int:
             source_version="deksa-seed",
         )
         created += int(is_new)
+        counts[cat.list_code] += 1
+
+    from app.services.export_list_sync_service import bootstrap_seed_state
+
+    await bootstrap_seed_state(
+        session,
+        "I",
+        current_version="deksa-seed",
+        status_message="Seedet fra statisk referanse for Vareliste I",
+        item_count=counts["I"],
+    )
+    await bootstrap_seed_state(
+        session,
+        "II",
+        current_version="deksa-seed",
+        status_message="Seedet fra statisk referanse for Vareliste II",
+        item_count=counts["II"],
+    )
     return created
 
 

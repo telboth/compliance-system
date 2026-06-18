@@ -1,6 +1,6 @@
 # Deploy- og driftsdokumentasjon
 
-Detaljeres ut etter Sprint 6 (hardening). Foreløpig dokumentert oppsett:
+Detaljeres ut etter Sprint 6 (hardening). Dette er målbildet for produksjon, mens dagens repo inneholder `docker-compose.yml` for lokal utvikling:
 
 ## Lokal utvikling
 

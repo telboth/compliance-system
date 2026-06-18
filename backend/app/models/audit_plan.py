@@ -28,17 +28,17 @@ class AuditPlan(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     # Hvem er ansvarlig
-    owner: Mapped[str] = mapped_column(String(128), nullable=False, index=True)
+    owner: Mapped[str] = mapped_column(String(128), nullable=False)
 
     # Kategori (samme vokabular som policies)
     # 'sanctions' | 'export_control' | 'aml' | 'data_privacy' | 'other'
-    category: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    category: Mapped[str] = mapped_column(String(64), nullable=False)
 
     # Frekvens i dager (f.eks. 90 = kvartalsvis, 180 = halvårlig, 365 = årlig)
     frequency_days: Mapped[int] = mapped_column(Integer, nullable=False)
 
     # Neste planlagte gjennomføring
-    next_due_date: Mapped[date] = mapped_column(Date, nullable=False, index=True)
+    next_due_date: Mapped[date] = mapped_column(Date, nullable=False)
 
     # Siste fullføring
     last_completed_at: Mapped[datetime | None] = mapped_column(
@@ -51,7 +51,7 @@ class AuditPlan(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     last_completion_notes: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     # Aktiv / trukket tilbake
-    is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True, index=True)
+    is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
 
     __table_args__ = (
         Index("ix_audit_plans_next_due_date", "next_due_date"),
