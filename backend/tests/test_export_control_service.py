@@ -117,8 +117,6 @@ def test_clean_invoice_is_clear() -> None:
 
 def test_code_found_in_description_text() -> None:
     inv = _invoice("DE")
-    res = evaluate_invoice_export_control(
-        inv, lines=[_line(description="Spare part, ECCN 3A001 classified")]
-    )
+    res = evaluate_invoice_export_control(inv, lines=[_line(description="Spare part, ECCN 3A001 classified")])
     assert res.flagged is True
     assert any(h.item_code == "3A001" for h in res.hits)

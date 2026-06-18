@@ -46,11 +46,9 @@ import yaml
 
 # ── Stier ─────────────────────────────────────────────────────────────────────
 
-_PROJECT_ROOT = Path(__file__).parent.parent.parent   # compliance-system/
+_PROJECT_ROOT = Path(__file__).parent.parent.parent  # compliance-system/
 _EXPECTED_DIR = Path(__file__).parent / "fixtures" / "expected"
-_TEST_INVOICES_DIR = Path(
-    os.environ.get("TEST_INVOICES_DIR", str(_PROJECT_ROOT / "Test_invoices"))
-)
+_TEST_INVOICES_DIR = Path(os.environ.get("TEST_INVOICES_DIR", str(_PROJECT_ROOT / "Test_invoices")))
 _SUPPORTED_EXT = {".pdf", ".png", ".jpg", ".jpeg", ".xlsx"}
 
 # ── Oppdagelse av testfiler ───────────────────────────────────────────────────
@@ -60,11 +58,7 @@ def _discover_invoices() -> list[Path]:
     """Finn alle støttede faktura-filer i TEST_INVOICES_DIR rekursivt."""
     if not _TEST_INVOICES_DIR.exists():
         return []
-    return sorted(
-        p
-        for p in _TEST_INVOICES_DIR.rglob("*")
-        if p.is_file() and p.suffix.lower() in _SUPPORTED_EXT
-    )
+    return sorted(p for p in _TEST_INVOICES_DIR.rglob("*") if p.is_file() and p.suffix.lower() in _SUPPORTED_EXT)
 
 
 _ALL_INVOICES = _discover_invoices()
@@ -166,15 +160,10 @@ def test_parsing(invoice_path: Path) -> None:
 
     assert result is not None, f"parse_pdf returnerte None for {invoice_path.name}"
     assert result.page_count >= 1, f"Ingen sider registrert for {invoice_path.name}"
-    assert len(result.text) >= 30, (
-        f"For lite tekst ekstrahert fra {invoice_path.name}: {len(result.text)} tegn"
-    )
+    assert len(result.text) >= 30, f"For lite tekst ekstrahert fra {invoice_path.name}: {len(result.text)} tegn"
 
     print(
-        f"\n  [{invoice_path.name}]"
-        f"  metode={result.method.value}"
-        f"  sider={result.page_count}"
-        f"  tegn={len(result.text)}"
+        f"\n  [{invoice_path.name}]  metode={result.method.value}  sider={result.page_count}  tegn={len(result.text)}"
     )
 
 
@@ -204,15 +193,11 @@ async def test_extraction_pipeline(
     parsed = parse_pdf(invoice_path)
     assert parsed.text, f"Tom tekst etter parsing av {invoice_path.name}"
 
-    print(
-        f"\n  [{invoice_path.name}]"
-        f"  parsing: metode={parsed.method.value}"
-        f"  tegn={len(parsed.text)}"
-    )
+    print(f"\n  [{invoice_path.name}]  parsing: metode={parsed.method.value}  tegn={len(parsed.text)}")
 
     # ── 2. Lagre i test-DB (omgår file_storage — peker direkte på originalfil) ─
     invoice = Invoice(
-        pdf_path=str(invoice_path),          # brukes for image-deteksjon i extraction
+        pdf_path=str(invoice_path),  # brukes for image-deteksjon i extraction
         original_filename=invoice_path.name,
         file_size_bytes=invoice_path.stat().st_size,
         direction=InvoiceDirection.INCOMING,
@@ -236,9 +221,7 @@ async def test_extraction_pipeline(
     )
 
     if invoice.status == InvoiceStatus.EXTRACTION_FAILED:
-        pytest.fail(
-            f"Ekstraksjon feilet for {invoice_path.name}: {invoice.extraction_error}"
-        )
+        pytest.fail(f"Ekstraksjon feilet for {invoice_path.name}: {invoice.extraction_error}")
 
     conf = invoice.extraction_confidence or {}
     print(
@@ -273,9 +256,7 @@ async def test_extraction_pipeline(
         actual = getattr(invoice, field, None)
         _record(field, expected, actual)
         if expected is not None and not _field_matches(field, expected, actual):
-            mismatches.append(
-                f"{field}: forventet={expected!r}  faktisk={actual!r}"
-            )
+            mismatches.append(f"{field}: forventet={expected!r}  faktisk={actual!r}")
 
     # Entitets-sjekk — finn minst én match per forventet entitet
     for exp_ent in gt.get("entities") or []:
@@ -285,10 +266,7 @@ async def test_extraction_pipeline(
             continue
         found = any(
             (exp_role is None or e.role.value == exp_role)
-            and (
-                exp_name is None
-                or exp_name.lower() in (e.name or "").lower()
-            )
+            and (exp_name is None or exp_name.lower() in (e.name or "").lower())
             for e in invoice.entities
         )
         label = f"{exp_role}:{exp_name}"
@@ -307,9 +285,7 @@ async def test_extraction_pipeline(
             av = getattr(actual_line, lf, None)
             _record(f"line.{lf}", ev, av)
             if ev is not None and not _field_matches(lf, ev, av):
-                mismatches.append(
-                    f"linje {i + 1} {lf}: forventet={ev!r}  faktisk={av!r}"
-                )
+                mismatches.append(f"linje {i + 1} {lf}: forventet={ev!r}  faktisk={av!r}")
 
     # ── 6. Rapporter avvik ───────────────────────────────────────────────────
     if mismatches:

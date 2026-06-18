@@ -30,6 +30,7 @@ def clear_converter_cache() -> None:
 
 # ── Felles ────────────────────────────────────────────────────────────────────
 
+
 def test_extract_text_raises_when_file_missing(tmp_path: Path) -> None:
     """Feilhåndtering krever ikke at Docling lastes — sjekkes før import."""
     missing = tmp_path / "finnes-ikke.pdf"
@@ -38,6 +39,7 @@ def test_extract_text_raises_when_file_missing(tmp_path: Path) -> None:
 
 
 # ── PDF-tester ────────────────────────────────────────────────────────────────
+
 
 def test_extract_text_wraps_docling_exception(tmp_path: Path) -> None:
     """Docling-feil pakkes inn i ParsingError med forståelig melding."""
@@ -128,6 +130,7 @@ def test_converter_is_reused_across_calls(tmp_path: Path) -> None:
 
 # ── XLSX-tester ───────────────────────────────────────────────────────────────
 
+
 def test_extract_xlsx_uses_mock_converter(tmp_path: Path, sample_xlsx_bytes: bytes) -> None:
     """XLSX-parsing returnerer ParsedDocument med SPREADSHEET-metode."""
     xlsx = tmp_path / "invoice.xlsx"
@@ -167,6 +170,7 @@ def test_extract_xlsx_raises_when_file_missing(tmp_path: Path) -> None:
 
 
 # ── Integrasjonstester (krever Docling ML-modeller) ───────────────────────────
+
 
 @pytest.mark.slow
 def test_extract_text_with_real_docling(temp_pdf: Path) -> None:

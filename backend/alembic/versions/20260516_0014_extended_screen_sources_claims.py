@@ -37,8 +37,12 @@ def upgrade() -> None:
         sa.PrimaryKeyConstraint("id", name=op.f("pk_extended_screen_sources")),
     )
     op.create_index(op.f("ix_extended_screen_sources_run_id"), "extended_screen_sources", ["run_id"], unique=False)
-    op.create_index(op.f("ix_extended_screen_sources_invoice_id"), "extended_screen_sources", ["invoice_id"], unique=False)
-    op.create_index(op.f("ix_extended_screen_sources_entity_id"), "extended_screen_sources", ["entity_id"], unique=False)
+    op.create_index(
+        op.f("ix_extended_screen_sources_invoice_id"), "extended_screen_sources", ["invoice_id"], unique=False
+    )
+    op.create_index(
+        op.f("ix_extended_screen_sources_entity_id"), "extended_screen_sources", ["entity_id"], unique=False
+    )
     op.create_index(op.f("ix_extended_screen_sources_provider"), "extended_screen_sources", ["provider"], unique=False)
 
     op.create_table(
@@ -63,10 +67,16 @@ def upgrade() -> None:
         sa.PrimaryKeyConstraint("id", name=op.f("pk_extended_screen_claims")),
     )
     op.create_index(op.f("ix_extended_screen_claims_run_id"), "extended_screen_claims", ["run_id"], unique=False)
-    op.create_index(op.f("ix_extended_screen_claims_invoice_id"), "extended_screen_claims", ["invoice_id"], unique=False)
+    op.create_index(
+        op.f("ix_extended_screen_claims_invoice_id"), "extended_screen_claims", ["invoice_id"], unique=False
+    )
     op.create_index(op.f("ix_extended_screen_claims_entity_id"), "extended_screen_claims", ["entity_id"], unique=False)
-    op.create_index(op.f("ix_extended_screen_claims_claim_type"), "extended_screen_claims", ["claim_type"], unique=False)
-    op.create_index(op.f("ix_extended_screen_claims_source_provider"), "extended_screen_claims", ["source_provider"], unique=False)
+    op.create_index(
+        op.f("ix_extended_screen_claims_claim_type"), "extended_screen_claims", ["claim_type"], unique=False
+    )
+    op.create_index(
+        op.f("ix_extended_screen_claims_source_provider"), "extended_screen_claims", ["source_provider"], unique=False
+    )
 
 
 def downgrade() -> None:

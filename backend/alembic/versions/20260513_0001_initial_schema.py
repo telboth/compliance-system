@@ -47,9 +47,7 @@ def upgrade() -> None:
     op.create_index("ix_customers_country", "customers", ["country"])
     op.create_index("ix_customers_org_number", "customers", ["org_number"])
 
-    invoice_direction = postgresql.ENUM(
-        "incoming", "outgoing", name="invoice_direction", create_type=True
-    )
+    invoice_direction = postgresql.ENUM("incoming", "outgoing", name="invoice_direction", create_type=True)
     invoice_direction.create(op.get_bind(), checkfirst=True)
 
     invoice_status = postgresql.ENUM(
@@ -69,9 +67,7 @@ def upgrade() -> None:
     )
     invoice_status.create(op.get_bind(), checkfirst=True)
 
-    compliance_score = postgresql.ENUM(
-        "green", "yellow", "red", name="compliance_score", create_type=True
-    )
+    compliance_score = postgresql.ENUM("green", "yellow", "red", name="compliance_score", create_type=True)
     compliance_score.create(op.get_bind(), checkfirst=True)
 
     op.create_table(
@@ -149,9 +145,7 @@ def upgrade() -> None:
     op.create_index("ix_invoice_lines_invoice_id", "invoice_lines", ["invoice_id"])
     op.create_index("ix_invoice_lines_product_code", "invoice_lines", ["product_code"])
 
-    entity_type = postgresql.ENUM(
-        "person", "company", "vessel", "aircraft", name="entity_type", create_type=True
-    )
+    entity_type = postgresql.ENUM("person", "company", "vessel", "aircraft", name="entity_type", create_type=True)
     entity_type.create(op.get_bind(), checkfirst=True)
 
     entity_role = postgresql.ENUM(

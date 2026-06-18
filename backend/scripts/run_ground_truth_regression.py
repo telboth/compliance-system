@@ -111,8 +111,7 @@ def _wait_for_terminal_status(
             return payload
         time.sleep(2.5)
     raise TimeoutError(
-        f"Timeout venter på terminal status for invoice {invoice_id} "
-        f"(siste={last_payload.get('status')!r})"
+        f"Timeout venter på terminal status for invoice {invoice_id} (siste={last_payload.get('status')!r})"
     )
 
 

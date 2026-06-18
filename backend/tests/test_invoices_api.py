@@ -14,9 +14,7 @@ from app.models.invoice import ComplianceScore, Invoice, InvoiceDirection, Invoi
 
 
 @pytest.mark.asyncio
-async def test_upload_invoice_returns_invoice(
-    client: AsyncClient, sample_pdf_bytes: bytes
-) -> None:
+async def test_upload_invoice_returns_invoice(client: AsyncClient, sample_pdf_bytes: bytes) -> None:
     """Upload returnerer umiddelbart med status 'uploaded' — parsing skjer asynkront."""
     response = await client.post(
         "/api/v1/invoices/upload",
@@ -46,11 +44,9 @@ async def test_get_invoice_returns_404_for_unknown_id(client: AsyncClient) -> No
 
 
 @pytest.mark.asyncio
-async def test_list_invoices_returns_paginated_results(
-    client: AsyncClient, sample_pdf_bytes: bytes
-) -> None:
+async def test_list_invoices_returns_paginated_results(client: AsyncClient, sample_pdf_bytes: bytes) -> None:
     for idx in range(3):
-        unique_pdf = sample_pdf_bytes + f"\n%upload-{idx}".encode("utf-8")
+        unique_pdf = sample_pdf_bytes + f"\n%upload-{idx}".encode()
         await client.post(
             "/api/v1/invoices/upload",
             files={"file": ("invoice.pdf", unique_pdf, "application/pdf")},
@@ -208,9 +204,7 @@ async def test_review_allows_c_level_above_compliance_limit(client: AsyncClient,
 
 
 @pytest.mark.asyncio
-async def test_upload_duplicate_reuses_existing_invoice(
-    client: AsyncClient, sample_pdf_bytes: bytes
-) -> None:
+async def test_upload_duplicate_reuses_existing_invoice(client: AsyncClient, sample_pdf_bytes: bytes) -> None:
     first = await client.post(
         "/api/v1/invoices/upload",
         files={"file": ("dup.pdf", sample_pdf_bytes, "application/pdf")},

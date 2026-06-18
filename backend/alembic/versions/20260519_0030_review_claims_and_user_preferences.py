@@ -8,8 +8,9 @@ Create Date: 2026-05-19
 from __future__ import annotations
 
 import sqlalchemy as sa
-from alembic import op
 from sqlalchemy.dialects import postgresql
+
+from alembic import op
 
 revision = "20260519_0030"
 down_revision = "20260519_0029"
@@ -47,4 +48,3 @@ def downgrade() -> None:
     op.drop_index("ix_invoices_review_claimed_by", table_name="invoices")
     op.drop_column("invoices", "review_claimed_at")
     op.drop_column("invoices", "review_claimed_by")
-

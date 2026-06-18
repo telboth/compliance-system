@@ -2,16 +2,14 @@
 
 from __future__ import annotations
 
-import uuid
 from unittest.mock import MagicMock
-
-import pytest
 
 from app.services.invoice_note_service import derive_email_note
 
 
-def _mock_invoice(raw_text: str = "", entity_emails: list[str | None] | None = None,
-                  entity_names: list[str] | None = None) -> MagicMock:
+def _mock_invoice(
+    raw_text: str = "", entity_emails: list[str | None] | None = None, entity_names: list[str] | None = None
+) -> MagicMock:
     """Enkel mock av Invoice-objektet for isolert testing."""
     invoice = MagicMock()
     invoice.raw_text = raw_text
@@ -30,8 +28,8 @@ def _mock_invoice(raw_text: str = "", entity_emails: list[str | None] | None = N
 # Logistikkdomener skal IKKE generere e-postmerknad-advarsel
 # ---------------------------------------------------------------------------
 
-class TestEmailNoteLogisticsWhitelist:
 
+class TestEmailNoteLogisticsWhitelist:
     def test_bollore_domain_does_not_warn(self) -> None:
         """bollore.com er logistikkselskap — skal ikke flagges som avvik."""
         invoice = _mock_invoice(
@@ -39,9 +37,7 @@ class TestEmailNoteLogisticsWhitelist:
             entity_names=["Acme Corp", "BuyerAS"],
         )
         status, text = derive_email_note(invoice)
-        assert status == "ok", (
-            f"bollore.com burde ikke gi advarsel, fikk: status={status!r}, tekst={text!r}"
-        )
+        assert status == "ok", f"bollore.com burde ikke gi advarsel, fikk: status={status!r}, tekst={text!r}"
         assert "bollore" not in text.lower()
 
     def test_dhl_domain_does_not_warn(self) -> None:

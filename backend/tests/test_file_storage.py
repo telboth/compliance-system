@@ -11,8 +11,8 @@ from app.core.errors import FileTooLargeError, UnsupportedFileTypeError
 from app.parsers.models import SourceFileType
 from app.services import file_storage
 
-
 # ── Hjelpefunksjon ────────────────────────────────────────────────────────────
+
 
 def _make_upload(
     content: bytes,
@@ -28,6 +28,7 @@ def _make_upload(
 
 
 # ── PDF-tester ─────────────────────────────────────────────────────────────────
+
 
 @pytest.mark.asyncio
 async def test_save_upload_rejects_non_pdf_content_type(sample_pdf_bytes: bytes) -> None:
@@ -64,6 +65,7 @@ async def test_save_upload_stores_valid_pdf(sample_pdf_bytes: bytes) -> None:
 
 
 # ── XLSX-tester ────────────────────────────────────────────────────────────────
+
 
 @pytest.mark.asyncio
 async def test_save_upload_stores_valid_xlsx(sample_xlsx_bytes: bytes) -> None:
@@ -107,16 +109,17 @@ async def test_save_upload_rejects_xlsx_with_wrong_magic() -> None:
 
 # ── PNG-tester ─────────────────────────────────────────────────────────────────
 
+
 @pytest.mark.asyncio
 async def test_save_upload_stores_valid_png() -> None:
     # Minimal gyldig PNG: 8-byte signatur + IHDR chunk
     png_bytes = (
-        b"\x89PNG\r\n\x1a\n"          # PNG signatur
-        b"\x00\x00\x00\rIHDR"         # IHDR chunk-lengde + type
-        b"\x00\x00\x00\x01"           # bredde = 1
-        b"\x00\x00\x00\x01"           # høyde = 1
-        b"\x08\x02\x00\x00\x00"       # bit depth, color type, etc.
-        b"\x90wS\xde"                 # CRC (ikke verifisert av signatursjekk)
+        b"\x89PNG\r\n\x1a\n"  # PNG signatur
+        b"\x00\x00\x00\rIHDR"  # IHDR chunk-lengde + type
+        b"\x00\x00\x00\x01"  # bredde = 1
+        b"\x00\x00\x00\x01"  # høyde = 1
+        b"\x08\x02\x00\x00\x00"  # bit depth, color type, etc.
+        b"\x90wS\xde"  # CRC (ikke verifisert av signatursjekk)
     )
     upload = _make_upload(png_bytes, filename="scan.png", content_type="image/png")
     path, size, file_type = await file_storage.save_upload(upload)

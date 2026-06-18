@@ -106,4 +106,3 @@ def downgrade() -> None:
     op.drop_index("ix_invoices_approval_state", table_name="invoices")
     op.drop_column("invoices", "approval_state")
     postgresql.ENUM(name="approval_state").drop(bind, checkfirst=True)
-

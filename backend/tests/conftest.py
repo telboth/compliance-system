@@ -23,17 +23,14 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 # Viktig sikkerhetsbarriere:
 # Tester skal ALDRI kjøre mot dev/prod-database. Hvis TEST_DATABASE_URL ikke er
 # satt eksplisitt, bruker vi en separat *_test-database i samme docker-nettverk.
-_DEFAULT_TEST_DATABASE_URL = (
-    "postgresql+asyncpg://xlent:xlent_dev_password@postgres:5432/xlent_compliance_test"
-)
+_DEFAULT_TEST_DATABASE_URL = "postgresql+asyncpg://xlent:xlent_dev_password@postgres:5432/xlent_compliance_test"
 os.environ["DATABASE_URL"] = os.environ.get(
     "TEST_DATABASE_URL",
     _DEFAULT_TEST_DATABASE_URL,
 )
 if "_test" not in os.environ["DATABASE_URL"]:
     raise RuntimeError(
-        "Refuserer å kjøre tester mot ikke-test database. "
-        "Sett TEST_DATABASE_URL til en *_test-database."
+        "Refuserer å kjøre tester mot ikke-test database. Sett TEST_DATABASE_URL til en *_test-database."
     )
 os.environ.setdefault("APP_SECRET_KEY", "test-secret")
 os.environ.setdefault("APP_ENV", "development")

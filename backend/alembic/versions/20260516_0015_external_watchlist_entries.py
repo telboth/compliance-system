@@ -85,4 +85,3 @@ def downgrade() -> None:
         table_name="external_watchlist_entries",
     )
     op.drop_table("external_watchlist_entries")
-

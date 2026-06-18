@@ -48,10 +48,7 @@ _SUPPORTED_EXT = {".pdf", ".png", ".jpg", ".jpeg", ".xlsx"}
 
 
 def _discover_invoices(directory: Path) -> list[Path]:
-    return sorted(
-        p for p in directory.rglob("*")
-        if p.is_file() and p.suffix.lower() in _SUPPORTED_EXT
-    )
+    return sorted(p for p in directory.rglob("*") if p.is_file() and p.suffix.lower() in _SUPPORTED_EXT)
 
 
 def _existing_has_values(yaml_path: Path) -> bool:
@@ -59,11 +56,18 @@ def _existing_has_values(yaml_path: Path) -> bool:
     if not yaml_path.exists():
         return False
     import yaml
+
     with yaml_path.open(encoding="utf-8") as fh:
         data = yaml.safe_load(fh) or {}
     scalar_fields = [
-        "invoice_number", "invoice_date", "total_amount", "currency",
-        "incoterms", "transport_mode", "destination_country", "po_number",
+        "invoice_number",
+        "invoice_date",
+        "total_amount",
+        "currency",
+        "incoterms",
+        "transport_mode",
+        "destination_country",
+        "po_number",
     ]
     return any(data.get(f) is not None for f in scalar_fields)
 
@@ -103,7 +107,8 @@ async def _extract_invoice(invoice_path: Path) -> dict:
 
     # Merge
     result = merge(
-        result, heuristic,
+        result,
+        heuristic,
         raw_text=parsed.text,
         threshold=settings.confidence_threshold,
         filename=invoice_path.name,
@@ -122,27 +127,35 @@ async def _extract_invoice(invoice_path: Path) -> dict:
         return field_value.value if field_value.value else None
 
     entities_list = [
-        {k: v for k, v in {
-            "name": e.name or None,
-            "role": e.role or None,
-            "entity_type": e.entity_type or None,
-            "country": e.country or None,
-            "address": e.address or None,
-        }.items() if v is not None}
+        {
+            k: v
+            for k, v in {
+                "name": e.name or None,
+                "role": e.role or None,
+                "entity_type": e.entity_type or None,
+                "country": e.country or None,
+                "address": e.address or None,
+            }.items()
+            if v is not None
+        }
         for e in result.entities
     ]
 
     lines_list = [
-        {k: v for k, v in {
-            "description": line.description or None,
-            "hs_code": line.hs_code or None,
-            "eccn": line.eccn or None,
-            "country_of_origin": line.country_of_origin or None,
-            "currency": line.currency or None,
-            "quantity": line.quantity or None,
-            "unit_price": line.unit_price or None,
-            "total_price": line.total_price or None,
-        }.items() if v is not None}
+        {
+            k: v
+            for k, v in {
+                "description": line.description or None,
+                "hs_code": line.hs_code or None,
+                "eccn": line.eccn or None,
+                "country_of_origin": line.country_of_origin or None,
+                "currency": line.currency or None,
+                "quantity": line.quantity or None,
+                "unit_price": line.unit_price or None,
+                "total_price": line.total_price or None,
+            }.items()
+            if v is not None
+        }
         for line in result.lines
     ]
 

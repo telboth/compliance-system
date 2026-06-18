@@ -3,7 +3,6 @@ from __future__ import annotations
 import csv
 from pathlib import Path
 
-
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 MANIFEST_PATH = PROJECT_ROOT / "Test_invoices" / "ground_truth_manifest.csv"
 INVOICES_DIR = PROJECT_ROOT / "Test_invoices"
@@ -39,26 +38,17 @@ def test_manifest_status_values_and_flagged_metadata() -> None:
 
     for row in rows:
         expected_status = str(row.get("expected_status") or "").strip().upper()
-        assert expected_status in allowed, (
-            f"Ugyldig expected_status={expected_status!r} i rad: {row}"
-        )
+        assert expected_status in allowed, f"Ugyldig expected_status={expected_status!r} i rad: {row}"
 
         sanctions_entity = str(row.get("sanctions_test_entity") or "").strip()
         test_location = str(row.get("test_location") or "").strip()
         if expected_status == "FLAGGED":
             flagged_count += 1
-            assert sanctions_entity, (
-                "FLAGGED-rad må ha sanctions_test_entity. Rad: "
-                f"{row}"
-            )
-            assert test_location, (
-                "FLAGGED-rad må ha test_location. Rad: "
-                f"{row}"
-            )
+            assert sanctions_entity, f"FLAGGED-rad må ha sanctions_test_entity. Rad: {row}"
+            assert test_location, f"FLAGGED-rad må ha test_location. Rad: {row}"
         else:
             clean_count += 1
 
     # Sikrer at matrisen faktisk dekker begge klasser.
     assert clean_count > 0, "Manifest mangler CLEAN-caser."
     assert flagged_count > 0, "Manifest mangler FLAGGED-caser."
-

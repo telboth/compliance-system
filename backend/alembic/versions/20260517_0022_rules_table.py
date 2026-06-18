@@ -8,8 +8,9 @@ Create Date: 2026-05-17
 from __future__ import annotations
 
 import sqlalchemy as sa
-from alembic import op
 from sqlalchemy.dialects import postgresql
+
+from alembic import op
 
 revision = "20260517_0022"
 down_revision = "20260517_0021"
@@ -26,7 +27,12 @@ def upgrade() -> None:
         sa.Column("id", sa.UUID(), nullable=False),
         sa.Column("name", sa.String(length=256), nullable=False),
         sa.Column("description", sa.Text(), nullable=True),
-        sa.Column("severity", postgresql.ENUM("green", "yellow", "red", name="rule_severity", create_type=False), nullable=False, server_default="yellow"),
+        sa.Column(
+            "severity",
+            postgresql.ENUM("green", "yellow", "red", name="rule_severity", create_type=False),
+            nullable=False,
+            server_default="yellow",
+        ),
         sa.Column("is_active", sa.Boolean(), nullable=False, server_default="true"),
         sa.Column("active_version", sa.Integer(), nullable=False, server_default="1"),
         sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),

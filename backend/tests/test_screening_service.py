@@ -9,17 +9,17 @@ from decimal import Decimal
 import pytest
 from sqlalchemy import func, select
 
-from app.data.logistics_domains import LOGISTICS_DOMAINS, is_logistics_domain
+from app.data.logistics_domains import is_logistics_domain
 from app.models.entity import Entity, EntityRole, EntityType
 from app.models.invoice import ComplianceScore, Invoice, InvoiceDirection, InvoiceStatus
 from app.models.screening import MatchStatus, ScreeningResult
 from app.sanctions.yente_client import YenteMatch
 from app.services.screening_service import _email_hints, _normalize_candidate_name, screen_invoice
 
-
 # ---------------------------------------------------------------------------
 # Tester for logistikk-domene-whitelist
 # ---------------------------------------------------------------------------
+
 
 class TestLogisticsDomains:
     """Verifiser at kjente logistikkdomener er whitelistet."""
@@ -79,24 +79,18 @@ class TestEmailHintsWithLogisticsDomains:
     def test_non_logistics_domain_generates_hint(self) -> None:
         """info@rosneft.com → 'rosneft' skal genereres som hint (mistenkt selskap)."""
         hints = _email_hints("info@rosneft.com")
-        assert any("rosneft" in h for h in hints), (
-            f"Forventet 'rosneft' hint fra info@rosneft.com, fikk: {hints}"
-        )
+        assert any("rosneft" in h for h in hints), f"Forventet 'rosneft' hint fra info@rosneft.com, fikk: {hints}"
 
     def test_maersk_tracking_email_no_domain_hint(self) -> None:
         """tracking@maersk.com — 'maersk' skal ikke screenes (logistikkdomene)."""
         hints = _email_hints("tracking@maersk.com")
-        assert not any("maersk" in h for h in hints), (
-            f"'maersk' burde ikke dukke opp som hint, fikk: {hints}"
-        )
+        assert not any("maersk" in h for h in hints), f"'maersk' burde ikke dukke opp som hint, fikk: {hints}"
 
     def test_bring_no_domain_suppressed(self) -> None:
         hints = _email_hints("ordrer@bring.com")
         # 'ordrer' er ikke i generic-lista men er 6 tegn = for kort enn 8 tegn for enkelt token
         # Uansett: 'bring' skal ikke screenes
-        assert not any("bring" in h for h in hints), (
-            f"'bring' burde ikke dukke opp som hint, fikk: {hints}"
-        )
+        assert not any("bring" in h for h in hints), f"'bring' burde ikke dukke opp som hint, fikk: {hints}"
 
     def test_public_domain_still_suppressed(self) -> None:
         """gmail.com skal fortsatt undertrykkes (ikke logistikk, men public domain)."""
@@ -156,9 +150,7 @@ async def test_screening_uses_latest_run_wins(
     await screen_invoice(db_session, invoice.id)
     first_count = (
         await db_session.execute(
-            select(func.count())
-            .select_from(ScreeningResult)
-            .where(ScreeningResult.invoice_id == invoice.id)
+            select(func.count()).select_from(ScreeningResult).where(ScreeningResult.invoice_id == invoice.id)
         )
     ).scalar_one()
     assert first_count == 1
@@ -167,17 +159,13 @@ async def test_screening_uses_latest_run_wins(
     await screen_invoice(db_session, invoice.id)
     second_count = (
         await db_session.execute(
-            select(func.count())
-            .select_from(ScreeningResult)
-            .where(ScreeningResult.invoice_id == invoice.id)
+            select(func.count()).select_from(ScreeningResult).where(ScreeningResult.invoice_id == invoice.id)
         )
     ).scalar_one()
     assert second_count == 1
 
     saved = (
-        await db_session.execute(
-            select(ScreeningResult).where(ScreeningResult.invoice_id == invoice.id)
-        )
+        await db_session.execute(select(ScreeningResult).where(ScreeningResult.invoice_id == invoice.id))
     ).scalar_one()
     assert saved.status in {MatchStatus.POTENTIAL_MATCH, MatchStatus.CONFIRMED_MATCH}
     assert saved.score == Decimal("0.8300")
@@ -335,15 +323,13 @@ async def test_screening_uses_email_hints_from_invoice_text(
     assert updated.compliance_score == ComplianceScore.RED
 
     rows = (
-        await db_session.execute(
-            select(ScreeningResult).where(ScreeningResult.invoice_id == invoice.id)
-        )
-    ).scalars().all()
+        (await db_session.execute(select(ScreeningResult).where(ScreeningResult.invoice_id == invoice.id)))
+        .scalars()
+        .all()
+    )
     assert any(r.status == MatchStatus.CONFIRMED_MATCH for r in rows)
     assert any(
-        (r.raw_response or {}).get("query_source") == "raw_text_email"
-        for r in rows
-        if r.status != MatchStatus.CLEAR
+        (r.raw_response or {}).get("query_source") == "raw_text_email" for r in rows if r.status != MatchStatus.CLEAR
     )
 
 
@@ -414,10 +400,10 @@ async def test_screening_ignores_generic_email_hints(
     assert updated.compliance_score == ComplianceScore.GREEN
 
     rows = (
-        await db_session.execute(
-            select(ScreeningResult).where(ScreeningResult.invoice_id == invoice.id)
-        )
-    ).scalars().all()
+        (await db_session.execute(select(ScreeningResult).where(ScreeningResult.invoice_id == invoice.id)))
+        .scalars()
+        .all()
+    )
     assert not any(row.status == MatchStatus.POTENTIAL_MATCH for row in rows)
 
 
@@ -432,11 +418,7 @@ async def test_screening_uses_raw_text_label_candidates(
         pdf_path="tests/fixtures/invoice.pdf",
         status=InvoiceStatus.EXTRACTED,
         destination_country="DE",
-        raw_text=(
-            "## COMMERCIAL INVOICE\\n"
-            "Technical contact: Abdelmalek Droukdel\\n"
-            "Buyer: Generic Imports Ltd\\n"
-        ),
+        raw_text=("## COMMERCIAL INVOICE\\nTechnical contact: Abdelmalek Droukdel\\nBuyer: Generic Imports Ltd\\n"),
     )
     db_session.add(invoice)
     await db_session.flush()
@@ -482,10 +464,10 @@ async def test_screening_uses_raw_text_label_candidates(
     assert updated.compliance_score == ComplianceScore.RED
 
     rows = (
-        await db_session.execute(
-            select(ScreeningResult).where(ScreeningResult.invoice_id == invoice.id)
-        )
-    ).scalars().all()
+        (await db_session.execute(select(ScreeningResult).where(ScreeningResult.invoice_id == invoice.id)))
+        .scalars()
+        .all()
+    )
     assert any(row.status == MatchStatus.CONFIRMED_MATCH for row in rows)
     assert any(
         (row.raw_response or {}).get("query_source") == "raw_text_label"
@@ -495,10 +477,7 @@ async def test_screening_uses_raw_text_label_candidates(
 
 
 def test_normalize_candidate_name_filters_navigation_noise() -> None:
-    noisy = (
-        "Organization | Sercel Over menu News & Events Resources Job list "
-        "Main navigation About Sercel"
-    )
+    noisy = "Organization | Sercel Over menu News & Events Resources Job list Main navigation About Sercel"
     assert _normalize_candidate_name(noisy) is None
 
 
@@ -523,9 +502,7 @@ async def test_trade_plausibility_industry_mismatch_flags_potential(
         pdf_path="tests/fixtures/invoice.pdf",
         status=InvoiceStatus.EXTRACTED,
         destination_country="AU",
-        raw_text=(
-            "Shipment includes hydraulic actuator kit and pump impeller for industrial maintenance."
-        ),
+        raw_text=("Shipment includes hydraulic actuator kit and pump impeller for industrial maintenance."),
     )
     db_session.add(invoice)
     await db_session.flush()
@@ -564,10 +541,10 @@ async def test_trade_plausibility_industry_mismatch_flags_potential(
     assert updated.compliance_score == ComplianceScore.YELLOW
 
     rows = (
-        await db_session.execute(
-            select(ScreeningResult).where(ScreeningResult.invoice_id == invoice.id)
-        )
-    ).scalars().all()
+        (await db_session.execute(select(ScreeningResult).where(ScreeningResult.invoice_id == invoice.id)))
+        .scalars()
+        .all()
+    )
     assert any(
         row.dataset == "trade_plausibility"
         and row.dataset_entity_id == "industry_mismatch"
@@ -626,12 +603,8 @@ async def test_trade_plausibility_free_zone_requires_intermediary_name(
     assert updated.compliance_score == ComplianceScore.GREEN
 
     rows = (
-        await db_session.execute(
-            select(ScreeningResult).where(ScreeningResult.invoice_id == invoice.id)
-        )
-    ).scalars().all()
-    assert not any(
-        row.dataset == "trade_plausibility"
-        and row.dataset_entity_id == "free_zone_transit"
-        for row in rows
+        (await db_session.execute(select(ScreeningResult).where(ScreeningResult.invoice_id == invoice.id)))
+        .scalars()
+        .all()
     )
+    assert not any(row.dataset == "trade_plausibility" and row.dataset_entity_id == "free_zone_transit" for row in rows)

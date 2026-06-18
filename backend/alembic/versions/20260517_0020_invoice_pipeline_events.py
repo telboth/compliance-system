@@ -8,8 +8,9 @@ Create Date: 2026-05-17
 from __future__ import annotations
 
 import sqlalchemy as sa
-from alembic import op
 from sqlalchemy.dialects import postgresql
+
+from alembic import op
 
 revision = "20260517_0020"
 down_revision = "20260517_0019"
@@ -32,10 +33,14 @@ def upgrade() -> None:
         sa.ForeignKeyConstraint(["invoice_id"], ["invoices.id"], ondelete="CASCADE"),
         sa.PrimaryKeyConstraint("id", name=op.f("pk_invoice_pipeline_events")),
     )
-    op.create_index(op.f("ix_invoice_pipeline_events_invoice_id"), "invoice_pipeline_events", ["invoice_id"], unique=False)
+    op.create_index(
+        op.f("ix_invoice_pipeline_events_invoice_id"), "invoice_pipeline_events", ["invoice_id"], unique=False
+    )
     op.create_index(op.f("ix_invoice_pipeline_events_stage"), "invoice_pipeline_events", ["stage"], unique=False)
     op.create_index(op.f("ix_invoice_pipeline_events_action"), "invoice_pipeline_events", ["action"], unique=False)
-    op.create_index(op.f("ix_invoice_pipeline_events_created_at"), "invoice_pipeline_events", ["created_at"], unique=False)
+    op.create_index(
+        op.f("ix_invoice_pipeline_events_created_at"), "invoice_pipeline_events", ["created_at"], unique=False
+    )
 
 
 def downgrade() -> None:

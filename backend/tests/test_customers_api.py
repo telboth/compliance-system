@@ -46,4 +46,3 @@ async def test_customer_crud_flow(client: AsyncClient) -> None:
     missing_resp = await client.get(f"/api/v1/customers/{customer_id}")
     assert missing_resp.status_code == 404
     assert missing_resp.json()["code"] == "NOT_FOUND"
-

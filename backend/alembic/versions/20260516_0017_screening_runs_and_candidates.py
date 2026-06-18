@@ -30,14 +30,8 @@ def upgrade() -> None:
         )
         """
     )
-    op.execute(
-        "CREATE INDEX IF NOT EXISTS ix_screening_runs_invoice_id "
-        "ON screening_runs (invoice_id)"
-    )
-    op.execute(
-        "CREATE INDEX IF NOT EXISTS ix_screening_runs_status "
-        "ON screening_runs (status)"
-    )
+    op.execute("CREATE INDEX IF NOT EXISTS ix_screening_runs_invoice_id ON screening_runs (invoice_id)")
+    op.execute("CREATE INDEX IF NOT EXISTS ix_screening_runs_status ON screening_runs (status)")
 
     op.execute(
         """
@@ -61,22 +55,10 @@ def upgrade() -> None:
         )
         """
     )
-    op.execute(
-        "CREATE INDEX IF NOT EXISTS ix_screening_candidates_run_id "
-        "ON screening_candidates (run_id)"
-    )
-    op.execute(
-        "CREATE INDEX IF NOT EXISTS ix_screening_candidates_invoice_id "
-        "ON screening_candidates (invoice_id)"
-    )
-    op.execute(
-        "CREATE INDEX IF NOT EXISTS ix_screening_candidates_entity_id "
-        "ON screening_candidates (entity_id)"
-    )
-    op.execute(
-        "CREATE INDEX IF NOT EXISTS ix_screening_candidates_source "
-        "ON screening_candidates (source)"
-    )
+    op.execute("CREATE INDEX IF NOT EXISTS ix_screening_candidates_run_id ON screening_candidates (run_id)")
+    op.execute("CREATE INDEX IF NOT EXISTS ix_screening_candidates_invoice_id ON screening_candidates (invoice_id)")
+    op.execute("CREATE INDEX IF NOT EXISTS ix_screening_candidates_entity_id ON screening_candidates (entity_id)")
+    op.execute("CREATE INDEX IF NOT EXISTS ix_screening_candidates_source ON screening_candidates (source)")
 
 
 def downgrade() -> None:
@@ -88,4 +70,3 @@ def downgrade() -> None:
     op.execute("DROP INDEX IF EXISTS ix_screening_runs_status")
     op.execute("DROP INDEX IF EXISTS ix_screening_runs_invoice_id")
     op.execute("DROP TABLE IF EXISTS screening_runs")
-

@@ -41,8 +41,6 @@ async def test_models_ollama_unavailable_returns_empty(client: AsyncClient) -> N
         response = await client.get("/api/v1/models")
 
     assert response.status_code == 200
-    ollama = next(
-        p for p in response.json()["providers"] if p["provider_id"] == "ollama"
-    )
+    ollama = next(p for p in response.json()["providers"] if p["provider_id"] == "ollama")
     assert ollama["available"] is False
     assert ollama["models"] == []

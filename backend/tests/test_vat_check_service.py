@@ -50,9 +50,7 @@ async def test_vat_mismatch_flags_export_with_vat(db_session) -> None:
     await db_session.commit()
     loaded = (
         await db_session.execute(
-            select(Invoice)
-            .where(Invoice.id == invoice.id)
-            .options(selectinload(Invoice.entities))
+            select(Invoice).where(Invoice.id == invoice.id).options(selectinload(Invoice.entities))
         )
     ).scalar_one()
 
@@ -98,9 +96,7 @@ async def test_vat_mismatch_not_flagged_when_zero_vat(db_session) -> None:
     await db_session.commit()
     loaded = (
         await db_session.execute(
-            select(Invoice)
-            .where(Invoice.id == invoice.id)
-            .options(selectinload(Invoice.entities))
+            select(Invoice).where(Invoice.id == invoice.id).options(selectinload(Invoice.entities))
         )
     ).scalar_one()
 

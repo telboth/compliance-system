@@ -33,10 +33,7 @@ def test_query_terms_keeps_signal_and_removes_noise() -> None:
 
 
 def test_build_term_focused_snippet_centers_around_term() -> None:
-    text = (
-        "Header text and generic invoice language. "
-        "Contact: oleg.sanctionbuster@rosneft.com for notifications."
-    )
+    text = "Header text and generic invoice language. Contact: oleg.sanctionbuster@rosneft.com for notifications."
     snippet = build_term_focused_snippet(text, "rosneft", max_chars=80)
     assert "rosneft" in snippet.lower()
     assert len(snippet) <= 83  # max_chars + possible leading/trailing ellipsis

@@ -15,10 +15,12 @@ from app.sanctions.embargo import SEED_LIST
 writer = csv.writer(sys.stdout)
 writer.writerow(["iso2", "name", "sources", "scope", "note"])
 for entry in SEED_LIST:
-    writer.writerow([
-        entry.iso2,
-        entry.name,
-        ", ".join(entry.sources),
-        entry.scope,
-        entry.note,
-    ])
+    writer.writerow(
+        [
+            entry.iso2,
+            entry.name,
+            ", ".join(entry.sources),
+            entry.scope,
+            entry.note,
+        ]
+    )

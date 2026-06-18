@@ -63,17 +63,10 @@ def upgrade() -> None:
     )
 
     # Indekser
+    op.execute("CREATE INDEX IF NOT EXISTS ix_screening_results_invoice_id ON screening_results (invoice_id)")
+    op.execute("CREATE INDEX IF NOT EXISTS ix_screening_results_entity_id ON screening_results (entity_id)")
     op.execute(
-        "CREATE INDEX IF NOT EXISTS ix_screening_results_invoice_id "
-        "ON screening_results (invoice_id)"
-    )
-    op.execute(
-        "CREATE INDEX IF NOT EXISTS ix_screening_results_entity_id "
-        "ON screening_results (entity_id)"
-    )
-    op.execute(
-        "CREATE INDEX IF NOT EXISTS ix_screening_results_invoice_status "
-        "ON screening_results (invoice_id, status)"
+        "CREATE INDEX IF NOT EXISTS ix_screening_results_invoice_status ON screening_results (invoice_id, status)"
     )
 
 

@@ -33,4 +33,3 @@ def downgrade() -> None:
     op.drop_index("uq_invoices_file_sha256_not_null", table_name="invoices")
     op.drop_index("ix_invoices_file_sha256", table_name="invoices")
     op.drop_column("invoices", "file_sha256")
-

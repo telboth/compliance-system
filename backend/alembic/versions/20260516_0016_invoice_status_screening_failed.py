@@ -24,4 +24,3 @@ def downgrade() -> None:
     # Postgres støtter ikke enkel fjerning av enum-verdi uten full type-rebuild.
     # Vi lar derfor downgrade være no-op.
     pass
-
