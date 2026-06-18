@@ -284,7 +284,7 @@ def create_app() -> FastAPI:
 
     app = FastAPI(
         title=settings.app_name,
-        version="0.1.0",
+        version="0.8.5",
         description="AI-drevet compliance-tjeneste for norske eksportbedrifter.",
         docs_url="/docs",
         redoc_url="/redoc",
