@@ -34,7 +34,9 @@ import { getInvoiceFileUrl } from "@/api/invoices";
 import { getInvoiceReportUrl } from "@/api/notifications";
 import { classifyHsCode } from "@/api/watchlist";
 import type {
+  CatchAllCheck,
   Entity,
+  ExportControlCheck,
   ExtractionConfidence,
   Invoice,
   InvoiceLine,
@@ -42,6 +44,110 @@ import type {
   ScreeningCandidateDebug,
   ScreeningResult,
 } from "@/api/types";
+
+// ── Eksportkontroll-panel (Vareliste I/II) ────────────────────────────────────
+
+function ExportControlPanel({ check }: { check: ExportControlCheck }) {
+  const { t } = useTranslation("pages");
+  const isControlled = check.status === "controlled";
+  // Dedupliser treff per (liste, kategori) for kompakt visning
+  const seen = new Set<string>();
+  const hits = check.hits.filter((h) => {
+    const k = `${h.list_code}:${h.category}`;
+    if (seen.has(k)) return false;
+    seen.add(k);
+    return true;
+  });
+  return (
+    <div
+      className={clsx(
+        "mt-4 rounded-lg border px-3 py-2 text-sm",
+        isControlled
+          ? "border-red-300 bg-red-50 text-red-900"
+          : "border-amber-300 bg-amber-50 text-amber-900",
+      )}
+    >
+      <div className="flex items-center gap-2 font-semibold">
+        <span>🛡</span>
+        <span>
+          {isControlled
+            ? t("export_control.status_controlled")
+            : t("export_control.status_review")}
+          {" — "}
+          {t("export_control.title")}
+        </span>
+      </div>
+      <ul className="mt-2 space-y-1">
+        {hits.map((h, i) => (
+          <li key={i} className="flex flex-wrap items-center gap-2 text-xs">
+            <span
+              className={clsx(
+                "rounded px-1.5 py-0.5 font-semibold",
+                h.list_code === "I" ? "bg-red-100 text-red-700" : "bg-amber-100 text-amber-700",
+              )}
+            >
+              Liste {h.list_code} · {h.item_code ?? h.category}
+            </span>
+            <span>{h.category_title}</span>
+            <span className="text-[11px] opacity-80">
+              ({t(`export_control.confidence.${h.confidence}`)} ·{" "}
+              {t(`export_control.via.${h.matched_via}`)})
+            </span>
+          </li>
+        ))}
+      </ul>
+      {check.summary && <p className="mt-2 text-xs">{check.summary}</p>}
+      <p className="mt-2 text-[11px] italic opacity-80">
+        {t("export_control.disclaimer")}
+      </p>
+    </div>
+  );
+}
+
+// ── Catch-all-panel (sluttbruker/sluttbruk) ───────────────────────────────────
+
+function CatchAllPanel({ check }: { check: CatchAllCheck }) {
+  const { t } = useTranslation("pages");
+  const isControlled = check.status === "controlled";
+  return (
+    <div
+      className={clsx(
+        "mt-4 rounded-lg border px-3 py-2 text-sm",
+        isControlled
+          ? "border-red-300 bg-red-50 text-red-900"
+          : "border-amber-300 bg-amber-50 text-amber-900",
+      )}
+    >
+      <div className="flex items-center gap-2 font-semibold">
+        <span>🎯</span>
+        <span>
+          {isControlled
+            ? t("catch_all.status_controlled")
+            : t("catch_all.status_review")}
+          {" — "}
+          {t("catch_all.title")}
+        </span>
+      </div>
+      <ul className="mt-2 space-y-1">
+        {check.signals.map((s, i) => (
+          <li key={i} className="text-xs">
+            <span
+              className={clsx(
+                "font-semibold",
+                s.severity === "red" ? "text-red-700" : "text-amber-700",
+              )}
+            >
+              {t(`catch_all.signal.${s.signal_type}`, { defaultValue: s.title })}
+            </span>
+            {": "}
+            {s.detail}
+          </li>
+        ))}
+      </ul>
+      <p className="mt-2 text-[11px] italic opacity-80">{t("catch_all.disclaimer")}</p>
+    </div>
+  );
+}
 
 // ── Konfidensindikatorer ──────────────────────────────────────────────────────
 
@@ -2283,6 +2389,14 @@ function MetadataSection({
               t("detail.metadata.vat_mismatch_fallback")}
           </p>
         </div>
+      )}
+
+      {invoice.export_control_check?.flagged && (
+        <ExportControlPanel check={invoice.export_control_check} />
+      )}
+
+      {invoice.catch_all_check?.flagged && (
+        <CatchAllPanel check={invoice.catch_all_check} />
       )}
 
       {/* Instruksjoner fra dokumentet — verbatim */}

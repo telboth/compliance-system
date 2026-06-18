@@ -53,6 +53,8 @@ from app.sanctions.embargo import EmbargoEntry, check_country
 from app.sanctions.yente_client import YenteMatch, get_yente_client
 from app.services.pipeline_event_service import append_pipeline_event
 from app.services import audit_service
+from app.services import catch_all_service
+from app.services import export_control_service
 from app.services import internal_watchlist_service as wl_svc
 from app.services import notification_service
 from app.services import rule_engine_service
@@ -1505,6 +1507,68 @@ async def screen_invoice(
             # at fakturaen ikke beholder grønn score når reglene ikke ble evaluert.
             if invoice.compliance_score == ComplianceScore.GREEN:
                 invoice.compliance_score = ComplianceScore.YELLOW
+
+        # ── Eksportkontroll — match fakturalinjer mot Vareliste I/II (DEKSA) ───
+        # Rent lokalt, ingen nettverkskall. Setter export_control_status og
+        # eskalerer compliance_score (militært treff → RØD, dual-use → GUL/RØD).
+        try:
+            ec_result = export_control_service.evaluate_invoice_export_control(
+                invoice, lines=invoice_lines
+            )
+            invoice.export_control_status = ec_result.status
+            invoice.export_control_summary = ec_result.summary
+            ec_escalate = {"red": ComplianceScore.RED, "yellow": ComplianceScore.YELLOW}.get(
+                ec_result.severity
+            )
+            if ec_escalate and (
+                invoice.compliance_score == ComplianceScore.GREEN
+                or (
+                    invoice.compliance_score == ComplianceScore.YELLOW
+                    and ec_escalate == ComplianceScore.RED
+                )
+            ):
+                invoice.compliance_score = ec_escalate
+            if ec_result.flagged:
+                logger.info(
+                    "export_control_flagged",
+                    invoice_id=str(invoice_id),
+                    status=ec_result.status,
+                    severity=ec_result.severity,
+                    hit_count=len(ec_result.hits),
+                )
+        except Exception:
+            logger.exception("export_control_check_failed", invoice_id=str(invoice_id))
+
+        # ── Catch-all — sluttbruker-/sluttbruk-screening (tredje ben) ──────────
+        # Flagger sensitiv sluttbruker/sluttbruk og diversjonsrisiko, også for
+        # ikke-listede varer. Rent lokalt; eskalerer compliance_score som over.
+        try:
+            ca_result = catch_all_service.evaluate_invoice_catch_all(
+                invoice, entities=list(all_entities), lines=invoice_lines
+            )
+            invoice.catch_all_status = ca_result.status
+            invoice.catch_all_summary = ca_result.summary
+            ca_escalate = {"red": ComplianceScore.RED, "yellow": ComplianceScore.YELLOW}.get(
+                ca_result.severity
+            )
+            if ca_escalate and (
+                invoice.compliance_score == ComplianceScore.GREEN
+                or (
+                    invoice.compliance_score == ComplianceScore.YELLOW
+                    and ca_escalate == ComplianceScore.RED
+                )
+            ):
+                invoice.compliance_score = ca_escalate
+            if ca_result.flagged:
+                logger.info(
+                    "catch_all_flagged",
+                    invoice_id=str(invoice_id),
+                    status=ca_result.status,
+                    severity=ca_result.severity,
+                    signal_count=len(ca_result.signals),
+                )
+        except Exception:
+            logger.exception("catch_all_check_failed", invoice_id=str(invoice_id))
 
         await session.commit()
 

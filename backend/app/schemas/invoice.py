@@ -66,6 +66,57 @@ class VatMismatchCheck(BaseModel):
     reason: str | None
 
 
+class ExportControlLineHit(BaseModel):
+    """Ett listematch-treff på én fakturalinje (Vareliste I/II)."""
+
+    line_index: int
+    line_description: str | None
+    matched_value: str
+    list_code: str            # "I" | "II"
+    category: str
+    category_title: str
+    item_code: str | None
+    confidence: str           # "high" | "medium" | "low"
+    matched_via: str          # "eccn" | "hs" | "keyword"
+    reason: str
+
+
+class ExportControlCheck(BaseModel):
+    """Samlet eksportkontroll-vurdering mot DEKSAs varelister."""
+
+    flagged: bool
+    status: str               # "clear" | "review" | "controlled"
+    severity: str             # "green" | "yellow" | "red"
+    destination_country: str | None
+    destination_sanctioned: bool
+    hits: list[ExportControlLineHit] = Field(default_factory=list)
+    summary: str | None
+
+
+class CatchAllSignal(BaseModel):
+    """Ett røde-flagg-signal i catch-all-/sluttbrukervurderingen."""
+
+    signal_type: str
+    severity: str             # "yellow" | "red"
+    title: str
+    detail: str
+    entity_name: str | None
+    country: str | None
+
+
+class CatchAllCheck(BaseModel):
+    """Catch-all-vurdering: sluttbruker, sluttbruk og diversjonsrisiko."""
+
+    flagged: bool
+    status: str               # "clear" | "review" | "controlled"
+    severity: str             # "green" | "yellow" | "red"
+    end_user_name: str | None
+    end_user_country: str | None
+    destination_country: str | None
+    signals: list[CatchAllSignal] = Field(default_factory=list)
+    summary: str | None
+
+
 class InvoiceRead(BaseModel):
     """Detaljert visning av en invoice."""
 
@@ -111,6 +162,8 @@ class InvoiceRead(BaseModel):
     lines: list[InvoiceLineRead] = Field(default_factory=list)
     entities: list[EntityRead] = Field(default_factory=list)
     vat_mismatch_check: VatMismatchCheck | None = None
+    export_control_check: ExportControlCheck | None = None
+    catch_all_check: CatchAllCheck | None = None
 
     # Review-beslutning
     review_decision: str | None = None
@@ -143,6 +196,10 @@ class InvoiceSummary(BaseModel):
     email_note_text: str | None = None
     llm_note_preview: str | None = None
     llm_note_full: str | None = None
+    export_control_status: str | None = None
+    export_control_summary: str | None = None
+    catch_all_status: str | None = None
+    catch_all_summary: str | None = None
 
 
 class VatMismatchItem(BaseModel):
@@ -276,6 +333,8 @@ class ReviewQueueItem(BaseModel):
     has_ownership_risk: bool = False
     has_dual_use_risk: bool = False
     has_vat_deviation: bool = False
+    has_export_control: bool = False
+    has_catch_all: bool = False
     awaiting_approval: bool = False
     review_claimed_by: str | None = None
     review_claimed_at: datetime | None = None

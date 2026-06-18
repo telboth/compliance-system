@@ -157,6 +157,16 @@ class Invoice(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     email_note_text: Mapped[str | None] = mapped_column(String(512), nullable=True)
     llm_note_preview: Mapped[str | None] = mapped_column(String(512), nullable=True)
 
+    # Eksportkontroll — listematch mot Vareliste I/II (DEKSA).
+    # Status: None (ikke evaluert) | "clear" | "review" | "controlled"
+    export_control_status: Mapped[str | None] = mapped_column(String(16), nullable=True, index=True)
+    export_control_summary: Mapped[str | None] = mapped_column(String(512), nullable=True)
+
+    # Catch-all — sluttbruker-/sluttbruk-screening (tredje ben i eksportkontroll).
+    # Status: None (ikke evaluert) | "clear" | "review" | "controlled"
+    catch_all_status: Mapped[str | None] = mapped_column(String(16), nullable=True, index=True)
+    catch_all_summary: Mapped[str | None] = mapped_column(String(512), nullable=True)
+
     # LLM-ekstraksjon (Sprint 2)
     extraction_confidence: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
     extraction_error: Mapped[str | None] = mapped_column(Text, nullable=True)

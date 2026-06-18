@@ -31,6 +31,7 @@ from app.models.ai_decision_record import AIDecisionRecord
 from app.models.audit_plan import AuditPlan
 from app.models.compliance_policy import CompliancePolicy, CompliancePolicyVersion
 from app.models.control_deviation import ControlDeviation
+from app.models.export_control_item import ExportControlListItem
 from app.models.regulatory_alert import RegulatoryAlert
 from app.models.user_preference import UserPreference
 from app.models.vendor import Vendor
@@ -49,6 +50,7 @@ __all__ = [
     "Entity",
     "EntityRole",
     "EntityType",
+    "ExportControlListItem",
     "ExtendedScreenClaim",
     "ExtendedScreenFeedback",
     "ExtendedScreenRun",

@@ -33,6 +33,42 @@ function ScoreChip({ score }: { score: ComplianceScore | null }) {
   );
 }
 
+// ── Flagg-kilder ──────────────────────────────────────────────────────────────
+
+/** Viser én pille per flagg-kilde som er aktiv på fakturaen. */
+function FlagPills({ item }: { item: ReviewQueueItem }) {
+  const { t } = useTranslation("pages");
+  const flags: { active: boolean; icon: string; key: string; cls: string }[] = [
+    { active: item.has_sanctions_hit, icon: "🚫", key: "sanctions", cls: "bg-red-100 text-red-700" },
+    { active: item.has_embargo_hit, icon: "⛔", key: "embargo", cls: "bg-red-100 text-red-700" },
+    { active: item.has_export_control, icon: "🛡", key: "export_control", cls: "bg-amber-100 text-amber-700" },
+    { active: item.has_catch_all, icon: "🎯", key: "catch_all", cls: "bg-amber-100 text-amber-700" },
+    { active: item.has_dual_use_risk, icon: "🔬", key: "dual_use", cls: "bg-yellow-100 text-yellow-700" },
+    { active: item.has_ownership_risk, icon: "🏢", key: "ownership", cls: "bg-gray-100 text-gray-600" },
+    { active: item.has_vat_deviation, icon: "％", key: "vat", cls: "bg-gray-100 text-gray-600" },
+  ];
+  const active = flags.filter((f) => f.active);
+  if (active.length === 0) {
+    return <span className="text-xs text-xlent-muted">—</span>;
+  }
+  return (
+    <div className="flex flex-wrap gap-1">
+      {active.map((f) => (
+        <span
+          key={f.key}
+          className={clsx(
+            "inline-flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[10px] font-semibold",
+            f.cls,
+          )}
+          title={t(`review_queue.flag.${f.key}`)}
+        >
+          {f.icon} {t(`review_queue.flag.${f.key}`)}
+        </span>
+      ))}
+    </div>
+  );
+}
+
 // ── Rad i tabellen ────────────────────────────────────────────────────────────
 
 function QueueRow({ item }: { item: ReviewQueueItem }) {
@@ -67,6 +103,9 @@ function QueueRow({ item }: { item: ReviewQueueItem }) {
         {item.invoice_number && item.original_filename && (
           <span className="ml-2 text-xs text-xlent-muted">#{item.invoice_number}</span>
         )}
+      </td>
+      <td className="py-3 px-2">
+        <FlagPills item={item} />
       </td>
       <td className="py-3 px-2 text-sm text-xlent-muted capitalize">
         {tCommon(`direction.${item.direction}`)}
@@ -127,6 +166,8 @@ export function ReviewQueuePage() {
     | "all"
     | "sanctions"
     | "embargo"
+    | "export_control"
+    | "catch_all"
     | "ownership"
     | "dual_use"
     | "vat"
@@ -138,6 +179,8 @@ export function ReviewQueuePage() {
     if (quickFilter === "all") return items;
     if (quickFilter === "sanctions") return items.filter((i) => i.has_sanctions_hit);
     if (quickFilter === "embargo") return items.filter((i) => i.has_embargo_hit);
+    if (quickFilter === "export_control") return items.filter((i) => i.has_export_control);
+    if (quickFilter === "catch_all") return items.filter((i) => i.has_catch_all);
     if (quickFilter === "ownership") return items.filter((i) => i.has_ownership_risk);
     if (quickFilter === "dual_use") return items.filter((i) => i.has_dual_use_risk);
     if (quickFilter === "vat") return items.filter((i) => i.has_vat_deviation);
@@ -165,6 +208,8 @@ export function ReviewQueuePage() {
           ["all", t("review_queue.filter_all")],
           ["sanctions", t("review_queue.filter_sanctions")],
           ["embargo", t("review_queue.filter_embargo")],
+          ["export_control", t("review_queue.filter_export_control")],
+          ["catch_all", t("review_queue.filter_catch_all")],
           ["ownership", t("review_queue.filter_ownership")],
           ["dual_use", t("review_queue.filter_dual_use")],
           ["vat", t("review_queue.filter_vat")],
@@ -228,6 +273,7 @@ export function ReviewQueuePage() {
               <tr className="bg-xlent-surface text-left text-xs font-semibold uppercase tracking-wide text-xlent-muted">
                 <th className="py-2 pl-4 pr-2">{t("review_queue.col_score")}</th>
                 <th className="px-2 py-2">{t("review_queue.col_invoice")}</th>
+                <th className="px-2 py-2">{t("review_queue.col_flags")}</th>
                 <th className="px-2 py-2">{t("review_queue.col_direction")}</th>
                 <th className="px-2 py-2">{t("review_queue.col_dest")}</th>
                 <th className="px-2 py-2">{t("review_queue.col_amount")}</th>

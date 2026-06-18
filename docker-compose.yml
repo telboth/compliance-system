@@ -86,7 +86,7 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
-    command: sh -c "if [ \"${API_RELOAD:-false}\" = \"true\" ]; then uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload; else uvicorn app.main:app --host 0.0.0.0 --port 8000; fi"
+    command: sh -c "alembic upgrade head && if [ \"${API_RELOAD:-false}\" = \"true\" ]; then uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload; else uvicorn app.main:app --host 0.0.0.0 --port 8000; fi"
 
   worker:
     build:

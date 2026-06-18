@@ -19,11 +19,19 @@ import io
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 
+from collections.abc import Awaitable
+from typing import Any, TypeVar
+
 from sqlalchemy import case, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.logging import get_logger
 from app.models.invoice import ComplianceScore, Invoice, InvoiceStatus
 from app.models.screening import MatchStatus, ScreeningResult
+
+logger = get_logger(__name__)
+
+_T = TypeVar("_T")
 
 
 # ---------------------------------------------------------------------------
@@ -196,9 +204,15 @@ async def monthly_hit_trend(session: AsyncSession, *, months: int = 12) -> list[
     """Antall screeningtreff gruppert per måned, siste N måneder."""
     since = _months_back(months)
 
+    # Bygg trunkeringsuttrykket ÉN gang og gjenbruk samme objekt i select,
+    # group_by og order_by. Tre separate func.date_trunc(...)-kall ville gitt
+    # ulike bind-parametre, som Postgres ikke gjenkjenner som samme uttrykk
+    # (GroupingError: "must appear in the GROUP BY clause").
+    month_col = func.date_trunc("month", ScreeningResult.screened_at)
+
     result = await session.execute(
         select(
-            func.date_trunc("month", ScreeningResult.created_at).label("month"),
+            month_col.label("month"),
             func.count(ScreeningResult.id).label("hit_count"),
             func.sum(
                 case(
@@ -211,8 +225,8 @@ async def monthly_hit_trend(session: AsyncSession, *, months: int = 12) -> list[
             ScreeningResult.screened_at >= since,
             ScreeningResult.status.in_([MatchStatus.CONFIRMED_MATCH, MatchStatus.POTENTIAL_MATCH]),
         )
-        .group_by(func.date_trunc("month", ScreeningResult.created_at))
-        .order_by(func.date_trunc("month", ScreeningResult.created_at))
+        .group_by(month_col)
+        .order_by(month_col)
     )
     return [
         {
@@ -229,18 +243,55 @@ async def monthly_hit_trend(session: AsyncSession, *, months: int = 12) -> list[
 # ---------------------------------------------------------------------------
 
 
+async def _safe(coro: Awaitable[_T], *, default: _T, name: str) -> _T:
+    """Kjør én KRI-indikator; ved feil logges den og en trygg standard returneres.
+
+    Gjør at én feilende indikator ikke 500-er hele dashbordet — resten lastes,
+    og loggen navngir hvilken del som feilet.
+    """
+    try:
+        return await coro
+    except Exception:
+        logger.exception("kri_indicator_failed", indicator=name)
+        return default
+
+
 async def full_kri_report(session: AsyncSession, *, months: int = 12) -> dict:
-    """Samle alle KRI-er i én respons."""
+    """Samle alle KRI-er i én respons. Robust: delvis data ved enkeltfeil."""
+    empty_rate = {"total_screened": 0, "with_hits": 0, "rate": 0.0}
+    empty_fp = {"potential_reviewed": 0, "false_positives": 0, "rate": 0.0}
+    empty_avg: dict[str, Any] = {"avg_days_to_resolution": None, "months": months}
+    empty_exposure = {"total_exposure_nok": 0.0, "avg_exposure_nok": 0.0, "invoice_count": 0}
     return {
         "generated_at": datetime.now(UTC).isoformat(),
         "period_months": months,
-        "screening_hit_rate": await screening_hit_rate(session, months=months),
-        "false_positive_rate": await false_positive_rate(session, months=months),
-        "avg_days_to_resolution": await avg_days_to_resolution(session, months=months),
-        "top_flagged_countries": await top_flagged_countries(session, months=months),
-        "top_flagged_entities": await top_flagged_entities(session, months=months),
-        "risk_exposure_summary": await risk_exposure_summary(session),
-        "monthly_hit_trend": await monthly_hit_trend(session, months=months),
+        "screening_hit_rate": await _safe(
+            screening_hit_rate(session, months=months),
+            default=empty_rate,
+            name="screening_hit_rate",
+        ),
+        "false_positive_rate": await _safe(
+            false_positive_rate(session, months=months),
+            default=empty_fp,
+            name="false_positive_rate",
+        ),
+        "avg_days_to_resolution": await _safe(
+            avg_days_to_resolution(session, months=months),
+            default=empty_avg,
+            name="avg_days_to_resolution",
+        ),
+        "top_flagged_countries": await _safe(
+            top_flagged_countries(session, months=months), default=[], name="top_flagged_countries"
+        ),
+        "top_flagged_entities": await _safe(
+            top_flagged_entities(session, months=months), default=[], name="top_flagged_entities"
+        ),
+        "risk_exposure_summary": await _safe(
+            risk_exposure_summary(session), default=empty_exposure, name="risk_exposure_summary"
+        ),
+        "monthly_hit_trend": await _safe(
+            monthly_hit_trend(session, months=months), default=[], name="monthly_hit_trend"
+        ),
     }
 
 

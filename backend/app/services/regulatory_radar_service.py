@@ -55,11 +55,20 @@ REGULATORY_FEEDS: list[dict[str, str]] = [
         "category": "sanctions",
         "description": "FNs sikkerhetsråd — konsolidert sanksjonsliste",
     },
+    {
+        "name": "DEKSA",
+        "feed_url": "https://deksa.no/feed/",
+        "category": "export_control",
+        "description": "Direktoratet for eksportkontroll og sanksjoner — norske "
+        "listeoppdateringer, sanksjonsendringer og varslinger",
+    },
 ]
 
-# Nøkkelord som setter severity til "critical"
+# Nøkkelord som setter severity til "critical".
+# Inkluderer norske termer for DEKSA-feeden (som er på bokmål).
 _CRITICAL_KEYWORDS = frozenset(
     {
+        # Engelsk
         "added",
         "listed",
         "designated",
@@ -68,6 +77,12 @@ _CRITICAL_KEYWORDS = frozenset(
         "consolidated",
         "update",
         "amendment",
+        # Norsk
+        "sanksjon",
+        "embargo",
+        "eksportforbud",
+        "listeført",
+        "tiltak mot",
     }
 )
 

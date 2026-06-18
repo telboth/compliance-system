@@ -13,6 +13,13 @@
     "invoice_search": "Invoice Search",
     "shipments_map": "Shipments Map",
     "pipeline_ops": "Pipeline Ops",
+    "kri": "📈 KRI",
+    "regulatory_radar": "🔔 Reg. Radar",
+    "vendors": "Vendors",
+    "vat_mismatch": "VAT Mismatch",
+    "export_control": "🛡 Export Control",
+    "catch_all": "🎯 End-user",
+    "control_effectiveness": "Control Deviations",
     "about": "About",
     "no_access": "You do not have access to this page with your current role"
   },

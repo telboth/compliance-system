@@ -93,6 +93,147 @@ export interface VatMismatchCheck {
   reason: string | null;
 }
 
+// ── Eksportkontroll (DEKSA Vareliste I/II) ────────────────────────────────────
+
+export type ExportControlListCode = "I" | "II";
+export type ExportControlConfidence = "high" | "medium" | "low";
+export type ExportControlStatus = "clear" | "review" | "controlled";
+
+export interface ExportControlLineHit {
+  line_index: number;
+  line_description: string | null;
+  matched_value: string;
+  list_code: ExportControlListCode;
+  category: string;
+  category_title: string;
+  item_code: string | null;
+  confidence: ExportControlConfidence;
+  matched_via: "eccn" | "hs" | "keyword";
+  reason: string;
+}
+
+export interface ExportControlCheck {
+  flagged: boolean;
+  status: ExportControlStatus;
+  severity: "green" | "yellow" | "red";
+  destination_country: string | null;
+  destination_sanctioned: boolean;
+  hits: ExportControlLineHit[];
+  summary: string | null;
+}
+
+export interface ExportControlInvoiceItem {
+  invoice_id: string;
+  invoice_number: string | null;
+  original_filename: string | null;
+  direction: InvoiceDirection;
+  status: InvoiceStatus;
+  compliance_score: ComplianceScore | null;
+  destination_country: string | null;
+  invoice_date: string | null;
+  created_at: string;
+  check: ExportControlCheck;
+}
+
+export interface ExportControlListResponse {
+  total_scanned: number;
+  total_flagged: number;
+  limit: number;
+  offset: number;
+  items: ExportControlInvoiceItem[];
+}
+
+export interface ExportControlReferenceItem {
+  id: string;
+  list_code: ExportControlListCode;
+  category: string;
+  group: string | null;
+  item_code: string;
+  title: string | null;
+  regime: string | null;
+  source_version: string;
+}
+
+export interface ExportControlReferenceResponse {
+  total: number;
+  item_count_total: number;
+  items: ExportControlReferenceItem[];
+}
+
+export interface ExportControlClassifyResponse {
+  input: string;
+  normalized_code: string;
+  list_code: ExportControlListCode;
+  category: string;
+  group: string | null;
+  category_title_no: string | null;
+  category_title_en: string | null;
+  regime: string | null;
+}
+
+export interface ExportControlBackfillResponse {
+  processed: number;
+  flagged: number;
+  rescored: number;
+}
+
+// ── Catch-all / sluttbruker-screening ─────────────────────────────────────────
+
+export type CatchAllSignalType =
+  | "embargoed_end_user"
+  | "military_end_user"
+  | "nuclear_end_user"
+  | "sensitive_end_use"
+  | "diversion_risk"
+  | "undeclared_end_user";
+
+export interface CatchAllSignal {
+  signal_type: CatchAllSignalType;
+  severity: "yellow" | "red";
+  title: string;
+  detail: string;
+  entity_name: string | null;
+  country: string | null;
+}
+
+export interface CatchAllCheck {
+  flagged: boolean;
+  status: ExportControlStatus; // "clear" | "review" | "controlled"
+  severity: "green" | "yellow" | "red";
+  end_user_name: string | null;
+  end_user_country: string | null;
+  destination_country: string | null;
+  signals: CatchAllSignal[];
+  summary: string | null;
+}
+
+export interface CatchAllInvoiceItem {
+  invoice_id: string;
+  invoice_number: string | null;
+  original_filename: string | null;
+  direction: InvoiceDirection;
+  status: InvoiceStatus;
+  compliance_score: ComplianceScore | null;
+  destination_country: string | null;
+  invoice_date: string | null;
+  created_at: string;
+  check: CatchAllCheck;
+}
+
+export interface CatchAllListResponse {
+  total_scanned: number;
+  total_flagged: number;
+  limit: number;
+  offset: number;
+  items: CatchAllInvoiceItem[];
+}
+
+export interface CatchAllBackfillResponse {
+  processed: number;
+  flagged: number;
+  rescored: number;
+}
+
 export interface Invoice {
   id: string;
   invoice_number: string | null;
@@ -128,6 +269,8 @@ export interface Invoice {
   output_tokens: number | null;
   raw_text: string | null;
   vat_mismatch_check: VatMismatchCheck | null;
+  export_control_check: ExportControlCheck | null;
+  catch_all_check: CatchAllCheck | null;
   lines: InvoiceLine[];
   entities: Entity[];
   // Review-beslutning
@@ -157,6 +300,10 @@ export interface InvoiceSummary {
   email_note_text: string | null;
   llm_note_preview: string | null;
   llm_note_full: string | null;
+  export_control_status: ExportControlStatus | null;
+  export_control_summary: string | null;
+  catch_all_status: ExportControlStatus | null;
+  catch_all_summary: string | null;
 }
 
 export interface InvoiceListResponse {
@@ -205,6 +352,8 @@ export interface ReviewQueueItem {
   has_ownership_risk: boolean;
   has_dual_use_risk: boolean;
   has_vat_deviation: boolean;
+  has_export_control: boolean;
+  has_catch_all: boolean;
   awaiting_approval: boolean;
   review_claimed_by: string | null;
   review_claimed_at: string | null;
@@ -695,6 +844,139 @@ export interface WatchlistEntryUpdate {
   reason?: string;
   severity?: WatchlistSeverity;
   is_active?: boolean;
+}
+
+// ── KRI — Key Risk Indicators ─────────────────────────────────────────────────
+
+export interface KRIHitRate {
+  total_screened: number;
+  with_hits: number;
+  rate: number;
+}
+
+export interface KRIFalsePositiveRate {
+  potential_reviewed: number;
+  false_positives: number;
+  rate: number;
+}
+
+export interface KRIAvgDays {
+  avg_days_to_resolution: number | null;
+  months: number;
+}
+
+export interface KRITopCountry {
+  country: string;
+  hit_count: number;
+}
+
+export interface KRITopEntity {
+  entity_name: string;
+  hit_count: number;
+  confirmed_count: number;
+}
+
+export interface KRIRiskExposure {
+  total_exposure_nok: number;
+  avg_exposure_nok: number;
+  invoice_count: number;
+}
+
+export interface KRIMonthlyPoint {
+  month: string | null;
+  hit_count: number;
+  confirmed_count: number;
+}
+
+export interface KRIReport {
+  generated_at: string;
+  period_months: number;
+  screening_hit_rate: KRIHitRate;
+  false_positive_rate: KRIFalsePositiveRate;
+  avg_days_to_resolution: KRIAvgDays;
+  top_flagged_countries: KRITopCountry[];
+  top_flagged_entities: KRITopEntity[];
+  risk_exposure_summary: KRIRiskExposure;
+  monthly_hit_trend: KRIMonthlyPoint[];
+}
+
+// ── Regulatorisk Radar ────────────────────────────────────────────────────────
+
+export interface RegulatoryAlert {
+  id: string;
+  source: string;
+  feed_url: string;
+  title: string;
+  link: string | null;
+  summary: string | null;
+  published_at: string | null;
+  fetched_at: string;
+  guid: string;
+  severity: string;
+  category: string | null;
+  is_notified: boolean;
+  created_at: string;
+}
+
+export interface RegulatoryAlertListResponse {
+  total: number;
+  items: RegulatoryAlert[];
+}
+
+export interface RegulatorySource {
+  name: string;
+  feed_url: string;
+  category: string;
+  description: string;
+}
+
+export interface RegulatoryRefreshResponse {
+  new_alerts_by_source: Record<string, number>;
+  total_new: number;
+  notifications_sent: number;
+}
+
+// ── Leverandørregister ────────────────────────────────────────────────────────
+
+export interface Vendor {
+  id: string;
+  name_display: string;
+  name_normalized: string;
+  country: string | null;
+  email_domain: string | null;
+  risk_level: string;
+  invoice_count: number;
+  screening_hit_count: number;
+  confirmed_hit_count: number;
+  notes: string | null;
+  external_id: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface VendorListResponse {
+  total: number;
+  items: Vendor[];
+}
+
+// ── Kontrolleffektivitet ──────────────────────────────────────────────────────
+
+export interface ControlDeviation {
+  id: string;
+  invoice_id: string;
+  compliance_score_at_approval: string;
+  reviewed_by: string;
+  deviation_type: string;
+  vendor_name: string | null;
+  destination_country: string | null;
+  is_repeat_vendor: boolean;
+  reason_summary: string | null;
+  created_at: string;
+}
+
+export interface ControlDeviationListResponse {
+  total: number;
+  items: ControlDeviation[];
 }
 
 // ── HS-kode klassifisering ────────────────────────────────────────────────────

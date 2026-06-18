@@ -12,7 +12,7 @@ from __future__ import annotations
 import os
 import re
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Response, status
 from pydantic import BaseModel
 
 from app.core.config import get_secrets_path, get_settings
@@ -51,11 +51,15 @@ async def get_keys_status() -> KeysStatusResponse:
     )
 
 
-@router.post("/keys", status_code=status.HTTP_204_NO_CONTENT)
+@router.post(
+    "/keys",
+    status_code=status.HTTP_204_NO_CONTENT,
+    response_class=Response,
+)
 async def update_keys(
     body: KeysUpdateRequest,
     _actor=Depends(require_roles("admin")),
-) -> None:
+) -> Response:
     """
     Lagrer API-nøkler til .secrets og oppdaterer konfigurasjonen live.
 
@@ -90,6 +94,8 @@ async def update_keys(
     get_settings.cache_clear()
 
     logger.info("api_keys_updated", updated_keys=list(updates.keys()))
+
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 # ── Intern hjelpefunksjon ─────────────────────────────────────────────────────

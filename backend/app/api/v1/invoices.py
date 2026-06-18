@@ -42,6 +42,8 @@ from app.schemas.invoice import (
 )
 from app.services import extraction_service, invoice_service
 from app.services import invoice_preferences_service, invoice_review_service
+from app.services.catch_all_service import evaluate_invoice_catch_all
+from app.services.export_control_service import evaluate_invoice_export_control
 from app.services.vat_check_service import evaluate_invoice_vat_mismatch, list_vat_mismatch_invoices
 
 router = APIRouter()
@@ -72,6 +74,8 @@ def _safe_filename(name: str) -> str:
 def _to_invoice_read(invoice: Invoice) -> InvoiceRead:
     payload = InvoiceRead.model_validate(invoice)
     payload.vat_mismatch_check = evaluate_invoice_vat_mismatch(invoice).to_dict()
+    payload.export_control_check = evaluate_invoice_export_control(invoice).to_dict()
+    payload.catch_all_check = evaluate_invoice_catch_all(invoice).to_dict()
     payload.approval_state = (
         invoice.approval_state
         if invoice.approval_state is not None

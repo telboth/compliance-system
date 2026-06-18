@@ -7,11 +7,13 @@ from app.api.v1 import (
     agreements,
     ai_governance,
     audit_plans,
+    catch_all,
     config,
     control_effectiveness,
     customers,
     policies,
     dashboard,
+    export_control,
     health,
     hs_codes,
     invoices,
@@ -105,6 +107,20 @@ api_router.include_router(
     control_effectiveness.router,
     prefix="/control-deviations",
     tags=["control-effectiveness"],
+)
+
+# Eksportkontroll — Vareliste I/II listematch
+api_router.include_router(
+    export_control.router,
+    prefix="/export-control",
+    tags=["export-control"],
+)
+
+# Catch-all — sluttbruker-/sluttbruk-screening
+api_router.include_router(
+    catch_all.router,
+    prefix="/catch-all",
+    tags=["catch-all"],
 )
 
 # Policy Management

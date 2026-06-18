@@ -73,6 +73,38 @@ const AboutPage = lazy(async () => {
   const m = await import("@/pages/About");
   return { default: m.AboutPage };
 });
+const KRIPage = lazy(async () => {
+  const m = await import("@/pages/KRI");
+  return { default: m.KRIPage };
+});
+const RegulatoryRadarPage = lazy(async () => {
+  const m = await import("@/pages/RegulatoryRadar");
+  return { default: m.RegulatoryRadarPage };
+});
+const VendorsPage = lazy(async () => {
+  const m = await import("@/pages/Vendors");
+  return { default: m.VendorsPage };
+});
+const VatMismatchPage = lazy(async () => {
+  const m = await import("@/pages/VatMismatch");
+  return { default: m.VatMismatchPage };
+});
+const ControlEffectivenessPage = lazy(async () => {
+  const m = await import("@/pages/ControlEffectiveness");
+  return { default: m.ControlEffectivenessPage };
+});
+const ExportControlPage = lazy(async () => {
+  const m = await import("@/pages/ExportControl");
+  return { default: m.ExportControlPage };
+});
+const ExportControlReferencePage = lazy(async () => {
+  const m = await import("@/pages/ExportControlReference");
+  return { default: m.ExportControlReferencePage };
+});
+const CatchAllPage = lazy(async () => {
+  const m = await import("@/pages/CatchAll");
+  return { default: m.CatchAllPage };
+});
 
 /** Fanger krasj i lazy-lastede sider og viser feilmelding i stedet for blank side. */
 class PageErrorBoundary extends Component<
@@ -227,6 +259,7 @@ function AppShell() {
             <NavItem to="/invoices" label={t("nav.invoices")} />
             <NavItem to="/dashboard" label={t("nav.dashboard")} />
             <NavItem to="/customers" label={t("nav.customers")} />
+            <NavItem to="/vendors" label={t("nav.vendors")} require="customers:view" />
 
             {/* Review-kø — synlig for compliance_officer og admin */}
             <NavItem
@@ -236,10 +269,20 @@ function AppShell() {
               badge={reviewBadge}
             />
 
+            {/* Arbeidslister for controlleren */}
+            <NavItem to="/vat-mismatch" label={t("nav.vat_mismatch")} />
+            <NavItem to="/export-control" label={t("nav.export_control")} />
+            <NavItem to="/catch-all" label={t("nav.catch_all")} />
+
             {/* Compliance-verktøy */}
             <NavItem to="/rules" label={t("nav.rules")} require="rules:view" />
             <NavItem to="/watchlist" label={t("nav.watchlist")} require="rules:edit" />
             <NavItem to="/agreements" label={t("nav.agreements")} />
+            <NavItem
+              to="/control-effectiveness"
+              label={t("nav.control_effectiveness")}
+              require="invoices:review"
+            />
 
             {/* Kart og screening — synlig for alle */}
             <NavItem to="/maps" label={t("nav.maps")} />
@@ -247,6 +290,10 @@ function AppShell() {
 
             {/* Søk */}
             <NavItem to="/invoice-search" label={t("nav.invoice_search")} />
+
+            {/* Analyser og varsler */}
+            <NavItem to="/kri" label={t("nav.kri")} />
+            <NavItem to="/regulatory-radar" label={t("nav.regulatory_radar")} />
 
             {/* Drift — skjules helt for ikke-admins */}
             <NavItem to="/pipeline-ops" label={t("nav.pipeline_ops")} adminOnly />
@@ -352,6 +399,40 @@ function AppShell() {
               element={
                 <ProtectedRoute require="system:admin">
                   <PipelineOpsPage />
+                </ProtectedRoute>
+              }
+            />
+
+            {/* KRI og regulatorisk radar */}
+            <Route path="/kri" element={<KRIPage />} />
+            <Route path="/regulatory-radar" element={<RegulatoryRadarPage />} />
+
+            {/* Leverandørregister */}
+            <Route
+              path="/vendors"
+              element={
+                <ProtectedRoute require="customers:view">
+                  <VendorsPage />
+                </ProtectedRoute>
+              }
+            />
+
+            {/* MVA-avvik — arbeidsliste for controlleren */}
+            <Route path="/vat-mismatch" element={<VatMismatchPage />} />
+
+            {/* Eksportkontroll — listematch mot Vareliste I/II */}
+            <Route path="/export-control" element={<ExportControlPage />} />
+            <Route path="/export-control/reference" element={<ExportControlReferencePage />} />
+
+            {/* Catch-all — sluttbruker-/sluttbruk-screening */}
+            <Route path="/catch-all" element={<CatchAllPage />} />
+
+            {/* Kontrolleffektivitet — compliance_officer og admin */}
+            <Route
+              path="/control-effectiveness"
+              element={
+                <ProtectedRoute require="invoices:review">
+                  <ControlEffectivenessPage />
                 </ProtectedRoute>
               }
             />

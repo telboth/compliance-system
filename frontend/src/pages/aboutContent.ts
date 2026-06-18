@@ -1,4 +1,4 @@
-/**
+﻿/**
  * aboutContent.ts
  *
  * All text content for the About page in Norwegian (nb) and English (en).
@@ -119,7 +119,7 @@ const STEP_COLORS = [
   "bg-teal-100 text-teal-700 border-teal-200",
 ];
 
-const ROLE_COLORS: Record<string, string> = {
+const ROLE_COLORS: { admin: string; c_level: string; compliance_officer: string; controller: string; readonly: string } = {
   admin:              "bg-red-100 text-red-800",
   c_level:            "bg-indigo-100 text-indigo-800",
   compliance_officer: "bg-purple-100 text-purple-800",
@@ -254,6 +254,30 @@ const NB: AboutContent = {
       desc: "Motparter og kunder registreres med compliance-historikk. Gir oversikt over " +
             "hvilke fakturaer som er knyttet til hver part og om det finnes aapne funn.",
     },
+    {
+      icon: "🛡",
+      title: "Eksportkontroll - DEKSAs varelister",
+      desc: "Fakturalinjer sjekkes automatisk mot Vareliste I (militaere varer, ML1-ML22) " +
+            "og Vareliste II (dual-use, kategoriene 0-9) fra DEKSA. Tre-lags matcher: " +
+            "strukturmatch paa ECCN/ML-kode, HS-kodeforbro og nookkeldordleksikon. " +
+            "Destinasjonsland avgjoor alvorlighetsgraden (rod / gul).",
+    },
+    {
+      icon: "🎯",
+      title: "Sluttbruker / catch-all-screening",
+      desc: "Dedikert modul som flagger risikosignaler i sluttbruker, destinasjon og " +
+            "tiltenkt bruk etter DEKSAs catch-all-prinsipp (eksportkontrolloven SS 5): " +
+            "militaer/nukleoer sluttbruker, diversjonsrisiko, ikke-deklarert mottaker. " +
+            "Seks signaltyper med eget alvorlighetsnivaao.",
+    },
+    {
+      icon: "🗂",
+      title: "Samlet arbeidsliste med flagg",
+      desc: "Review-koen viser fargede merkelapper per faktura for alle sju flaggkilder: " +
+            "sanksjon, embargo, vareliste, sluttbruker, dual-use, eierskap og MVA. " +
+            "Egne hurtigfiltre per kilde gir ett sted for all compliance-oppfolging.",
+    },
+
   ],
 
   // ── Workflow ──────────────────────────────────────────────────────────────
@@ -265,7 +289,7 @@ const NB: AboutContent = {
 
   workflowSteps: [
     {
-      step: 1, icon: "📤", color: STEP_COLORS[0],
+      step: 1, icon: "📤", color: STEP_COLORS[0]!,
       title: "Opplasting",
       desc: "En PDF-faktura lastes opp via brukergrensesnittet. Filen lagres og et oppdrag " +
             "opprettes i systemet med status 'uploaded'.",
@@ -276,7 +300,7 @@ const NB: AboutContent = {
       ],
     },
     {
-      step: 2, icon: "🔍", color: STEP_COLORS[1],
+      step: 2, icon: "🔍", color: STEP_COLORS[1]!,
       title: "Parsing",
       desc: "Systemet leser PDF-en og trekker ut raaatekst. OCR brukes ved behov for " +
             "skannede dokumenter. Status settes til 'parsing'.",
@@ -286,7 +310,7 @@ const NB: AboutContent = {
       ],
     },
     {
-      step: 3, icon: "🤖", color: STEP_COLORS[2],
+      step: 3, icon: "🤖", color: STEP_COLORS[2]!,
       title: "AI-ekstraksjon",
       desc: "En stor spraksmodell analyserer fakturateksten og ekstraherer strukturerte data: " +
             "selger, kjoper, speditoor, destinasjonsland, HS-koder, linjebeloep og mer. " +
@@ -299,7 +323,7 @@ const NB: AboutContent = {
       ],
     },
     {
-      step: 4, icon: "🔎", color: STEP_COLORS[3],
+      step: 4, icon: "🔎", color: STEP_COLORS[3]!,
       title: "Sanksjonsskjerming",
       desc: "Alle ekstraherte entiteter (selger, kjoper, speditoor m.fl.) sjekkes mot " +
             "OpenSanctions via Yente. Fuzzy matching finner treff selv ved navnevarianter. " +
@@ -313,7 +337,7 @@ const NB: AboutContent = {
       ],
     },
     {
-      step: 5, icon: "⚙️", color: STEP_COLORS[4],
+      step: 5, icon: "⚙️", color: STEP_COLORS[4]!,
       title: "Regelkjoring",
       desc: "Alle aktive YAML-regler evalueres mot fakturadataene. Reglene kan sette flagg og " +
             "pavirke score.",
@@ -325,7 +349,7 @@ const NB: AboutContent = {
       ],
     },
     {
-      step: 6, icon: "🚦", color: STEP_COLORS[5],
+      step: 6, icon: "🚦", color: STEP_COLORS[5]!,
       title: "Scoring",
       desc: "Systemet beregner en samlet compliance-score basert paa sanksjons-treff og " +
             "regelutslag. Status settes til 'screened'.",
@@ -337,7 +361,7 @@ const NB: AboutContent = {
       ],
     },
     {
-      step: 7, icon: "👤", color: STEP_COLORS[6],
+      step: 7, icon: "👤", color: STEP_COLORS[6]!,
       title: "Manuell review",
       desc: "Gule og rode fakturaer havner i review-koen. Compliance-offiseren ser alle " +
             "detaljer, sanksjons-treff, regelutslag og revisjonsspor foer beslutning. Fakturaen " +
@@ -349,7 +373,7 @@ const NB: AboutContent = {
       ],
     },
     {
-      step: 8, icon: "✅", color: STEP_COLORS[7],
+      step: 8, icon: "✅", color: STEP_COLORS[7]!,
       title: "Beslutning",
       desc: "Compliance-offiseren godkjenner eller avviser fakturaen med en skriftlig " +
             "begrunnelse. Beslutningen, brukeren og tidsstempelet lagres i revisjonssporet.",
@@ -400,9 +424,10 @@ const NB: AboutContent = {
     {
       icon: "⏳", name: "Review-koo", path: "/review-queue",
       access: "Compliance officer, Admin",
-      desc: "Prioritert liste over fakturaer som venter paa manuell beslutning. Sortert " +
-            "rod-forst, ubehandlede forst. Viser hvem som har tatt fakturaen og om den er " +
-            "klar for review. Klikk for aa gaa til fakturadetalj og fatte beslutning.",
+      desc: "Samlet arbeidsliste for alle fakturaer som venter paa manuell beslutning. " +
+            "Fargede flagg-merkelapper per faktura viser kildene (sanksjon, embargo, " +
+            "vareliste, sluttbruker, dual-use, eierskap, MVA). Hurtigfiltre per kilde. " +
+            "Sortert rod-forst, ubehandlede forst.",
     },
     {
       icon: "⚙️", name: "Regler", path: "/rules",
@@ -457,6 +482,27 @@ const NB: AboutContent = {
       desc: "Graf-basert relasjonsanalyse av en enkeltentitet via Wikidata. Avdekker " +
             "eierstrukturer og styremedlemmer med tilknytning til sanksjonerte parter. " +
             "Hvert knutepunkt kan gi tilbakemelding (relevant / ikke relevant).",
+    },
+    {
+      icon: "🛡", name: "Eksportkontroll", path: "/export-control",
+      access: "Compliance officer, Admin",
+      desc: "Arbeidsliste over fakturaer flagget mot DEKSAs Vareliste I (militaere varer, " +
+            "ML1-ML22) eller Vareliste II (dual-use, kategoriene 0-9). Viser treff per " +
+            "linje med liste, kategori og konfidensnivaa (hoy/medium/lav).",
+    },
+    {
+      icon: "📚", name: "Vareliste-referanse", path: "/export-control/reference",
+      access: "Compliance officer, Admin",
+      desc: "Bla i DEKSAs varelister: soek paa kode eller nookkeldord, se kategori-" +
+            "oversikt og importstatus. Admin kan kjore backfill for aa re-evaluere " +
+            "historiske fakturaer mot gjeldende listeversjons.",
+    },
+    {
+      icon: "🎯", name: "Sluttbruker / catch-all", path: "/catch-all",
+      access: "Compliance officer, Admin",
+      desc: "Arbeidsliste over fakturaer med risikosignaler i sluttbruker, destinasjon " +
+            "eller tiltenkt bruk etter DEKSAs catch-all-prinsipp. Viser signaler som er " +
+            "utlost: militaer sluttbruker, diversjonsrisiko, nukleaer bruk m.fl.",
     },
   ],
 
@@ -593,10 +639,10 @@ const NB: AboutContent = {
     "regelmotor, kartvisning og fakturadetalj.",
 
   tiers: [
-    { tier: "Tier 1 - Lav",      colorClass: TIER_COLORS[0], examples: "NATO-land (NO, DE, US, FR, GB, ...)", rule: "NATO-medlemskap" },
-    { tier: "Tier 2 - Normal",   colorClass: TIER_COLORS[1], examples: "Flertallet av ovrige land",           rule: "Standardnivaa" },
-    { tier: "Tier 3 - Forhooyet", colorClass: TIER_COLORS[2], examples: "CN, QA, SA, TR, UA, AZ, ...",       rule: "Geopolitisk risiko" },
-    { tier: "Tier 4 - Hooy",     colorClass: TIER_COLORS[3], examples: "AF, BY, CU, IR, KP, RU, SY",         rule: "Aktive sanksjoner" },
+    { tier: "Tier 1 - Lav",      colorClass: TIER_COLORS[0]!, examples: "NATO-land (NO, DE, US, FR, GB, ...)", rule: "NATO-medlemskap" },
+    { tier: "Tier 2 - Normal",   colorClass: TIER_COLORS[1]!, examples: "Flertallet av ovrige land",           rule: "Standardnivaa" },
+    { tier: "Tier 3 - Forhooyet", colorClass: TIER_COLORS[2]!, examples: "CN, QA, SA, TR, UA, AZ, ...",       rule: "Geopolitisk risiko" },
+    { tier: "Tier 4 - Hooy",     colorClass: TIER_COLORS[3]!, examples: "AF, BY, CU, IR, KP, RU, SY",         rule: "Aktive sanksjoner" },
   ],
 
   tierTableHeaders: ["Nivå", "Eksempler", "Kriterium"],
@@ -640,12 +686,13 @@ const NB: AboutContent = {
                 "av HS-koder mot kjente risikokategorier og destinasjoner i regelmotor.",
         },
         {
-          label: "Catch-all-klausul",
+          label: "Catch-all-klausul (SS 5)",
           desc: "Eksportkontrolloven SS 5 og EU Art. 4 gir myndighetene rett til aa nekte " +
-                "eksport selv for ikke-listeoppsatte varer dersom det er grunn til aa tro at " +
-                "sluttsbruk er militaer eller knyttet til masseodeleggelsesvaaapen. " +
-                "Systemets regelmotor kan konfigureres med catch-all-regler for risikable " +
-                "kombinasjoner av destinasjon og HS-kode.",
+                "eksport selv for ikke-listeoppsatte varer ved mistanke om militaer, nukleoer " +
+                "eller MDE-relatert sluttbruk. Systemet har en dedikert catch-all-modul som " +
+                "automatisk vurderer sluttbruker, destinasjon og bruk mot seks risikosignaler: " +
+                "militaer/nukleoer sluttbruk, diversjonsrisiko, sensitiv bruk, meglerledd " +
+                "og ikke-deklarert mottaker. Fakturaer med treff sendes til review.",
         },
         {
           label: "Revisjon og dokumentasjon",
@@ -934,6 +981,29 @@ const EN: AboutContent = {
       desc: "Counterparties and customers are registered with compliance history, giving an " +
             "overview of associated invoices and any open findings.",
     },
+    {
+      icon: "🛡",
+      title: "Export control lists (DEKSA)",
+      desc: "Invoice lines are automatically checked against DEKSA Vareliste I (military " +
+            "goods, ML1-ML22) and Vareliste II (dual-use, categories 0-9). Three-tier " +
+            "matching: structural ECCN/ML code match, HS-code bridge, and keyword lexicon. " +
+            "Destination country determines severity (red / yellow).",
+    },
+    {
+      icon: "🎯",
+      title: "End-user / catch-all screening",
+      desc: "Dedicated module flagging risk signals in end-user, destination and intended " +
+            "use under DEKSAs catch-all principle (Export Control Act section 5): " +
+            "military/nuclear end-use, diversion risk, undeclared consignee. Six signal " +
+            "types with individual severity levels.",
+    },
+    {
+      icon: "🗂",
+      title: "Unified worklist with flag badges",
+      desc: "The review queue shows coloured flag badges per invoice for all seven signal " +
+            "sources: sanctions, embargo, export control, end-user, dual-use, ownership " +
+            "and VAT. Dedicated quick-filters per source in one single compliance view.",
+    },
   ],
 
   // ── Workflow ──────────────────────────────────────────────────────────────
@@ -945,7 +1015,7 @@ const EN: AboutContent = {
 
   workflowSteps: [
     {
-      step: 1, icon: "📤", color: STEP_COLORS[0],
+      step: 1, icon: "📤", color: STEP_COLORS[0]!,
       title: "Upload",
       desc: "A PDF invoice is uploaded via the user interface. The file is stored and a " +
             "job is created with status 'uploaded'.",
@@ -956,7 +1026,7 @@ const EN: AboutContent = {
       ],
     },
     {
-      step: 2, icon: "🔍", color: STEP_COLORS[1],
+      step: 2, icon: "🔍", color: STEP_COLORS[1]!,
       title: "Parsing",
       desc: "The system reads the PDF and extracts raw text. OCR is applied as needed for " +
             "scanned documents. Status is set to 'parsing'.",
@@ -966,7 +1036,7 @@ const EN: AboutContent = {
       ],
     },
     {
-      step: 3, icon: "🤖", color: STEP_COLORS[2],
+      step: 3, icon: "🤖", color: STEP_COLORS[2]!,
       title: "AI extraction",
       desc: "A large language model analyses the invoice text and extracts structured data: " +
             "seller, buyer, freight forwarder, destination country, HS codes, line amounts " +
@@ -979,7 +1049,7 @@ const EN: AboutContent = {
       ],
     },
     {
-      step: 4, icon: "🔎", color: STEP_COLORS[3],
+      step: 4, icon: "🔎", color: STEP_COLORS[3]!,
       title: "Sanctions screening",
       desc: "All extracted entities (seller, buyer, freight forwarder etc.) are checked " +
             "against OpenSanctions via Yente. Fuzzy matching finds hits even for name " +
@@ -993,7 +1063,7 @@ const EN: AboutContent = {
       ],
     },
     {
-      step: 5, icon: "⚙️", color: STEP_COLORS[4],
+      step: 5, icon: "⚙️", color: STEP_COLORS[4]!,
       title: "Rule evaluation",
       desc: "All active YAML rules are evaluated against the invoice data. Rules can set " +
             "flags and affect the score.",
@@ -1005,7 +1075,7 @@ const EN: AboutContent = {
       ],
     },
     {
-      step: 6, icon: "🚦", color: STEP_COLORS[5],
+      step: 6, icon: "🚦", color: STEP_COLORS[5]!,
       title: "Scoring",
       desc: "The system calculates an overall compliance score based on sanctions hits and " +
             "rule outcomes. Status is set to 'screened'.",
@@ -1017,7 +1087,7 @@ const EN: AboutContent = {
       ],
     },
     {
-      step: 7, icon: "👤", color: STEP_COLORS[6],
+      step: 7, icon: "👤", color: STEP_COLORS[6]!,
       title: "Manual review",
       desc: "Yellow and red invoices enter the review queue. The compliance officer sees all " +
             "details, sanctions hits, rule outcomes and audit trail before deciding. " +
@@ -1029,7 +1099,7 @@ const EN: AboutContent = {
       ],
     },
     {
-      step: 8, icon: "✅", color: STEP_COLORS[7],
+      step: 8, icon: "✅", color: STEP_COLORS[7]!,
       title: "Decision",
       desc: "The compliance officer approves or rejects the invoice with a written " +
             "justification. The decision, user and timestamp are stored in the audit trail.",
@@ -1080,9 +1150,10 @@ const EN: AboutContent = {
     {
       icon: "⏳", name: "Review queue", path: "/review-queue",
       access: "Compliance Officer, Admin",
-      desc: "Prioritised list of invoices awaiting manual decision. Sorted red-first, " +
-            "unhandled-first. Shows who has claimed the invoice and whether it is ready for " +
-            "review. Click to go to invoice detail and make a decision.",
+      desc: "Unified worklist for all invoices awaiting manual decision. Coloured flag " +
+            "badges per invoice show the sources (sanctions, embargo, export control, " +
+            "end-user, dual-use, ownership, VAT). Quick-filters per source. " +
+            "Sorted red-first, unhandled-first.",
     },
     {
       icon: "⚙️", name: "Rules", path: "/rules",
@@ -1137,6 +1208,27 @@ const EN: AboutContent = {
       desc: "Graph-based relationship analysis of a single entity via Wikidata. Reveals " +
             "ownership structures and board members linked to sanctioned parties. " +
             "Each node can be marked as relevant or not relevant.",
+    },
+    {
+      icon: "🛡", name: "Export control", path: "/export-control",
+      access: "Compliance Officer, Admin",
+      desc: "Worklist of invoices flagged against DEKSA Vareliste I (military goods, " +
+            "ML1-ML22) or Vareliste II (dual-use, categories 0-9). Shows hits per line " +
+            "with list, category and confidence level (high/medium/low).",
+    },
+    {
+      icon: "📚", name: "Export control reference", path: "/export-control/reference",
+      access: "Compliance Officer, Admin",
+      desc: "Browse DEKSA control lists: search by code or keyword, view category overview " +
+            "and import status. Admins can run a backfill to re-evaluate historical " +
+            "invoices against the current list version.",
+    },
+    {
+      icon: "🎯", name: "End-user / catch-all", path: "/catch-all",
+      access: "Compliance Officer, Admin",
+      desc: "Worklist of invoices with risk signals in end-user, destination or intended " +
+            "use under DEKSAs catch-all principle. Shows triggered signals: military " +
+            "end-use, diversion risk, nuclear use, and more.",
     },
   ],
 
@@ -1274,10 +1366,10 @@ const EN: AboutContent = {
     "rules engine, map view and invoice detail page.",
 
   tiers: [
-    { tier: "Tier 1 - Low",      colorClass: TIER_COLORS[0], examples: "NATO countries (NO, DE, US, FR, GB, ...)", rule: "NATO membership" },
-    { tier: "Tier 2 - Normal",   colorClass: TIER_COLORS[1], examples: "Most other countries",                     rule: "Default level" },
-    { tier: "Tier 3 - Elevated", colorClass: TIER_COLORS[2], examples: "CN, QA, SA, TR, UA, AZ, ...",             rule: "Geopolitical risk" },
-    { tier: "Tier 4 - High",     colorClass: TIER_COLORS[3], examples: "AF, BY, CU, IR, KP, RU, SY",              rule: "Active sanctions" },
+    { tier: "Tier 1 - Low",      colorClass: TIER_COLORS[0]!, examples: "NATO countries (NO, DE, US, FR, GB, ...)", rule: "NATO membership" },
+    { tier: "Tier 2 - Normal",   colorClass: TIER_COLORS[1]!, examples: "Most other countries",                     rule: "Default level" },
+    { tier: "Tier 3 - Elevated", colorClass: TIER_COLORS[2]!, examples: "CN, QA, SA, TR, UA, AZ, ...",             rule: "Geopolitical risk" },
+    { tier: "Tier 4 - High",     colorClass: TIER_COLORS[3]!, examples: "AF, BY, CU, IR, KP, RU, SY",              rule: "Active sanctions" },
   ],
 
   tierTableHeaders: ["Tier", "Examples", "Criterion"],
@@ -1322,12 +1414,14 @@ const EN: AboutContent = {
                 "rules engine.",
         },
         {
-          label: "Catch-all clause",
+          label: "Catch-all clause (section 5)",
           desc: "Section 5 of the Export Control Act and EU Article 4 allow authorities " +
-                "to deny export even for non-listed goods if there are grounds to believe " +
-                "the end-use is military or related to weapons of mass destruction. " +
-                "The rules engine can be configured with catch-all rules for risky " +
-                "combinations of destination and HS code.",
+                "to deny export even for non-listed goods when there are grounds to suspect " +
+                "military, nuclear or WMD-related end-use. The system has a dedicated catch-all " +
+                "module that automatically evaluates end-user, destination and intended use " +
+                "against six risk signals: military/nuclear end-use, diversion risk, sensitive " +
+                "end-use, broker intermediaries, undeclared consignee. Flagged invoices are " +
+                "routed to manual review.",
         },
         {
           label: "Audit and documentation",

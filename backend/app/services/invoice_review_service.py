@@ -12,6 +12,7 @@ from sqlalchemy.orm import selectinload
 from app.core.config import get_settings
 from app.core.errors import ApplicationError, NotFoundError
 from app.models.invoice import ApprovalState, ComplianceScore, Invoice, InvoiceStatus
+from app.models.invoice_line import InvoiceLine
 from app.models.screening import MatchStatus, ScreeningResult
 from app.services import audit_service
 from app.schemas.invoice import ReviewQueueItem, ReviewQueueResponse
@@ -406,6 +407,7 @@ async def list_review_queue(
 
     has_sanctions_hit: dict[uuid.UUID, bool] = dict.fromkeys(invoice_ids, False)
     has_embargo_hit: dict[uuid.UUID, bool] = dict.fromkeys(invoice_ids, False)
+    has_eccn: dict[uuid.UUID, bool] = dict.fromkeys(invoice_ids, False)
     if invoice_ids:
         screening_rows = (
             await session.execute(
@@ -429,15 +431,19 @@ async def list_review_queue(
             if dataset not in {"trade_plausibility", "duplicate_invoice"}:
                 has_sanctions_hit[iid] = True
 
+        eccn_rows = (
+            await session.execute(
+                select(InvoiceLine.invoice_id.distinct()).where(
+                    InvoiceLine.invoice_id.in_(invoice_ids),
+                    InvoiceLine.eccn.is_not(None),
+                )
+            )
+        ).scalars().all()
+        for iid in eccn_rows:
+            has_eccn[iid] = True
+
     stale_minutes = _review_claim_stale_minutes()
     now = _now_utc()
-
-    def _has_dual_use_risk(inv: Invoice) -> bool:
-        text = (inv.comments or "").lower()
-        return any(
-            token in text
-            for token in ("dual-use", "dual use", "eccn", "export control", "military")
-        )
 
     def _has_ownership_risk(inv: Invoice) -> bool:
         text = (inv.comments or "").lower()
@@ -463,8 +469,10 @@ async def list_review_queue(
                 has_sanctions_hit=has_sanctions_hit.get(inv.id, False),
                 has_embargo_hit=has_embargo_hit.get(inv.id, False),
                 has_ownership_risk=_has_ownership_risk(inv),
-                has_dual_use_risk=_has_dual_use_risk(inv),
+                has_dual_use_risk=has_eccn.get(inv.id, False),
                 has_vat_deviation=(inv.vat_note_status in {"warn", "error"}),
+                has_export_control=(inv.export_control_status in {"review", "controlled"}),
+                has_catch_all=(inv.catch_all_status in {"review", "controlled"}),
                 awaiting_approval=(
                     (inv.approval_state.value if inv.approval_state else "") == "pending"
                 ),
