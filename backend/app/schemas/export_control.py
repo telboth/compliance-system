@@ -75,3 +75,26 @@ class ExportControlBackfillResponse(BaseModel):
     processed: int
     flagged: int
     rescored: int
+
+
+class ExportListSyncStateResponse(BaseModel):
+    """Tilstand for én vareliste-kilde (Vareliste I eller II)."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    list_code: str
+    source_url: str | None
+    current_version: str | None
+    status: str
+    status_message: str | None
+    last_checked_at: datetime | None
+    last_imported_at: datetime | None
+    last_imported_by: str | None
+    item_count: int | None
+
+
+class ExportListImportResponse(BaseModel):
+    created: int
+    updated: int
+    errors: int
+    total: int

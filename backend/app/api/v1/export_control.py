@@ -19,9 +19,12 @@ from app.schemas.export_control import (
     ExportControlListResponse,
     ExportControlReferenceItem,
     ExportControlReferenceResponse,
+    ExportListSyncStateResponse,
+    ExportListImportResponse,
 )
 from app.schemas.invoice import ExportControlCheck
 from app.services import export_control_service as ec_svc
+from app.services import export_list_sync_service as sync_svc
 
 router = APIRouter()
 
@@ -122,3 +125,64 @@ async def backfill_export_control(
     """
     result = await ec_svc.backfill_export_control(session, rescore=rescore)
     return ExportControlBackfillResponse(**result)
+
+
+# ── Vareliste-synkronisering ──────────────────────────────────────────────────
+
+
+@router.get("/sync/status", response_model=list[ExportListSyncStateResponse])
+async def get_sync_status(session: SessionDep) -> list[ExportListSyncStateResponse]:
+    """Hent synkroniseringsstatus for begge varelister (alle brukere)."""
+    states = await sync_svc.get_all_states(session)
+    await session.commit()
+    return [ExportListSyncStateResponse.model_validate(s) for s in states]
+
+
+@router.post("/sync/check", response_model=dict)
+async def check_for_updates(session: SessionDep) -> dict:
+    """Sjekk manuelt om listene har ny versjon (alle brukere kan trigge).
+
+    Sender HTTP HEAD mot source_url og varsler alle brukere dersom
+    ny versjon er tilgjengelig.
+    """
+    results = await sync_svc.check_for_updates(session)
+    return {"status": "ok", "results": results}
+
+
+@router.post("/sync/import/{list_code}", response_model=ExportListImportResponse)
+async def import_list(
+    list_code: str,
+    session: SessionDep,
+    actor: str = Query(default="unknown", description="Brukerident for sporing"),
+) -> ExportListImportResponse:
+    """Last ned og importer en vareliste (alle brukere kan trigge).
+
+    list_code: "I" (militaert) eller "II" (dual-use).
+    Varsler alle brukere nar importen er fullfort.
+    """
+    if list_code not in ("I", "II"):
+        raise HTTPException(status_code=400, detail="list_code maa vaere 'I' eller 'II'")
+    try:
+        result = await sync_svc.trigger_import(session, list_code, triggered_by=actor)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return ExportListImportResponse(**result)
+
+
+@router.put("/sync/url/{list_code}")
+async def set_source_url(
+    list_code: str,
+    session: SessionDep,
+    url: str = Query(..., description="Nedlastings-URL for varelisten (CSV/TSV)"),
+    _actor=Depends(require_roles("admin")),
+) -> ExportListSyncStateResponse:
+    """Oppdater nedlastings-URL for en liste (kun admin).
+
+    URL maa peke paa en CSV/TSV-fil med kolonner:
+    list_code, category, group, item_code, title, regime,
+    cas_numbers, synonyms, hs_codes
+    """
+    if list_code not in ("I", "II"):
+        raise HTTPException(status_code=400, detail="list_code maa vaere 'I' eller 'II'")
+    state = await sync_svc.set_source_url(session, list_code, url)
+    return ExportListSyncStateResponse.model_validate(state)

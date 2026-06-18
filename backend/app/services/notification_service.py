@@ -59,11 +59,15 @@ async def list_for_role(
     Returns:
         (items, total) — total er antall varsler ufiltrert for denne rollen.
     """
-    # JSONB @> brukes for å sjekke om role finnes i target_roles-arrayen
-    from sqlalchemy import func, cast
+    # JSONB @> sjekker om role finnes i target_roles.
+    # target_roles=["all"] er en spesialverdi som vises til alle brukere.
+    from sqlalchemy import func, cast, or_
     from sqlalchemy.dialects.postgresql import JSONB
 
-    role_filter = Notification.target_roles.contains(cast([role], JSONB))
+    role_filter = or_(
+        Notification.target_roles.contains(cast([role], JSONB)),
+        Notification.target_roles.contains(cast(["all"], JSONB)),
+    )
 
     count_stmt = select(func.count()).select_from(
         select(Notification.id).where(role_filter).subquery()

@@ -60,6 +60,7 @@ celery_app = Celery(
         "app.tasks.update_sanctions",
         "app.tasks.update_external_watchlists",
         "app.tasks.screening_watchdog",
+        "app.tasks.update_export_lists",
     ],
 )
 
@@ -96,6 +97,11 @@ celery_app.conf.update(
         "screening-watchdog-extracted-stale": {
             "task": "app.tasks.screening_watchdog.run_scheduled",
             "schedule": watchdog_schedule,
+        },
+        "monthly-export-list-check": {
+            "task": "app.tasks.update_export_lists.check_scheduled",
+            # Forste mandag i maaneden kl. 03:15
+            "schedule": crontab(hour=3, minute=15, day_of_week=1, day_of_month="1-7"),
         },
     },
 )
