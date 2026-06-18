@@ -105,6 +105,10 @@ const CatchAllPage = lazy(async () => {
   const m = await import("@/pages/CatchAll");
   return { default: m.CatchAllPage };
 });
+const ListAdminPage = lazy(async () => {
+  const m = await import("@/pages/ListAdmin");
+  return { default: m.ListAdminPage };
+});
 
 /** Fanger krasj i lazy-lastede sider og viser feilmelding i stedet for blank side. */
 class PageErrorBoundary extends Component<
@@ -295,6 +299,9 @@ function AppShell() {
             <NavItem to="/kri" label={t("nav.kri")} />
             <NavItem to="/regulatory-radar" label={t("nav.regulatory_radar")} />
 
+            {/* Liste-admin — synkronisering av DEKSA-lister og embargo */}
+            <NavItem to="/list-admin" label={t("nav.list_admin")} />
+
             {/* Drift — skjules helt for ikke-admins */}
             <NavItem to="/pipeline-ops" label={t("nav.pipeline_ops")} adminOnly />
 
@@ -426,6 +433,9 @@ function AppShell() {
 
             {/* Catch-all — sluttbruker-/sluttbruk-screening */}
             <Route path="/catch-all" element={<CatchAllPage />} />
+
+            {/* Liste-admin — månedlig synkronisering av DEKSA/embargo */}
+            <Route path="/list-admin" element={<ListAdminPage />} />
 
             {/* Kontrolleffektivitet — compliance_officer og admin */}
             <Route

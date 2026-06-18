@@ -678,5 +678,39 @@
     "empty_body": "Click «Refresh feeds» to fetch the latest regulatory updates.",
     "section_critical": "Critical alerts",
     "section_info": "Info"
+  },
+  "list_admin": {
+    "title": "List Administration",
+    "subtitle": "Status and manual synchronisation of DEKSA Lists I/II and the Embargo list. The system checks automatically on the first Monday of each month.",
+    "list_I": "List I (military goods)",
+    "list_II": "List II (dual-use items)",
+    "list_embargo": "Embargo list",
+    "loading": "Loading…",
+    "last_checked": "Last checked",
+    "last_imported": "Last imported",
+    "version": "Version",
+    "item_count": "Item count",
+    "imported_by": "Imported by",
+    "message": "Status message",
+    "source_url": "Source URL",
+    "check_now": "Check now",
+    "checking": "Checking…",
+    "import_now": "Import",
+    "importing": "Importing…",
+    "url_label": "Download URL (admin only)",
+    "url_edit": "Edit URL",
+    "url_save": "Save",
+    "saving": "Saving…",
+    "cancel": "Cancel",
+    "schedule_title": "Automatic check",
+    "schedule_body": "The system automatically checks whether the lists have been updated on the first Monday of each month at 03:15 (control lists) and 03:45 (embargo). All users are notified when a new version is available.",
+    "status": {
+      "idle": "Idle",
+      "checking": "Checking…",
+      "update_available": "Update available",
+      "importing": "Importing…",
+      "ok": "OK",
+      "error": "Error"
+    }
   }
 }

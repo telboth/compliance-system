@@ -228,6 +228,63 @@ export interface CatchAllListResponse {
   items: CatchAllInvoiceItem[];
 }
 
+// ── Liste-synkronisering (Vareliste I/II + embargo) ────────────────────────────
+
+export type ListSyncStatus =
+  | "idle"
+  | "checking"
+  | "update_available"
+  | "importing"
+  | "ok"
+  | "error";
+
+export interface ExportListSyncState {
+  list_code: string;
+  source_url: string | null;
+  current_version: string | null;
+  status: ListSyncStatus;
+  status_message: string | null;
+  last_checked_at: string | null;
+  last_imported_at: string | null;
+  last_imported_by: string | null;
+  item_count: number | null;
+}
+
+export interface ExportListImportResult {
+  created: number;
+  updated: number;
+  skipped: number;
+  total: number;
+}
+
+export interface EmbargoSyncState {
+  list_code: string;
+  source_url: string | null;
+  current_version: string | null;
+  status: ListSyncStatus;
+  status_message: string | null;
+  last_checked_at: string | null;
+  last_imported_at: string | null;
+  last_imported_by: string | null;
+  item_count: number | null;
+}
+
+export interface EmbargoImportResult {
+  created: number;
+  updated: number;
+  deactivated: number;
+  total: number;
+}
+
+export interface EmbargoCountry {
+  iso2: string;
+  name: string;
+  sources: string;
+  scope: string;
+  note: string | null;
+  source_version: string;
+}
+
 export interface CatchAllBackfillResponse {
   processed: number;
   flagged: number;

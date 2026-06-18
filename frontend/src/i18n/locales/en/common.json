@@ -21,6 +21,7 @@
     "catch_all": "🎯 End-user",
     "control_effectiveness": "Control Deviations",
     "about": "About",
+    "list_admin": "📋 List Admin",
     "no_access": "You do not have access to this page with your current role"
   },
   "status": {

@@ -678,5 +678,39 @@
     "empty_body": "Klikk «Oppdater feeds» for å hente siste regulatoriske endringer.",
     "section_critical": "Kritiske varsler",
     "section_info": "Info"
+  },
+  "list_admin": {
+    "title": "Listeadministrasjon",
+    "subtitle": "Status og manuell synkronisering av DEKSA Vareliste I/II og Embargo-lista. Systemet sjekker automatisk første mandag i måneden.",
+    "list_I": "Vareliste I (forsvarsmateriell)",
+    "list_II": "Vareliste II (flerbruksvarer)",
+    "list_embargo": "Embargo-lista",
+    "loading": "Laster …",
+    "last_checked": "Sist sjekket",
+    "last_imported": "Sist importert",
+    "version": "Versjon",
+    "item_count": "Antall oppføringer",
+    "imported_by": "Importert av",
+    "message": "Statusmelding",
+    "source_url": "Kilde-URL",
+    "check_now": "Sjekk nå",
+    "checking": "Sjekker …",
+    "import_now": "Importer",
+    "importing": "Importerer …",
+    "url_label": "Nedlastings-URL (kun admin)",
+    "url_edit": "Endre URL",
+    "url_save": "Lagre",
+    "saving": "Lagrer …",
+    "cancel": "Avbryt",
+    "schedule_title": "Automatisk sjekk",
+    "schedule_body": "Systemet sjekker automatisk om listene er oppdatert første mandag i måneden kl. 03:15 (varelister) og 03:45 (embargo). Alle brukere varsles ved ny versjon.",
+    "status": {
+      "idle": "Venter",
+      "checking": "Sjekker …",
+      "update_available": "Oppdatering tilgjengelig",
+      "importing": "Importerer …",
+      "ok": "OK",
+      "error": "Feil"
+    }
   }
 }

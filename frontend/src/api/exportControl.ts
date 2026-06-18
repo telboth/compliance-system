@@ -4,6 +4,8 @@ import type {
   ExportControlClassifyResponse,
   ExportControlListResponse,
   ExportControlReferenceResponse,
+  ExportListSyncState,
+  ExportListImportResult,
 } from "./types";
 
 /** Arbeidsliste: fakturaer med mulig listematch mot Vareliste I/II. */
@@ -55,6 +57,48 @@ export async function runExportControlBackfill(
     "/export-control/backfill",
     null,
     { params: { rescore } },
+  );
+  return data;
+}
+
+// ── Vareliste-synkronisering ───────────────────────────────────────────────────
+
+/** Hent synkroniseringsstatus for Vareliste I og II. */
+export async function getExportListSyncStatus(): Promise<ExportListSyncState[]> {
+  const { data } = await apiClient.get<ExportListSyncState[]>("/export-control/sync/status");
+  return data;
+}
+
+/** Sjekk manuelt om Vareliste I/II har ny versjon. */
+export async function checkExportListUpdates(): Promise<{ status: string; result: string }> {
+  const { data } = await apiClient.post<{ status: string; result: string }>(
+    "/export-control/sync/check",
+  );
+  return data;
+}
+
+/** Last ned og importer en vareliste (list_code = "I" eller "II"). */
+export async function importExportList(
+  listCode: string,
+  actor = "manual",
+): Promise<ExportListImportResult> {
+  const { data } = await apiClient.post<ExportListImportResult>(
+    `/export-control/sync/import/${listCode}`,
+    null,
+    { params: { triggered_by: actor } },
+  );
+  return data;
+}
+
+/** Oppdater nedlastings-URL for en vareliste (kun admin). */
+export async function setExportListUrl(
+  listCode: string,
+  url: string,
+): Promise<ExportListSyncState> {
+  const { data } = await apiClient.put<ExportListSyncState>(
+    `/export-control/sync/url/${listCode}`,
+    null,
+    { params: { url } },
   );
   return data;
 }
