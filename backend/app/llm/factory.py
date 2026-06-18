@@ -39,6 +39,7 @@ def get_llm_client(model_id: str, provider: LLMProvider | None = None) -> LLMCli
                 details={"model": model_id},
             )
         from app.llm.claude import ClaudeClient
+
         return ClaudeClient(model_id=model_id, api_key=api_key)
 
     if resolved_provider == LLMProvider.OPENAI:
@@ -49,6 +50,7 @@ def get_llm_client(model_id: str, provider: LLMProvider | None = None) -> LLMCli
                 details={"model": model_id},
             )
         from app.llm.openai_client import OpenAICompatibleClient
+
         return OpenAICompatibleClient(model_id=model_id, api_key=api_key)
 
     if resolved_provider == LLMProvider.OLLAMA:
@@ -99,9 +101,9 @@ def _resolve_ollama_num_gpu(setting: bool | None, gpu_available: bool) -> int | 
         None → ikke send alternativet (Ollama velger selv)
     """
     if setting is True:
-        return -1   # Tving GPU uavhengig av deteksjon
+        return -1  # Tving GPU uavhengig av deteksjon
     if setting is False:
-        return 0    # Tving CPU
+        return 0  # Tving CPU
     # Auto: bruk GPU hvis tilgjengelig, ellers la Ollama bestemme
     return -1 if gpu_available else None
 

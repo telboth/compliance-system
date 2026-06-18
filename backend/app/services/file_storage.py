@@ -87,8 +87,7 @@ async def save_upload(upload: UploadFile) -> tuple[Path, int, SourceFileType]:
 
     if not any(contents.startswith(m) for m in _MAGIC[file_type]):
         raise UnsupportedFileTypeError(
-            f"Filen ser ikke ut til å være en gyldig {file_type.value.upper()} "
-            f"(feil filsignatur).",
+            f"Filen ser ikke ut til å være en gyldig {file_type.value.upper()} (feil filsignatur).",
             details={
                 "expected_magic": [m.hex() for m in _MAGIC[file_type]],
                 "got": contents[:8].hex(),

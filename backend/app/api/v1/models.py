@@ -43,8 +43,8 @@ class ModelsListResponse(BaseModel):
 
 def _static_providers(settings) -> list[tuple[LLMProvider, list[ModelInfo]]]:
     """Definerer statiske (ikke-Ollama) providers og modeller."""
-    anthropic_available = bool(settings.anthropic_api_key_value)
-    openai_available = bool(settings.openai_api_key_value)
+    bool(settings.anthropic_api_key_value)
+    bool(settings.openai_api_key_value)
 
     return [
         (

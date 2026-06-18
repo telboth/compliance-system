@@ -82,10 +82,10 @@ _FILENAME_DATE_CONFIDENCE = 0.50
 # Regex-mønstre brukt til å hente dato fra filnavn (prøves i rekkefølge).
 # Gruppe 1, 2, 3 tolkes som enten (år,mnd,dag) eller (dag,mnd,år) avh. mønster.
 _RE_DATE_ISO = re.compile(
-    r"(\d{4})[-_](\d{1,2})[-_](\d{1,2})"          # 2024-03-15  /  2024_3_5
+    r"(\d{4})[-_](\d{1,2})[-_](\d{1,2})"  # 2024-03-15  /  2024_3_5
 )
 _RE_DATE_EU = re.compile(
-    r"(\d{1,2})[._-](\d{1,2})[._-](\d{4})"         # 15.03.2024  /  15-3-2024
+    r"(\d{1,2})[._-](\d{1,2})[._-](\d{4})"  # 15.03.2024  /  15-3-2024
 )
 _RE_DATE_COMPACT = re.compile(
     r"(?<!\d)(20\d{2})(0[1-9]|1[0-2])(0[1-9]|[12]\d|3[01])(?!\d)"  # 20240315
@@ -120,9 +120,7 @@ def merge(
         _merge_emails(llm, heuristic, raw_text, notes)
         _merge_line_field(llm, heuristic.hs_codes, "hs_code", "HS-kode", notes, threshold)
         _merge_line_field(llm, heuristic.eccn_codes, "eccn", "ECCN", notes, threshold)
-        _merge_line_field(
-            llm, heuristic.serial_numbers, "serial_number", "serienummer", notes, threshold
-        )
+        _merge_line_field(llm, heuristic.serial_numbers, "serial_number", "serienummer", notes, threshold)
         _propagate_currency(llm, heuristic)
         _merge_po_number(llm, heuristic, notes)
 
@@ -145,6 +143,7 @@ def merge(
 
 # ── Entity-hint-merge (Consignee/Consignor) ───────────────────────────────────
 
+
 def _merge_entity_hints(
     llm: InvoiceExtractionResult,
     heuristic: HeuristicResult,
@@ -165,23 +164,23 @@ def _merge_entity_hints(
         if existing:
             # LLM har rollen — sjekk om noen av dem matcher hint-navnet
             names_match = any(
-                hint_name.lower() in e.name.lower() or e.name.lower() in hint_name.lower()
-                for e in existing
+                hint_name.lower() in e.name.lower() or e.name.lower() in hint_name.lower() for e in existing
             )
             if not names_match and existing[0].confidence < _BOOSTED_CONFIDENCE:
                 # LLM fant en entitet med denne rollen, men navnene avviker — logg
                 notes.append(
-                    f"Consignee/Consignor-hint «{hint_name}» ({hint_role}) "
-                    f"avviker fra LLM-entitet «{existing[0].name}»"
+                    f"Consignee/Consignor-hint «{hint_name}» ({hint_role}) avviker fra LLM-entitet «{existing[0].name}»"
                 )
         else:
             # LLM mangler denne rollen helt — legg til fra heuristikk
-            llm.entities.append(ExtractedEntity(
-                name=hint_name,
-                role=hint_role,
-                entity_type="company",
-                confidence=_HEURISTIC_CONFIDENCE,
-            ))
+            llm.entities.append(
+                ExtractedEntity(
+                    name=hint_name,
+                    role=hint_role,
+                    entity_type="company",
+                    confidence=_HEURISTIC_CONFIDENCE,
+                )
+            )
             logger.debug(
                 "heuristic_entity_added",
                 name=hint_name,
@@ -190,6 +189,7 @@ def _merge_entity_hints(
 
 
 # ── Epost-merge ───────────────────────────────────────────────────────────────
+
 
 def _merge_emails(
     llm: InvoiceExtractionResult,
@@ -202,9 +202,7 @@ def _merge_emails(
         return
 
     # Normaliser alle epost-adresser LLM allerede har satt
-    attributed: set[str] = {
-        e.email.lower() for e in llm.entities if e.email
-    }
+    attributed: set[str] = {e.email.lower() for e in llm.entities if e.email}
 
     unattributed = [e for e in heuristic.emails if e not in attributed]
     if not unattributed:
@@ -261,6 +259,7 @@ def _find_nearest_entity(
 
 # ── Linje-felt-merge (HS-kode, ECCN, serienummer) ────────────────────────────
 
+
 def _normalize(value: str, field_name: str) -> str:
     """Normaliser en feltverdi for dedupliceringssammenligning."""
     v = value.upper().strip()
@@ -290,10 +289,7 @@ def _merge_line_field(
         return
 
     if not llm.lines:
-        notes.append(
-            f"fant {display_name} via heuristikk men ingen linjer å tilordne: "
-            f"{', '.join(heuristic_values)}"
-        )
+        notes.append(f"fant {display_name} via heuristikk men ingen linjer å tilordne: {', '.join(heuristic_values)}")
         return
 
     # Normaliser heuristiske verdier for sammenligning
@@ -316,14 +312,10 @@ def _merge_line_field(
 
     # Finn heuristiske verdier IKKE allerede i LLM-linjer
     attributed_norms = {
-        _normalize(getattr(line, field_name), field_name)
-        for line in llm.lines
-        if getattr(line, field_name) is not None
+        _normalize(getattr(line, field_name), field_name) for line in llm.lines if getattr(line, field_name) is not None
     }
     unattributed = [
-        (orig, norm)
-        for orig, norm in zip(heuristic_values, h_normalized, strict=False)
-        if norm not in attributed_norms
+        (orig, norm) for orig, norm in zip(heuristic_values, h_normalized, strict=False) if norm not in attributed_norms
     ]
 
     if not unattributed:
@@ -374,6 +366,7 @@ def _merge_line_field(
 
 # ── Valuta-propagering ────────────────────────────────────────────────────────
 
+
 def _propagate_currency(
     llm: InvoiceExtractionResult,
     heuristic: HeuristicResult,
@@ -399,6 +392,7 @@ def _propagate_currency(
         # Fyll inn manglende dokument-valuta på invoice-nivå også
         if not llm.currency.value:
             from app.llm.extraction import FieldValue
+
             llm.currency = FieldValue(value=doc_currency, confidence=_HEURISTIC_CONFIDENCE)
             logger.debug("heuristic_currency_set_on_invoice", currency=doc_currency)
 
@@ -420,6 +414,7 @@ def _propagate_currency(
 
 
 # ── Entitets-deduplisering ────────────────────────────────────────────────────
+
 
 def _names_similar(n1: str | None, n2: str | None) -> bool:
     """Returner True hvis navnene sannsynligvis peker på samme firma.
@@ -471,10 +466,9 @@ def _filter_empty_entities(
     """
     before = len(llm.entities)
     llm.entities = [
-        e for e in llm.entities
-        if e.name
-        and e.name.strip()
-        and not (e.name.strip().startswith("(") and e.name.strip().endswith(")"))
+        e
+        for e in llm.entities
+        if e.name and e.name.strip() and not (e.name.strip().startswith("(") and e.name.strip().endswith(")"))
     ]
     removed = before - len(llm.entities)
     if removed:
@@ -512,10 +506,7 @@ def _deduplicate_entities(
                 e1, e2 = entities[i], entities[j]
 
                 same_role = e1.role == e2.role
-                equiv_role = any(
-                    e1.role in pair and e2.role in pair
-                    for pair in _EQUIVALENT_ROLE_PAIRS
-                )
+                equiv_role = any(e1.role in pair and e2.role in pair for pair in _EQUIVALENT_ROLE_PAIRS)
 
                 if not (same_role or equiv_role):
                     continue
@@ -531,9 +522,7 @@ def _deduplicate_entities(
                     primary, secondary = e2, e1
 
                 merged = _merge_two(primary, secondary)
-                merged_log.append(
-                    f"{secondary.role} «{secondary.name}» -> {primary.role} «{primary.name}»"
-                )
+                merged_log.append(f"{secondary.role} «{secondary.name}» -> {primary.role} «{primary.name}»")
                 logger.info(
                     "entity_deduplicated",
                     name=merged.name,
@@ -556,6 +545,7 @@ def _deduplicate_entities(
 
 
 # ── PO-nummer-merge ───────────────────────────────────────────────────────────
+
 
 def _merge_po_number(
     llm: InvoiceExtractionResult,
@@ -593,6 +583,7 @@ def _merge_po_number(
 
 
 # ── Dato-fallback ─────────────────────────────────────────────────────────────
+
 
 def _extract_date_from_filename(filename: str) -> date | None:
     """Forsøk å ekstrahere en dato fra filnavnet.
@@ -636,9 +627,7 @@ def _apply_date_fallback(
     if filename:
         found = _extract_date_from_filename(filename)
         if found:
-            llm.invoice_date = FieldValue(
-                value=found.isoformat(), confidence=_FILENAME_DATE_CONFIDENCE
-            )
+            llm.invoice_date = FieldValue(value=found.isoformat(), confidence=_FILENAME_DATE_CONFIDENCE)
             notes.append(f"fakturadato fra filnavn: {found.isoformat()}")
             logger.info("date_fallback_from_filename", filename=filename, date=found.isoformat())
             return

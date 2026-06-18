@@ -1,4 +1,4 @@
-﻿"""Eksportkontroll-tjeneste — matcher fakturalinjer mot DEKSAs varelister.
+"""Eksportkontroll-tjeneste — matcher fakturalinjer mot DEKSAs varelister.
 
 Tre matchere med fallende konfidens kjøres mot hver fakturalinje:
 
@@ -56,13 +56,13 @@ class ExportControlLineHit:
 
     line_index: int
     line_description: str | None
-    matched_value: str           # koden/nøkkelordet som matchet
-    list_code: str               # "I" | "II"
-    category: str                # "ML10" | "6" | "HS:85"
-    category_title: str          # norsk kategoritittel
-    item_code: str | None        # fullt kontrollnummer hvis strukturelt match
-    confidence: str              # "high" | "medium" | "low"
-    matched_via: str             # "eccn" | "hs" | "keyword"
+    matched_value: str  # koden/nøkkelordet som matchet
+    list_code: str  # "I" | "II"
+    category: str  # "ML10" | "6" | "HS:85"
+    category_title: str  # norsk kategoritittel
+    item_code: str | None  # fullt kontrollnummer hvis strukturelt match
+    confidence: str  # "high" | "medium" | "low"
+    matched_via: str  # "eccn" | "hs" | "keyword"
     reason: str
 
     def to_dict(self) -> dict[str, object]:
@@ -85,8 +85,8 @@ class ExportControlCheckResult:
     """Samlet eksportkontroll-vurdering for én faktura."""
 
     flagged: bool
-    status: str                  # "clear" | "review" | "controlled"
-    severity: str                # "green" | "yellow" | "red"
+    status: str  # "clear" | "review" | "controlled"
+    severity: str  # "green" | "yellow" | "red"
     destination_country: str | None
     destination_sanctioned: bool
     hits: list[ExportControlLineHit] = field(default_factory=list)
@@ -119,10 +119,7 @@ def _structural_hit(
         return None
     cat = sm.category_ref
     if sm.list_code == "I":
-        reason = (
-            f"Eksplisitt militær kontrollkode {sm.normalized_code} "
-            f"(Vareliste I, {sm.category}) på fakturalinjen."
-        )
+        reason = f"Eksplisitt militær kontrollkode {sm.normalized_code} (Vareliste I, {sm.category}) på fakturalinjen."
     else:
         reason = (
             f"Eksplisitt dual-use kontrollkode {sm.normalized_code} "
@@ -213,7 +210,7 @@ class ChemicalIndex:
     _syn: dict[str, list[tuple[str, str, str, str]]]
 
     @classmethod
-    def from_items(cls, items: list[ExportControlListItem]) -> "ChemicalIndex":
+    def from_items(cls, items: list[ExportControlListItem]) -> ChemicalIndex:
         cas: dict[str, list[tuple[str, str, str, str]]] = {}
         syn: dict[str, list[tuple[str, str, str, str]]] = {}
         for it in items:
@@ -239,9 +236,7 @@ class ChemicalIndex:
         norm = re.sub(r"[^0-9]", "", cas_number)
         return self._cas.get(norm, [])
 
-    def lookup_synonyms(
-        self, text: str
-    ) -> list[tuple[str, str, str, str, str]]:
+    def lookup_synonyms(self, text: str) -> list[tuple[str, str, str, str, str]]:
         """Returner liste av (synonym, list_code, category, category_title, item_code)."""
         results: list[tuple[str, str, str, str, str]] = []
         seen: set[str] = set()
@@ -302,17 +297,12 @@ def _chemical_hits(
                     item_code=item_code,
                     confidence="medium",
                     matched_via="cas",
-                    reason=(
-                        f"CAS-nummer {cas} ({item_code}: {category_title}) "
-                        "funnet i linjebeskrivelsen."
-                    ),
+                    reason=(f"CAS-nummer {cas} ({item_code}: {category_title}) funnet i linjebeskrivelsen."),
                 )
             )
 
     # Synonymmatch
-    for syn, list_code, category, category_title, item_code in chemical_index.lookup_synonyms(
-        description
-    ):
+    for syn, list_code, category, category_title, item_code in chemical_index.lookup_synonyms(description):
         hits.append(
             ExportControlLineHit(
                 line_index=line_index,
@@ -337,7 +327,7 @@ def _chemical_hits(
 def _match_line(
     line_index: int,
     line,
-    chemical_index: "ChemicalIndex | None" = None,
+    chemical_index: ChemicalIndex | None = None,
 ) -> list[ExportControlLineHit]:
     """Match en fakturalinje med alle fire matcherne, dedupliser per kategori."""
     description = getattr(line, "description", None)
@@ -394,7 +384,7 @@ def _normalize_country(c: str | None) -> str | None:
 def evaluate_invoice_export_control(
     invoice: Invoice,
     lines: list | None = None,
-    chemical_index: "ChemicalIndex | None" = None,
+    chemical_index: ChemicalIndex | None = None,
 ) -> ExportControlCheckResult:
     """Vurder en faktura mot varelistene basert pa linjene.
 
@@ -421,12 +411,8 @@ def evaluate_invoice_export_control(
             summary=None,
         )
 
-    has_explicit_military = any(
-        h.list_code == "I" and h.confidence == "high" for h in hits
-    )
-    has_explicit_dual_use = any(
-        h.list_code == "II" and h.confidence == "high" for h in hits
-    )
+    has_explicit_military = any(h.list_code == "I" and h.confidence == "high" for h in hits)
+    has_explicit_dual_use = any(h.list_code == "II" and h.confidence == "high" for h in hits)
 
     if has_explicit_military:
         status, severity = _STATUS_CONTROLLED, "red"
@@ -498,9 +484,7 @@ async def list_export_control_invoices(
     """
     total_scanned: int = (
         await session.execute(
-            select(func.count())
-            .select_from(Invoice)
-            .where(Invoice.export_control_status.is_not(None))
+            select(func.count()).select_from(Invoice).where(Invoice.export_control_status.is_not(None))
         )
     ).scalar_one()
 
@@ -572,13 +556,17 @@ async def upsert_item(
     """
     norm = normalize_item_code(item_code)
     existing = (
-        await session.execute(
-            select(ExportControlListItem).where(
-                ExportControlListItem.item_code_normalized == norm,
-                ExportControlListItem.source_version == source_version,
+        (
+            await session.execute(
+                select(ExportControlListItem).where(
+                    ExportControlListItem.item_code_normalized == norm,
+                    ExportControlListItem.source_version == source_version,
+                )
             )
         )
-    ).scalars().first()
+        .scalars()
+        .first()
+    )
     if existing is not None:
         existing.list_code = list_code
         existing.category = category.upper()
@@ -636,12 +624,14 @@ async def lookup_item_title(session: AsyncSession, code: str) -> str | None:
     if not norm:
         return None
     row = (
-        await session.execute(
-            select(ExportControlListItem.title)
-            .where(ExportControlListItem.item_code_normalized == norm)
-            .limit(1)
+        (
+            await session.execute(
+                select(ExportControlListItem.title).where(ExportControlListItem.item_code_normalized == norm).limit(1)
+            )
         )
-    ).scalars().first()
+        .scalars()
+        .first()
+    )
     return row
 
 
@@ -670,16 +660,12 @@ async def browse_items(
             )
         )
 
-    total = (
-        await session.execute(select(func.count()).select_from(base.subquery()))
-    ).scalar_one()
+    total = (await session.execute(select(func.count()).select_from(base.subquery()))).scalar_one()
 
     rows = list(
         (
             await session.execute(
-                base.order_by(ExportControlListItem.item_code_normalized.asc())
-                .limit(limit)
-                .offset(offset)
+                base.order_by(ExportControlListItem.item_code_normalized.asc()).limit(limit).offset(offset)
             )
         )
         .scalars()
@@ -690,9 +676,7 @@ async def browse_items(
 
 async def count_items(session: AsyncSession) -> int:
     """Antall importerte listepunkter — brukes for å vise om lista er lastet."""
-    return (
-        await session.execute(select(func.count()).select_from(ExportControlListItem))
-    ).scalar_one()
+    return (await session.execute(select(func.count()).select_from(ExportControlListItem))).scalar_one()
 
 
 # ── Backfill av eksisterende fakturaer ────────────────────────────────────────
@@ -750,15 +734,10 @@ async def backfill_export_control(
             if res.flagged:
                 flagged += 1
             if rescore and inv.review_decision is None:
-                esc = {"red": ComplianceScore.RED, "yellow": ComplianceScore.YELLOW}.get(
-                    res.severity
-                )
+                esc = {"red": ComplianceScore.RED, "yellow": ComplianceScore.YELLOW}.get(res.severity)
                 if esc and (
                     inv.compliance_score == ComplianceScore.GREEN
-                    or (
-                        inv.compliance_score == ComplianceScore.YELLOW
-                        and esc == ComplianceScore.RED
-                    )
+                    or (inv.compliance_score == ComplianceScore.YELLOW and esc == ComplianceScore.RED)
                 ):
                     inv.compliance_score = esc
                     rescored += 1

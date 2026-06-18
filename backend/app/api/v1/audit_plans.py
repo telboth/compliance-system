@@ -77,9 +77,7 @@ async def get_audit_plan(plan_id: uuid.UUID, session: SessionDep) -> AuditPlanOu
 
 
 @router.patch("/{plan_id}", response_model=AuditPlanOut)
-async def update_audit_plan(
-    plan_id: uuid.UUID, body: AuditPlanUpdate, session: SessionDep
-) -> AuditPlanOut:
+async def update_audit_plan(plan_id: uuid.UUID, body: AuditPlanUpdate, session: SessionDep) -> AuditPlanOut:
     """Oppdater metadata for en revisjonsplan."""
     try:
         plan = await audit_plan_service.update_plan(
@@ -100,9 +98,7 @@ async def update_audit_plan(
 
 
 @router.post("/{plan_id}/complete", response_model=AuditPlanOut)
-async def complete_audit_plan(
-    plan_id: uuid.UUID, body: AuditPlanCompleteRequest, session: SessionDep
-) -> AuditPlanOut:
+async def complete_audit_plan(plan_id: uuid.UUID, body: AuditPlanCompleteRequest, session: SessionDep) -> AuditPlanOut:
     """Marker en revisjonsplan som fullført og rykk frem neste forfallsdato."""
     try:
         plan = await audit_plan_service.mark_completed(

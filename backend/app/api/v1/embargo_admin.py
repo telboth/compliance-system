@@ -16,7 +16,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, ConfigDict
 
 from app.core.database import SessionDep
-from app.core.security import require_roles
+from app.core.security import ActorContext, require_roles
 from app.services import embargo_sync_service as sync_svc
 
 router = APIRouter()
@@ -67,8 +67,8 @@ async def get_sync_status(session: SessionDep) -> EmbargoSyncStateOut:
     return EmbargoSyncStateOut.model_validate(state)
 
 
-@router.post("/sync/check", response_model=dict)
-async def check_for_updates(session: SessionDep) -> dict:
+@router.post("/sync/check", response_model=dict[str, object])
+async def check_for_updates(session: SessionDep) -> dict[str, object]:
     """Sjekk manuelt om embargo-lista har ny versjon (alle brukere)."""
     result = await sync_svc.check_for_updates(session)
     return {"status": "ok", "result": result}
@@ -95,7 +95,7 @@ async def import_embargo_list(
 async def set_source_url(
     session: SessionDep,
     url: str = Query(..., description="Nedlastings-URL for embargo-CSV"),
-    _actor=Depends(require_roles("admin")),
+    _actor: ActorContext = Depends(require_roles("admin")),
 ) -> EmbargoSyncStateOut:
     """Oppdater nedlastings-URL for embargo-lista (kun admin).
 

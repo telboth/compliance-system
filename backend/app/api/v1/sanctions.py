@@ -167,15 +167,9 @@ def _build_match_explanation(
         scope = _get_payload_str(raw_response, "scope")
         country_name = _get_payload_str(raw_response, "matched_name") or matched_name
         if scope == "comprehensive":
-            return (
-                f"Landembargo: '{country_name or 'ukjent land'}' er markert som "
-                "comprehensive embargo."
-            )
+            return f"Landembargo: '{country_name or 'ukjent land'}' er markert som comprehensive embargo."
         if scope == "sectoral":
-            return (
-                f"Landembargo: '{country_name or 'ukjent land'}' har sectoral embargo "
-                "(potensielt treff)."
-            )
+            return f"Landembargo: '{country_name or 'ukjent land'}' har sectoral embargo (potensielt treff)."
         return f"Landembargo-treff mot '{country_name or 'ukjent land'}'."
     if check_type == "trade_plausibility_industry_mismatch":
         return (
@@ -191,10 +185,7 @@ def _build_match_explanation(
         matched_invoice = _get_payload_str(raw_response, "matched_invoice_number")
         matched_file = _get_payload_str(raw_response, "matched_filename")
         label = matched_invoice or matched_file or "tidligere faktura"
-        return (
-            f"Mulig duplikat: høy likhet mot {label} "
-            "(navn/beløp/tekst/fakturanummer)."
-        )
+        return f"Mulig duplikat: høy likhet mot {label} (navn/beløp/tekst/fakturanummer)."
 
     query_source = _get_payload_str(raw_response, "query_source")
     query_name = _get_payload_str(raw_response, "query_name")
@@ -217,10 +208,7 @@ def _build_match_explanation(
 
     if query_source == "raw_text_label":
         if query_name and effective_match:
-            return (
-                f"Treff fra dokumenttekst (label/overskrift): "
-                f"'{query_name}' matchet mot '{effective_match}'."
-            )
+            return f"Treff fra dokumenttekst (label/overskrift): '{query_name}' matchet mot '{effective_match}'."
         if query_name:
             return f"Treff fra dokumenttekst (label/overskrift), soketerm '{query_name}'."
 
@@ -244,10 +232,7 @@ def _build_match_explanation(
 
     if query_source == "entity_name":
         if query_name and effective_match:
-            return (
-                f"Treff fra entitetsnavn '{query_name}' mot sanksjonert navn "
-                f"'{effective_match}'."
-            )
+            return f"Treff fra entitetsnavn '{query_name}' mot sanksjonert navn '{effective_match}'."
         if query_name:
             return f"Treff fra entitetsnavn '{query_name}'."
 
@@ -304,6 +289,7 @@ def _dedupe_screening_rows(results: list[ScreeningResult]) -> list[ScreeningResu
 
 
 # ── Per-invoice screening ─────────────────────────────────────────────────────
+
 
 @public_router.post(
     "/screen",
@@ -375,6 +361,7 @@ async def ad_hoc_screen_entities(
         )
 
     return AdHocScreenResponse(results=results)
+
 
 @invoice_router.post(
     "/{invoice_id}/screen",
@@ -727,39 +714,39 @@ async def get_screening_results(
 
     # Bygg et oppslags-dict for entiteter slik at vi kan denormalisere
     from sqlalchemy import select
-    entity_result = await session.execute(
-        select(Entity).where(Entity.invoice_id == invoice_id)
-    )
+
+    entity_result = await session.execute(select(Entity).where(Entity.invoice_id == invoice_id))
     entity_map = {str(e.id): e for e in entity_result.scalars().all()}
 
     result_reads: list[ScreeningResultRead] = []
     for r in deduped_results:
         entity = entity_map.get(str(r.entity_id))
-        result_reads.append(ScreeningResultRead(
-            id=r.id,
-            invoice_id=r.invoice_id,
-            entity_id=r.entity_id,
-            dataset=r.dataset,
-            dataset_entity_id=r.dataset_entity_id,
-            matched_name=r.matched_name,
-            score=r.score,
-            listed_on=r.listed_on,
-            status=r.status,
-            screened_at=r.screened_at,
-            entity_name=entity.name if entity else None,
-            entity_role=entity.role.value if entity else None,
-            match_explanation=_build_match_explanation(
+        result_reads.append(
+            ScreeningResultRead(
+                id=r.id,
+                invoice_id=r.invoice_id,
+                entity_id=r.entity_id,
                 dataset=r.dataset,
+                dataset_entity_id=r.dataset_entity_id,
                 matched_name=r.matched_name,
-                raw_response=r.raw_response,
+                score=r.score,
+                listed_on=r.listed_on,
+                status=r.status,
+                screened_at=r.screened_at,
                 entity_name=entity.name if entity else None,
-            ),
-        ))
+                entity_role=entity.role.value if entity else None,
+                match_explanation=_build_match_explanation(
+                    dataset=r.dataset,
+                    matched_name=r.matched_name,
+                    raw_response=r.raw_response,
+                    entity_name=entity.name if entity else None,
+                ),
+            )
+        )
 
     # Finn nyeste screened_at
     screened_at: datetime | None = (
-        max((r.screened_at for r in deduped_results), default=None)
-        if deduped_results else None
+        max((r.screened_at for r in deduped_results), default=None) if deduped_results else None
     )
 
     confirmed = sum(1 for r in deduped_results if r.status == MatchStatus.CONFIRMED_MATCH)
@@ -848,6 +835,7 @@ async def get_screening_candidates(
 
 # ── Yente-administrasjon ──────────────────────────────────────────────────────
 
+
 @admin_router.get(
     "/status",
     response_model=SanctionsStatusResponse,
@@ -864,6 +852,7 @@ async def get_sanctions_status() -> SanctionsStatusResponse:
     latest_refresh = None
 
     from app.core.database import get_session_factory
+
     async with get_session_factory()() as local_session:
         rows = await list_local_sanctions_statuses(local_session)
         latest_refresh = await get_latest_refresh_run(local_session)
@@ -883,21 +872,9 @@ async def get_sanctions_status() -> SanctionsStatusResponse:
                 source=str(row.get("source")),
                 enabled=bool(row.get("enabled")),
                 status=str(row.get("status")),
-                entry_count=(
-                    int(row.get("entry_count"))
-                    if isinstance(row.get("entry_count"), int | float)
-                    else None
-                ),
-                last_updated=(
-                    row.get("last_updated")
-                    if isinstance(row.get("last_updated"), datetime)
-                    else None
-                ),
-                error_message=(
-                    str(row.get("error_message"))
-                    if row.get("error_message")
-                    else None
-                ),
+                entry_count=(int(row.get("entry_count")) if isinstance(row.get("entry_count"), int | float) else None),
+                last_updated=(row.get("last_updated") if isinstance(row.get("last_updated"), datetime) else None),
+                error_message=(str(row.get("error_message")) if row.get("error_message") else None),
                 stale=bool(row.get("stale")),
             )
             for row in external_health_rows
@@ -916,8 +893,7 @@ async def get_sanctions_status() -> SanctionsStatusResponse:
             refresh_schedule_time=f"{settings.sanctions_refresh_hour:02d}:{settings.sanctions_refresh_minute:02d}",
             refresh_schedule_timezone=settings.celery_timezone,
             external_refresh_schedule_time=(
-                f"{settings.external_source_refresh_hour:02d}:"
-                f"{settings.external_source_refresh_minute:02d}"
+                f"{settings.external_source_refresh_hour:02d}:{settings.external_source_refresh_minute:02d}"
             ),
             last_refresh_run=(
                 SanctionsRefreshRunStatus(
@@ -957,8 +933,7 @@ async def get_sanctions_status() -> SanctionsStatusResponse:
         refresh_schedule_time=f"{settings.sanctions_refresh_hour:02d}:{settings.sanctions_refresh_minute:02d}",
         refresh_schedule_timezone=settings.celery_timezone,
         external_refresh_schedule_time=(
-            f"{settings.external_source_refresh_hour:02d}:"
-            f"{settings.external_source_refresh_minute:02d}"
+            f"{settings.external_source_refresh_hour:02d}:{settings.external_source_refresh_minute:02d}"
         ),
         last_refresh_run=(
             SanctionsRefreshRunStatus(
@@ -1048,11 +1023,7 @@ async def refresh_external_sources(
             message=str(result.get("message") or "Ekstern refresh hoppet over."),
             datasets_triggered=[],
         )
-    sources = [
-        str(row.get("source"))
-        for row in (result.get("sources") or [])
-        if isinstance(row, dict)
-    ]
+    sources = [str(row.get("source")) for row in (result.get("sources") or []) if isinstance(row, dict)]
     return SanctionsRefreshResponse(
         message=str(result.get("message") or "Eksterne kilder oppdatert."),
         datasets_triggered=sources,
@@ -1398,11 +1369,7 @@ async def list_sanctioned_entities(
         if not payload.items:
             break
 
-        filtered = [
-            e
-            for e in payload.items
-            if e.schema and e.schema.lower() in _COMPANY_OR_PERSON_SCHEMAS
-        ]
+        filtered = [e for e in payload.items if e.schema and e.schema.lower() in _COMPANY_OR_PERSON_SCHEMAS]
         for entity in filtered:
             if filtered_seen < offset:
                 filtered_seen += 1

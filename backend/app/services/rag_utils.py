@@ -139,9 +139,7 @@ def normalized_snippet_for_key(snippet: str) -> str:
 def rag_hit_dedupe_key(hit: RAGSourceRef) -> tuple[str, int, str]:
     """Semantic dedupe key for nearly-identical hits."""
     invoice_ref = (
-        (normalize(hit.invoice_number) or "")
-        or (normalize(hit.original_filename) or "")
-        or hit.invoice_id
+        (normalize(hit.invoice_number) or "") or (normalize(hit.original_filename) or "") or hit.invoice_id
     ).lower()
     snippet_key = normalized_snippet_for_key(hit.snippet)[:220]
     return (invoice_ref, hit.chunk_index, snippet_key)
@@ -170,14 +168,8 @@ def no_evidence_answer(_query: str, focus_terms: list[str]) -> str:
             term_display = focus_terms[0]
         else:
             term_display = ", ".join(focus_terms[:3])
-        return (
-            "Ingen tydelige treff i RAG-kildene for soketermene: "
-            f"{term_display}. Svar krever manuell verifisering."
-        )
-    return (
-        "Ingen tydelige treff i RAG-kildene for foresporselen. "
-        "Svar krever manuell verifisering."
-    )
+        return f"Ingen tydelige treff i RAG-kildene for soketermene: {term_display}. Svar krever manuell verifisering."
+    return "Ingen tydelige treff i RAG-kildene for foresporselen. Svar krever manuell verifisering."
 
 
 def select_answer_hits(
@@ -197,4 +189,3 @@ def select_answer_hits(
     if evidence_hits:
         return evidence_hits[:8], None
     return [], no_evidence_answer(query, focus_terms)
-

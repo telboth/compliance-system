@@ -32,9 +32,7 @@ async def export_kri_csv(
     return StreamingResponse(
         iter([csv_content]),
         media_type="text/csv; charset=utf-8",
-        headers={
-            "Content-Disposition": f"attachment; filename=kri_rapport_{months}mnd.csv"
-        },
+        headers={"Content-Disposition": f"attachment; filename=kri_rapport_{months}mnd.csv"},
     )
 
 

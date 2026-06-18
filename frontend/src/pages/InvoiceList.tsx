@@ -1010,9 +1010,8 @@ export function InvoiceList() {
                       </td>
                       <td className="px-3 py-2">
                         {(() => {
-                          let state: "pending" | "approved" | "blocked" | "not_required" | "assessing";
+                          const state: "pending" | "approved" | "blocked" | "not_required" | "assessing" = invoice.approval_state;
                           let label: string;
-                          state = invoice.approval_state;
                           if (state === "approved") label = t("table.approval_approved");
                           else if (state === "blocked") label = t("table.approval_blocked");
                           else if (state === "pending") label = t("table.approval_pending");

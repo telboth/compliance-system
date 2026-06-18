@@ -7,9 +7,6 @@ flagges automatisk (is_repeat_vendor=True) og utløser et ekstra varsel.
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
-from decimal import Decimal
-
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -34,7 +31,7 @@ def _deviation_type(score: ComplianceScore) -> str:
 async def _find_primary_vendor_name(invoice: Invoice) -> str | None:
     """Plukk ut normalisert navn på SELLER/CONSIGNOR/BUYER fra lastet invoice."""
     for role in (EntityRole.SELLER, EntityRole.CONSIGNOR, EntityRole.BUYER):
-        for entity in (invoice.entities or []):
+        for entity in invoice.entities or []:
             if entity.role == role and entity.name:
                 return entity.name.strip().lower()
     return None
@@ -48,6 +45,7 @@ async def _count_previous_deviations(
 ) -> int:
     """Tell avviksposter for samme leverandørnavn (unntatt nåværende faktura)."""
     from sqlalchemy import func
+
     result = await session.execute(
         select(func.count(ControlDeviation.id)).where(
             ControlDeviation.vendor_name == vendor_name,
@@ -135,22 +133,12 @@ async def list_deviations(
     if is_repeat_vendor is not None:
         base = base.where(ControlDeviation.is_repeat_vendor == is_repeat_vendor)
     if vendor_name:
-        base = base.where(
-            ControlDeviation.vendor_name.ilike(f"%{vendor_name.lower()}%")
-        )
+        base = base.where(ControlDeviation.vendor_name.ilike(f"%{vendor_name.lower()}%"))
 
-    total = (
-        await session.execute(select(func.count()).select_from(base.subquery()))
-    ).scalar_one()
+    total = (await session.execute(select(func.count()).select_from(base.subquery()))).scalar_one()
 
     rows = list(
-        (
-            await session.execute(
-                base.order_by(ControlDeviation.created_at.desc())
-                .limit(limit)
-                .offset(offset)
-            )
-        )
+        (await session.execute(base.order_by(ControlDeviation.created_at.desc()).limit(limit).offset(offset)))
         .scalars()
         .all()
     )

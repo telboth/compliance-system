@@ -16,11 +16,10 @@ T = TypeVar("T")
 _loop: asyncio.AbstractEventLoop | None = None
 
 
-def run_async(awaitable: Awaitable[T]) -> T:
+def run_async[T](awaitable: Awaitable[T]) -> T:
     """Kjør awaitable i en stabil event loop per worker-prosess."""
     global _loop
     if _loop is None or _loop.is_closed():
         _loop = asyncio.new_event_loop()
     asyncio.set_event_loop(_loop)
     return _loop.run_until_complete(awaitable)
-

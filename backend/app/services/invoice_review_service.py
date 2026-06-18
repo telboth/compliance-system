@@ -14,9 +14,8 @@ from app.core.errors import ApplicationError, NotFoundError
 from app.models.invoice import ApprovalState, ComplianceScore, Invoice, InvoiceStatus
 from app.models.invoice_line import InvoiceLine
 from app.models.screening import MatchStatus, ScreeningResult
-from app.services import audit_service
 from app.schemas.invoice import ReviewQueueItem, ReviewQueueResponse
-
+from app.services import audit_service
 
 REVIEWABLE_STATUSES = {
     InvoiceStatus.SCREENED,
@@ -108,8 +107,7 @@ async def _apply_review_decision(
 ) -> None:
     if invoice.status not in REVIEWABLE_STATUSES:
         raise ApplicationError(
-            f"Kan ikke reviewe en invoice med status '{invoice.status.value}'. "
-            "Invoicen må være screenet først.",
+            f"Kan ikke reviewe en invoice med status '{invoice.status.value}'. Invoicen må være screenet først.",
             details={"invoice_id": str(invoice.id), "status": invoice.status.value},
         )
 
@@ -141,17 +139,14 @@ async def _apply_review_decision(
         },
     )
 
-    from app.services import notification_service
     from app.services import control_effectiveness_service as ce_svc
+    from app.services import notification_service
 
     inv_label = invoice.original_filename or invoice.invoice_number or str(invoice.id)[:8]
     decision_icon = "✓" if decision == "approved" else "🔒"
     await notification_service.create(
         session,
-        message=(
-            f"{decision_icon} {inv_label} ble "
-            f"{'godkjent' if decision == 'approved' else 'blokkert'} av {actor}"
-        ),
+        message=(f"{decision_icon} {inv_label} ble {'godkjent' if decision == 'approved' else 'blokkert'} av {actor}"),
         level="info" if decision == "approved" else "warn",
         invoice_id=invoice.id,
         target_roles=["controller", "admin"],
@@ -168,6 +163,7 @@ async def _apply_review_decision(
             )
         except Exception:
             import logging
+
             logging.getLogger(__name__).exception(
                 "control_deviation_record_failed", extra={"invoice_id": str(invoice.id)}
             )
@@ -264,11 +260,7 @@ async def review_invoice_and_next(
     stale = max(1, int(stale_minutes or _review_claim_stale_minutes()))
     invoice = await _get_invoice(session, invoice_id, for_update=True)
     now = _now_utc()
-    if (
-        invoice.review_claimed_by
-        and invoice.review_claimed_by != actor
-        and not _claim_is_stale(invoice, now, stale)
-    ):
+    if invoice.review_claimed_by and invoice.review_claimed_by != actor and not _claim_is_stale(invoice, now, stale):
         raise ReviewClaimConflictError(
             f"Invoicen er allerede claimet av {invoice.review_claimed_by}.",
             details={"invoice_id": str(invoice_id), "review_claimed_by": invoice.review_claimed_by},
@@ -322,19 +314,13 @@ async def claim_review_invoice(
         )
 
     now = _now_utc()
-    if (
-        invoice.review_claimed_by
-        and invoice.review_claimed_by != actor
-        and not _claim_is_stale(invoice, now, stale)
-    ):
+    if invoice.review_claimed_by and invoice.review_claimed_by != actor and not _claim_is_stale(invoice, now, stale):
         raise ReviewClaimConflictError(
             f"Invoicen er allerede claimet av {invoice.review_claimed_by}.",
             details={
                 "invoice_id": str(invoice_id),
                 "review_claimed_by": invoice.review_claimed_by,
-                "review_claimed_at": invoice.review_claimed_at.isoformat()
-                if invoice.review_claimed_at
-                else None,
+                "review_claimed_at": invoice.review_claimed_at.isoformat() if invoice.review_claimed_at else None,
             },
         )
 
@@ -354,11 +340,7 @@ async def release_review_claim(
     stale = max(1, int(stale_minutes or _review_claim_stale_minutes()))
     invoice = await _get_invoice(session, invoice_id, for_update=True)
     now = _now_utc()
-    if (
-        invoice.review_claimed_by
-        and invoice.review_claimed_by != actor
-        and not _claim_is_stale(invoice, now, stale)
-    ):
+    if invoice.review_claimed_by and invoice.review_claimed_by != actor and not _claim_is_stale(invoice, now, stale):
         raise ReviewClaimConflictError(
             f"Invoicen er claimet av {invoice.review_claimed_by}; kan ikke frigi.",
             details={"invoice_id": str(invoice_id), "review_claimed_by": invoice.review_claimed_by},
@@ -379,11 +361,13 @@ async def list_review_queue(
     stmt = (
         select(Invoice)
         .where(
-            Invoice.status.in_([
-                InvoiceStatus.SCREENED,
-                InvoiceStatus.APPROVED,
-                InvoiceStatus.BLOCKED,
-            ])
+            Invoice.status.in_(
+                [
+                    InvoiceStatus.SCREENED,
+                    InvoiceStatus.APPROVED,
+                    InvoiceStatus.BLOCKED,
+                ]
+            )
         )
         .where(Invoice.compliance_score.in_([ComplianceScore.RED, ComplianceScore.YELLOW]))
     )
@@ -416,10 +400,12 @@ async def list_review_queue(
                     ScreeningResult.dataset,
                 ).where(
                     ScreeningResult.invoice_id.in_(invoice_ids),
-                    ScreeningResult.status.in_([
-                        MatchStatus.POTENTIAL_MATCH,
-                        MatchStatus.CONFIRMED_MATCH,
-                    ]),
+                    ScreeningResult.status.in_(
+                        [
+                            MatchStatus.POTENTIAL_MATCH,
+                            MatchStatus.CONFIRMED_MATCH,
+                        ]
+                    ),
                 )
             )
         ).all()
@@ -432,13 +418,17 @@ async def list_review_queue(
                 has_sanctions_hit[iid] = True
 
         eccn_rows = (
-            await session.execute(
-                select(InvoiceLine.invoice_id.distinct()).where(
-                    InvoiceLine.invoice_id.in_(invoice_ids),
-                    InvoiceLine.eccn.is_not(None),
+            (
+                await session.execute(
+                    select(InvoiceLine.invoice_id.distinct()).where(
+                        InvoiceLine.invoice_id.in_(invoice_ids),
+                        InvoiceLine.eccn.is_not(None),
+                    )
                 )
             )
-        ).scalars().all()
+            .scalars()
+            .all()
+        )
         for iid in eccn_rows:
             has_eccn[iid] = True
 
@@ -447,9 +437,7 @@ async def list_review_queue(
 
     def _has_ownership_risk(inv: Invoice) -> bool:
         text = (inv.comments or "").lower()
-        return any(
-            token in text for token in ("ownership", "beneficial owner", "ultimate parent", "ubo")
-        )
+        return any(token in text for token in ("ownership", "beneficial owner", "ultimate parent", "ubo"))
 
     return ReviewQueueResponse(
         items=[
@@ -473,9 +461,7 @@ async def list_review_queue(
                 has_vat_deviation=(inv.vat_note_status in {"warn", "error"}),
                 has_export_control=(inv.export_control_status in {"review", "controlled"}),
                 has_catch_all=(inv.catch_all_status in {"review", "controlled"}),
-                awaiting_approval=(
-                    (inv.approval_state.value if inv.approval_state else "") == "pending"
-                ),
+                awaiting_approval=((inv.approval_state.value if inv.approval_state else "") == "pending"),
                 review_claimed_by=inv.review_claimed_by,
                 review_claimed_at=inv.review_claimed_at,
                 claim_is_mine=bool(inv.review_claimed_by and inv.review_claimed_by == actor_name),

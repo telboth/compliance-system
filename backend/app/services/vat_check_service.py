@@ -123,11 +123,7 @@ def evaluate_invoice_vat_mismatch(invoice: Invoice) -> VatMismatchCheckResult:
     if receiver_country is None:
         receiver_country = _normalize_country(invoice.destination_country)
 
-    export_detected = bool(
-        sender_country
-        and receiver_country
-        and sender_country != receiver_country
-    )
+    export_detected = bool(sender_country and receiver_country and sender_country != receiver_country)
     has_vat = _has_vat(invoice.vat_amount, invoice.vat_rate)
 
     vat_amount_str = str(invoice.vat_amount) if invoice.vat_amount is not None else None
@@ -136,10 +132,7 @@ def evaluate_invoice_vat_mismatch(invoice: Invoice) -> VatMismatchCheckResult:
 
     reason: str | None = None
     if flagged:
-        vat_info = (
-            f"belop={vat_amount_str or 'ukjent'}, "
-            f"sats={vat_rate_str or 'ukjent'}"
-        )
+        vat_info = f"belop={vat_amount_str or 'ukjent'}, sats={vat_rate_str or 'ukjent'}"
         reason = (
             f"Mulig feilregistrert VAT: avsenderland {sender_country} "
             f"og mottakerland {receiver_country} indikerer eksport, "
@@ -170,16 +163,10 @@ async def list_vat_mismatch_invoices(
     Bruker lagret ``vat_note_status`` for databasefiltrering og -paginering
     slik at hele tabellen ikke lastes inn i minnet.
     """
-    total_scanned: int = (
-        await session.execute(select(func.count()).select_from(Invoice))
-    ).scalar_one()
+    total_scanned: int = (await session.execute(select(func.count()).select_from(Invoice))).scalar_one()
 
     total_flagged: int = (
-        await session.execute(
-            select(func.count())
-            .select_from(Invoice)
-            .where(Invoice.vat_note_status == "error")
-        )
+        await session.execute(select(func.count()).select_from(Invoice).where(Invoice.vat_note_status == "error"))
     ).scalar_one()
 
     stmt = (
@@ -193,8 +180,5 @@ async def list_vat_mismatch_invoices(
         stmt = stmt.where(Invoice.vat_note_status == "error")
 
     rows = list((await session.execute(stmt)).scalars().all())
-    results = [
-        VatMismatchInvoiceResult(invoice=inv, check=evaluate_invoice_vat_mismatch(inv))
-        for inv in rows
-    ]
+    results = [VatMismatchInvoiceResult(invoice=inv, check=evaluate_invoice_vat_mismatch(inv)) for inv in rows]
     return results, total_flagged, total_scanned

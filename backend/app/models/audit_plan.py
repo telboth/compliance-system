@@ -10,7 +10,6 @@ is_overdue-property.
 
 from __future__ import annotations
 
-import uuid
 from datetime import date, datetime
 
 from sqlalchemy import Boolean, Date, DateTime, Index, Integer, String, Text

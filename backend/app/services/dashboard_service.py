@@ -12,11 +12,10 @@ Returnerer aggregerte tall om:
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
-from sqlalchemy import case, cast, func, select, text
-from sqlalchemy.dialects.postgresql import INTERVAL
+from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.logging import get_logger
@@ -30,7 +29,7 @@ logger = get_logger(__name__)
 
 async def get_dashboard(session: AsyncSession) -> dict[str, Any]:
     """Bygg komplett dashboard-payload."""
-    now = datetime.now(tz=timezone.utc)
+    now = datetime.now(tz=UTC)
     week_ago = now - timedelta(days=7)
     month_ago = now - timedelta(days=30)
 
@@ -60,9 +59,8 @@ async def _run_queries(
     invoices_this_month: int = month_result.scalar_one() or 0
 
     # ── Score-fordeling ────────────────────────────────────────────────────────
-    score_stmt = (
-        select(Invoice.compliance_score, func.count(Invoice.id).label("cnt"))
-        .group_by(Invoice.compliance_score)
+    score_stmt = select(Invoice.compliance_score, func.count(Invoice.id).label("cnt")).group_by(
+        Invoice.compliance_score
     )
     score_result = await session.execute(score_stmt)
     score_dist: dict[str, int] = {"green": 0, "yellow": 0, "red": 0, "unknown": 0}
@@ -83,15 +81,15 @@ async def _run_queries(
 
     # ── Gjennomsnittlig behandlingstid ────────────────────────────────────────
     # Fra opprettelse til SCREENED-status (tilnærming via updated_at når screened)
-    avg_time_stmt = select(
-        func.avg(
-            func.extract("epoch", Invoice.updated_at - Invoice.created_at)
+    avg_time_stmt = select(func.avg(func.extract("epoch", Invoice.updated_at - Invoice.created_at))).where(
+        Invoice.status.in_(
+            [
+                InvoiceStatus.SCREENED,
+                InvoiceStatus.REVIEWED,
+                InvoiceStatus.APPROVED,
+                InvoiceStatus.BLOCKED,
+            ]
         )
-    ).where(
-        Invoice.status.in_([
-            InvoiceStatus.SCREENED, InvoiceStatus.REVIEWED,
-            InvoiceStatus.APPROVED, InvoiceStatus.BLOCKED,
-        ])
     )
     avg_time_result = await session.execute(avg_time_stmt)
     avg_seconds = avg_time_result.scalar_one()
@@ -104,10 +102,7 @@ async def _run_queries(
     sanctions_stats = await _sanctions_stats(session, month_ago)
 
     # ── Status-fordeling ──────────────────────────────────────────────────────
-    status_stmt = (
-        select(Invoice.status, func.count(Invoice.id).label("cnt"))
-        .group_by(Invoice.status)
-    )
+    status_stmt = select(Invoice.status, func.count(Invoice.id).label("cnt")).group_by(Invoice.status)
     status_result = await session.execute(status_stmt)
     status_dist = {row.status.value: row.cnt for row in status_result}
 
@@ -120,9 +115,7 @@ async def _run_queries(
         .limit(10)
     )
     audit_result = await session.execute(audit_stmt)
-    recent_audit_actions = [
-        {"action": row.action, "count": row.cnt} for row in audit_result
-    ]
+    recent_audit_actions = [{"action": row.action, "count": row.cnt} for row in audit_result]
 
     return {
         "generated_at": now.isoformat(),
@@ -196,10 +189,7 @@ async def _top_customers_with_flags(
         .limit(5)
     )
     result = await session.execute(stmt)
-    return [
-        {"customer_id": str(row.id), "customer_name": row.name, "flag_count": row.flag_count}
-        for row in result
-    ]
+    return [{"customer_id": str(row.id), "customer_name": row.name, "flag_count": row.flag_count} for row in result]
 
 
 async def _sanctions_stats(
@@ -207,9 +197,7 @@ async def _sanctions_stats(
     since: datetime,
 ) -> dict[str, Any]:
     """Statistikk over sanksjonsscreening."""
-    total_stmt = select(func.count(ScreeningResult.id)).where(
-        ScreeningResult.screened_at >= since
-    )
+    total_stmt = select(func.count(ScreeningResult.id)).where(ScreeningResult.screened_at >= since)
     total_result = await session.execute(total_stmt)
     total_screenings: int = total_result.scalar_one() or 0
 

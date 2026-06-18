@@ -50,6 +50,7 @@ class OpenAICompatibleClient(LLMClient):
     def _get_client(self):  # type: ignore[return]
         if self._client is None:
             from openai import AsyncOpenAI  # lazy import
+
             kwargs: dict = {"api_key": self._api_key}
             if self._base_url:
                 kwargs["base_url"] = self._base_url

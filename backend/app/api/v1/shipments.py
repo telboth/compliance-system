@@ -43,4 +43,3 @@ async def get_shipments_map(
         date_to=date_to,
         max_external_lookups=max_geocode_lookups,
     )
-

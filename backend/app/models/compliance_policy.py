@@ -31,9 +31,7 @@ class CompliancePolicy(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     __tablename__ = "compliance_policies"
 
     title: Mapped[str] = mapped_column(String(256), nullable=False)
-    category: Mapped[str] = mapped_column(
-        String(64), nullable=False, index=True
-    )
+    category: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
     """Kategori: 'sanctions' | 'export_control' | 'aml' | 'data_privacy' | 'other'"""
 
     owner: Mapped[str] = mapped_column(String(128), nullable=False)

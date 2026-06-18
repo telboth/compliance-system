@@ -3,17 +3,16 @@
 from fastapi import APIRouter
 
 from app.api.v1 import (
-    audit,
     agreements,
     ai_governance,
+    audit,
     audit_plans,
     catch_all,
     config,
-    embargo_admin,
     control_effectiveness,
     customers,
-    policies,
     dashboard,
+    embargo_admin,
     export_control,
     health,
     hs_codes,
@@ -21,6 +20,7 @@ from app.api.v1 import (
     kri,
     models,
     notifications,
+    policies,
     regulatory_radar,
     report,
     risk,

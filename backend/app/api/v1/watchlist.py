@@ -38,10 +38,10 @@ class WatchlistListResponse(BaseModel):
 
 
 class WatchlistEntryCreate(BaseModel):
-    entry_type: str          # "name" | "email_domain" | "country" | "regex"
+    entry_type: str  # "name" | "email_domain" | "country" | "regex"
     value: str
     reason: str | None = None
-    severity: str = "red"    # "yellow" | "red"
+    severity: str = "red"  # "yellow" | "red"
     added_by: str = "admin"
 
 
@@ -63,9 +63,7 @@ async def list_watchlist(
     offset: int = Query(default=0, ge=0),
 ) -> WatchlistListResponse:
     """List alle oppføringer i den interne sperrelisten."""
-    entries, total = await wl_svc.list_entries(
-        session, active_only=active_only, limit=limit, offset=offset
-    )
+    entries, total = await wl_svc.list_entries(session, active_only=active_only, limit=limit, offset=offset)
     return WatchlistListResponse(
         total=total,
         items=[WatchlistEntryOut.model_validate(e) for e in entries],

@@ -9,8 +9,8 @@ Dette er ikke en erstatning for JWT, men gir faktisk backend-enforcement i dag.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Callable
 
 from fastapi import Depends, Header, HTTPException, status
 
@@ -58,10 +58,7 @@ def require_roles(*allowed_roles: str) -> Callable[[ActorContext], ActorContext]
         if actor.role not in allowed:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail=(
-                    "Tilgang nektet for rolle "
-                    f"{actor.role!r}. Krever en av: {sorted(allowed)}"
-                ),
+                detail=(f"Tilgang nektet for rolle {actor.role!r}. Krever en av: {sorted(allowed)}"),
             )
         return actor
 

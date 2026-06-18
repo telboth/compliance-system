@@ -81,16 +81,10 @@ async def list_plans(
         today = date.today()
         base = base.where(AuditPlan.next_due_date < today)
 
-    total = (
-        await session.execute(select(func.count()).select_from(base.subquery()))
-    ).scalar_one()
+    total = (await session.execute(select(func.count()).select_from(base.subquery()))).scalar_one()
 
     rows = list(
-        (
-            await session.execute(
-                base.order_by(AuditPlan.next_due_date.asc()).limit(limit).offset(offset)
-            )
-        )
+        (await session.execute(base.order_by(AuditPlan.next_due_date.asc()).limit(limit).offset(offset)))
         .scalars()
         .all()
     )

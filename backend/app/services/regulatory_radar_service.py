@@ -122,15 +122,13 @@ def _parse_date(raw: str | None) -> datetime | None:
 
 def _parse_rss(content: bytes) -> list[dict[str, Any]]:
     """Trekk ut items fra RSS 2.0-format."""
-    root = ET.fromstring(content)
+    root = ET.fromstring(content)  # noqa: S314
     items: list[dict[str, Any]] = []
     for item in root.iter("item"):
         title = (item.findtext("title") or "").strip()
         link = (item.findtext("link") or "").strip() or None
         summary = (item.findtext("description") or "").strip() or None
-        guid = (
-            (item.findtext("guid") or link or title)
-        ).strip()
+        guid = (item.findtext("guid") or link or title).strip()
         pub_raw = item.findtext("pubDate")
         published_at = _parse_date(pub_raw)
         if title:
@@ -148,7 +146,7 @@ def _parse_rss(content: bytes) -> list[dict[str, Any]]:
 
 def _parse_atom(content: bytes) -> list[dict[str, Any]]:
     """Trekk ut entries fra Atom-format."""
-    root = ET.fromstring(content)
+    root = ET.fromstring(content)  # noqa: S314
     items: list[dict[str, Any]] = []
     ns = {"a": _ATOM_NS}
     for entry in root.findall("a:entry", ns):
@@ -178,7 +176,7 @@ def _parse_atom(content: bytes) -> list[dict[str, Any]]:
 def _parse_feed(content: bytes) -> list[dict[str, Any]]:
     """Prøv RSS, fall tilbake til Atom."""
     try:
-        root = ET.fromstring(content)
+        root = ET.fromstring(content)  # noqa: S314
     except ET.ParseError as exc:
         logger.warning("XML-parsefeil: %s", exc)
         return []
@@ -224,13 +222,7 @@ async def fetch_and_store_feed(
     # Hent eksisterende guids for å unngå duplikater
     guids = [item["guid"] for item in parsed]
     existing_guids: set[str] = set(
-        (
-            await session.execute(
-                select(RegulatoryAlert.guid).where(RegulatoryAlert.guid.in_(guids))
-            )
-        )
-        .scalars()
-        .all()
+        (await session.execute(select(RegulatoryAlert.guid).where(RegulatoryAlert.guid.in_(guids)))).scalars().all()
     )
 
     new_count = 0
@@ -283,7 +275,7 @@ async def notify_unnotified(session: AsyncSession) -> int:
     count = 0
     for alert in rows:
         label = "[KRITISK]" if alert.severity == "critical" else "[Info]"
-        level = "error" if alert.severity == "critical" else "info"  # noqa: F841 (brukt under)
+        level = "error" if alert.severity == "critical" else "info"
         await notification_service.create(
             session,
             message=f"{label} {alert.source}: {alert.title}"[:512],
@@ -312,13 +304,7 @@ async def list_alerts(
     if severity:
         base = base.where(RegulatoryAlert.severity == severity)
 
-    total = (
-        await session.execute(
-            select(func.count()).select_from(
-                base.subquery()
-            )
-        )
-    ).scalar_one()
+    total = (await session.execute(select(func.count()).select_from(base.subquery()))).scalar_one()
 
     rows = list(
         (
@@ -326,7 +312,9 @@ async def list_alerts(
                 base.order_by(
                     RegulatoryAlert.published_at.desc().nulls_last(),
                     RegulatoryAlert.fetched_at.desc(),
-                ).limit(limit).offset(offset)
+                )
+                .limit(limit)
+                .offset(offset)
             )
         )
         .scalars()

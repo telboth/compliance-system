@@ -27,7 +27,7 @@ class AuditPlanOut(BaseModel):
     updated_at: datetime
 
     @classmethod
-    def from_orm_with_overdue(cls, plan: object) -> "AuditPlanOut":
+    def from_orm_with_overdue(cls, plan: object) -> AuditPlanOut:
         out = cls.model_validate(plan)
         out.is_overdue = plan.next_due_date < date.today()  # type: ignore[attr-defined]
         return out

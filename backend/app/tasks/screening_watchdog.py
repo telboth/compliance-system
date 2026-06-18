@@ -14,4 +14,3 @@ def run_scheduled() -> dict[str, int | str]:
     )
 
     return run_async(run_extracted_screening_watchdog_cycle())
-

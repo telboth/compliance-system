@@ -12,9 +12,7 @@ class CustomerCreate(BaseModel):
     """Request-body for å opprette en ny kunde."""
 
     name: str = Field(..., min_length=1, max_length=255)
-    country: str | None = Field(
-        default=None, max_length=2, description="ISO 3166-1 alpha-2 (f.eks. 'NO', 'DE')"
-    )
+    country: str | None = Field(default=None, max_length=2, description="ISO 3166-1 alpha-2 (f.eks. 'NO', 'DE')")
     org_number: str | None = Field(default=None, max_length=32)
     risk_level: str = Field(
         default="normal",

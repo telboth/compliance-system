@@ -30,7 +30,7 @@ from __future__ import annotations
 import re
 import uuid
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 import yaml
@@ -40,7 +40,7 @@ from sqlalchemy.orm import selectinload
 
 from app.core.logging import get_logger
 from app.models.invoice import Invoice
-from app.models.rule import Rule, RuleVersion, RuleSeverity
+from app.models.rule import Rule, RuleSeverity, RuleVersion
 from app.services import audit_service
 
 logger = get_logger(__name__)
@@ -141,7 +141,7 @@ def _resolve_field(ctx: InvoiceContext, field_path: str) -> list[Any]:
 
 def _coerce(val: Any, target: Any) -> Any:
     """Prøv å sammenligne med riktig type (numeric-safe)."""
-    if isinstance(target, (int, float)):
+    if isinstance(target, int | float):
         try:
             return type(target)(val)
         except (TypeError, ValueError):
@@ -275,16 +275,12 @@ async def evaluate_invoice(
 
     for rule in rules:
         # Finn aktiv versjon
-        active_ver = next(
-            (v for v in rule.versions if v.version == rule.active_version), None
-        )
+        active_ver = next((v for v in rule.versions if v.version == rule.active_version), None)
         if active_ver is None or not active_ver.rule_definition:
             continue
 
         try:
-            triggered = _evaluate_node(
-                active_ver.rule_definition.get("conditions", {}), ctx
-            )
+            triggered = _evaluate_node(active_ver.rule_definition.get("conditions", {}), ctx)
         except Exception as exc:
             logger.warning("rule_eval_error", rule=rule.name, error=str(exc))
             triggered = False
@@ -346,7 +342,7 @@ async def create_rule(
         rule_yaml=yaml_text,
         rule_definition=definition,
         created_by=created_by,
-        created_at=datetime.now(tz=timezone.utc),
+        created_at=datetime.now(tz=UTC),
         comment=comment,
     )
     session.add(version)
@@ -366,12 +362,11 @@ async def update_rule(
     severity: str | None = None,
 ) -> Rule:
     """Legg til ny versjon og bump active_version."""
-    result = await session.execute(
-        select(Rule).where(Rule.id == rule_id).options(selectinload(Rule.versions))
-    )
+    result = await session.execute(select(Rule).where(Rule.id == rule_id).options(selectinload(Rule.versions)))
     rule = result.scalar_one_or_none()
     if rule is None:
         from app.core.errors import NotFoundError
+
         raise NotFoundError(f"Regel {rule_id} finnes ikke")
 
     definition = parse_rule_yaml(yaml_text)
@@ -391,7 +386,7 @@ async def update_rule(
         rule_yaml=yaml_text,
         rule_definition=definition,
         created_by=created_by,
-        created_at=datetime.now(tz=timezone.utc),
+        created_at=datetime.now(tz=UTC),
         comment=comment,
     )
     session.add(version)
@@ -400,18 +395,15 @@ async def update_rule(
 
 
 async def list_rules(session: AsyncSession) -> list[Rule]:
-    result = await session.execute(
-        select(Rule).options(selectinload(Rule.versions)).order_by(Rule.name)
-    )
+    result = await session.execute(select(Rule).options(selectinload(Rule.versions)).order_by(Rule.name))
     return list(result.scalars().all())
 
 
 async def get_rule(session: AsyncSession, rule_id: uuid.UUID) -> Rule:
-    result = await session.execute(
-        select(Rule).where(Rule.id == rule_id).options(selectinload(Rule.versions))
-    )
+    result = await session.execute(select(Rule).where(Rule.id == rule_id).options(selectinload(Rule.versions)))
     rule = result.scalar_one_or_none()
     if rule is None:
         from app.core.errors import NotFoundError
+
         raise NotFoundError(f"Regel {rule_id} finnes ikke")
     return rule

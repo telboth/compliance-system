@@ -10,14 +10,30 @@ import uuid
 from datetime import date
 from pathlib import Path
 
-from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, HTTPException, Query, UploadFile, status
+from fastapi import (
+    APIRouter,
+    BackgroundTasks,
+    Depends,
+    File,
+    Form,
+    HTTPException,
+    Query,
+    UploadFile,
+    status,
+)
 from fastapi.responses import FileResponse, Response
 
 from app.core.config import get_settings
 from app.core.database import SessionDep
 from app.core.logging import get_logger
 from app.core.security import ActorContext, require_roles
-from app.models.invoice import ComplianceScore, Invoice, InvoiceDirection, InvoiceStatus, compute_approval_state
+from app.models.invoice import (
+    ComplianceScore,
+    Invoice,
+    InvoiceDirection,
+    InvoiceStatus,
+    compute_approval_state,
+)
 from app.schemas.invoice import (
     EntityRead,
     EntityUpdate,
@@ -26,22 +42,25 @@ from app.schemas.invoice import (
     InvoiceFieldsUpdate,
     InvoiceLineRead,
     InvoiceLineUpdate,
-    InvoiceListResponse,
     InvoiceListPreferences,
     InvoiceListPreferencesUpdate,
+    InvoiceListResponse,
     InvoiceRead,
     InvoiceSummary,
     InvoiceUploadResponse,
     ReviewAndNextResponse,
-    RiskEscalationCreate,
     ReviewCreate,
-    ReviewQueueItem,
     ReviewQueueResponse,
+    RiskEscalationCreate,
     VatMismatchItem,
     VatMismatchListResponse,
 )
-from app.services import extraction_service, invoice_service
-from app.services import invoice_preferences_service, invoice_review_service
+from app.services import (
+    extraction_service,
+    invoice_preferences_service,
+    invoice_review_service,
+    invoice_service,
+)
 from app.services.catch_all_service import evaluate_invoice_catch_all
 from app.services.export_control_service import evaluate_invoice_export_control
 from app.services.vat_check_service import evaluate_invoice_vat_mismatch, list_vat_mismatch_invoices
@@ -60,6 +79,7 @@ def _parse_date(s: str | None) -> date | None:
 
 # V7: Fjern kontrollkarakterer og anførselstegn som kan brekke Content-Disposition-headeren.
 _CONTENT_DISPOSITION_UNSAFE = re.compile(r'[\x00-\x1f\x7f"\\]')
+
 
 def _safe_filename(name: str) -> str:
     """Sanitér filnavn for bruk i Content-Disposition-header (RFC 6266).
@@ -501,31 +521,45 @@ async def export_invoices_csv(
 
     buf = io.StringIO()
     writer = csv.writer(buf, delimiter=";")
-    writer.writerow([
-        "Fakturanummer", "Filnavn", "Retning", "Status", "Compliance-score",
-        "Beløp", "Valuta", "Fakturadato", "Destinasjonsland",
-        "Beslutning", "Besluttet av", "Besluttet tidspunkt", "Opprettet",
-    ])
+    writer.writerow(
+        [
+            "Fakturanummer",
+            "Filnavn",
+            "Retning",
+            "Status",
+            "Compliance-score",
+            "Beløp",
+            "Valuta",
+            "Fakturadato",
+            "Destinasjonsland",
+            "Beslutning",
+            "Besluttet av",
+            "Besluttet tidspunkt",
+            "Opprettet",
+        ]
+    )
     for inv in invoices:
-        writer.writerow([
-            inv.invoice_number or "",
-            inv.original_filename or "",
-            inv.direction.value,
-            inv.status.value,
-            inv.compliance_score.value if inv.compliance_score else "",
-            str(inv.total_amount) if inv.total_amount else "",
-            inv.currency or "",
-            inv.invoice_date.isoformat() if inv.invoice_date else "",
-            inv.destination_country or "",
-            inv.review_decision or "",
-            inv.reviewed_by or "",
-            inv.reviewed_at.isoformat() if inv.reviewed_at else "",
-            inv.created_at.isoformat(),
-        ])
+        writer.writerow(
+            [
+                inv.invoice_number or "",
+                inv.original_filename or "",
+                inv.direction.value,
+                inv.status.value,
+                inv.compliance_score.value if inv.compliance_score else "",
+                str(inv.total_amount) if inv.total_amount else "",
+                inv.currency or "",
+                inv.invoice_date.isoformat() if inv.invoice_date else "",
+                inv.destination_country or "",
+                inv.review_decision or "",
+                inv.reviewed_by or "",
+                inv.reviewed_at.isoformat() if inv.reviewed_at else "",
+                inv.created_at.isoformat(),
+            ]
+        )
 
     filename = f"fakturaer-{date.today().isoformat()}.csv"
     return Response(
-        content="﻿" + buf.getvalue(),   # BOM for Excel-kompatibilitet
+        content="﻿" + buf.getvalue(),  # BOM for Excel-kompatibilitet
         media_type="text/csv; charset=utf-8",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )

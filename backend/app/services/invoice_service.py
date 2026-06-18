@@ -46,10 +46,9 @@ from app.models.invoice import (
 )
 from app.models.invoice_line import InvoiceLine
 from app.parsers import parse_pdf
+from app.services import audit_service, file_storage
 from app.services.invoice_note_service import apply_invoice_notes
 from app.services.pipeline_event_service import append_pipeline_event
-from app.services import audit_service
-from app.services import file_storage
 
 if TYPE_CHECKING:
     from app.schemas.invoice import (
@@ -85,12 +84,7 @@ async def _find_duplicate_invoice(
     1) Foretrekk direkte hash-match (nye rader)
     2) Fallback for legacy-rader uten hash: sammenlign filer med samme størrelse
     """
-    exact_stmt = (
-        select(Invoice)
-        .where(Invoice.file_sha256 == file_sha256)
-        .order_by(Invoice.created_at.desc())
-        .limit(1)
-    )
+    exact_stmt = select(Invoice).where(Invoice.file_sha256 == file_sha256).order_by(Invoice.created_at.desc()).limit(1)
     exact = (await session.execute(exact_stmt)).scalar_one_or_none()
     if exact is not None:
         return exact
@@ -123,6 +117,7 @@ def derive_approval_state(
     """Entydig approval-state for UI/filter/sort (streng for API)."""
     return compute_approval_state(status, compliance_score).value
 
+
 # ── Faktura-gjenkjenning (Trinn 1: tekstsjekk etter parsing) ──────────────────
 
 # Nøkkelord som sterkt indikerer at dokumentet er en faktura
@@ -141,14 +136,14 @@ _INVOICE_KEYWORDS_RE = re.compile(
 
 # Tall som ligner beløp: 1 234,56 / 1.234,56 / 12.34 / 12,34 osv.
 _AMOUNT_RE = re.compile(
-    r"\b\d{1,3}(?:[.,\s]\d{3})+[.,]\d{1,2}\b"   # 1 234,56
-    r"|\b\d+[.,]\d{2}\b",                          # 12.34
+    r"\b\d{1,3}(?:[.,\s]\d{3})+[.,]\d{1,2}\b"  # 1 234,56
+    r"|\b\d+[.,]\d{2}\b",  # 12.34
 )
 
 # Minimum krav for at et dokument «ser ut som en faktura»
 _MIN_WORD_COUNT = 20
 _MIN_KEYWORD_HITS = 1
-_MIN_AMOUNT_HITS = 2     # nok hvis ingen nøkkelord, men mange beløp
+_MIN_AMOUNT_HITS = 2  # nok hvis ingen nøkkelord, men mange beløp
 
 
 def _looks_like_invoice(text: str | None) -> tuple[bool, str | None]:
@@ -185,13 +180,11 @@ def _looks_like_invoice(text: str | None) -> tuple[bool, str | None]:
             "Sjekk at riktig fil ble lastet opp."
         )
 
-    return False, (
-        "Dokumentet inneholder ingen faktura-nøkkelord eller beløp. "
-        "Last opp en PDF/bilde av en faktura."
-    )
+    return False, ("Dokumentet inneholder ingen faktura-nøkkelord eller beløp. Last opp en PDF/bilde av en faktura.")
 
 
 # ── Opplasting (synkron — rask) ───────────────────────────────────────────────
+
 
 async def upload_invoice_only(
     session: AsyncSession,
@@ -273,6 +266,7 @@ async def upload_invoice_only(
 
 # ── Parsing (asynkron bakgrunnsoppgave) ───────────────────────────────────────
 
+
 async def parse_invoice_in_background(invoice_id: uuid.UUID, storage_path: Path) -> None:
     """BackgroundTask — oppretter egen DB-sesjon og parser med Docling i thread-pool.
 
@@ -304,12 +298,10 @@ async def parse_invoice_in_background(invoice_id: uuid.UUID, storage_path: Path)
                 ),
                 timeout=max(30, timeout_seconds),
             )
-        except asyncio.TimeoutError:
+        except TimeoutError:
             prev_status = invoice.status.value
             invoice.status = InvoiceStatus.PARSING_FAILED
-            invoice.parsing_error = (
-                f"Parsing timed out etter {max(30, timeout_seconds)} sekunder."
-            )
+            invoice.parsing_error = f"Parsing timed out etter {max(30, timeout_seconds)} sekunder."
             await append_pipeline_event(
                 session,
                 invoice_id=invoice.id,
@@ -406,7 +398,7 @@ async def parse_invoice_in_background(invoice_id: uuid.UUID, storage_path: Path)
                 reason=rejection_reason,
                 text_length=len(parsed.text),
             )
-            return   # stopp pipeline — ikke gå videre til ekstraksjon
+            return  # stopp pipeline — ikke gå videre til ekstraksjon
 
         invoice.status = InvoiceStatus.PARSED
         await append_pipeline_event(
@@ -452,6 +444,7 @@ async def parse_invoice_in_background(invoice_id: uuid.UUID, storage_path: Path)
     if get_settings().auto_extract_after_parse:
         try:
             from app.services.extraction_service import run_extraction
+
             async with get_session_factory()() as ext_session:
                 await run_extraction(ext_session, invoice_id)
                 logger.info("auto_extraction_completed", invoice_id=str(invoice_id))
@@ -461,6 +454,7 @@ async def parse_invoice_in_background(invoice_id: uuid.UUID, storage_path: Path)
 
 
 # ── Review-beslutning ─────────────────────────────────────────────────────────
+
 
 async def escalate_invoice_risk_for_review(
     session: AsyncSession,
@@ -544,6 +538,7 @@ async def escalate_invoice_risk_for_review(
     )
     return await get_invoice(session, invoice_id)
 
+
 async def review_invoice(
     session: AsyncSession,
     invoice_id: uuid.UUID,
@@ -572,6 +567,7 @@ async def review_invoice(
 
 # ── Sletting ──────────────────────────────────────────────────────────────────
 
+
 async def delete_invoice(session: AsyncSession, invoice_id: uuid.UUID) -> None:
     """Slett en invoice, tilhørende linjer/entiteter og filen fra disk."""
     invoice = await get_invoice(session, invoice_id)
@@ -593,6 +589,7 @@ async def delete_invoice(session: AsyncSession, invoice_id: uuid.UUID) -> None:
 
 
 # ── Henting og listing ────────────────────────────────────────────────────────
+
 
 async def get_invoice(session: AsyncSession, invoice_id: uuid.UUID) -> Invoice:
     """Hent en invoice med relasjoner. Reiser NotFoundError hvis ikke funnet."""
@@ -652,9 +649,7 @@ async def list_invoices(
     if destination_country is not None:
         country_filter = "".join(ch for ch in destination_country.upper() if ch.isalpha())[:2]
         if country_filter:
-            conditions.append(
-                func.upper(func.trim(Invoice.destination_country)) == country_filter
-            )
+            conditions.append(func.upper(func.trim(Invoice.destination_country)) == country_filter)
     if date_from is not None:
         conditions.append(Invoice.invoice_date >= date_from)
     if date_to is not None:
@@ -690,6 +685,7 @@ async def list_invoices(
 
 
 # ── Manuelle korrigeringer ────────────────────────────────────────────────────
+
 
 async def update_invoice_fields(
     session: AsyncSession,

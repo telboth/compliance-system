@@ -72,12 +72,12 @@ class ExportControlLineHit(BaseModel):
     line_index: int
     line_description: str | None
     matched_value: str
-    list_code: str            # "I" | "II"
+    list_code: str  # "I" | "II"
     category: str
     category_title: str
     item_code: str | None
-    confidence: str           # "high" | "medium" | "low"
-    matched_via: str          # "eccn" | "hs" | "keyword"
+    confidence: str  # "high" | "medium" | "low"
+    matched_via: str  # "eccn" | "hs" | "keyword"
     reason: str
 
 
@@ -85,8 +85,8 @@ class ExportControlCheck(BaseModel):
     """Samlet eksportkontroll-vurdering mot DEKSAs varelister."""
 
     flagged: bool
-    status: str               # "clear" | "review" | "controlled"
-    severity: str             # "green" | "yellow" | "red"
+    status: str  # "clear" | "review" | "controlled"
+    severity: str  # "green" | "yellow" | "red"
     destination_country: str | None
     destination_sanctioned: bool
     hits: list[ExportControlLineHit] = Field(default_factory=list)
@@ -97,7 +97,7 @@ class CatchAllSignal(BaseModel):
     """Ett røde-flagg-signal i catch-all-/sluttbrukervurderingen."""
 
     signal_type: str
-    severity: str             # "yellow" | "red"
+    severity: str  # "yellow" | "red"
     title: str
     detail: str
     entity_name: str | None
@@ -108,8 +108,8 @@ class CatchAllCheck(BaseModel):
     """Catch-all-vurdering: sluttbruker, sluttbruk og diversjonsrisiko."""
 
     flagged: bool
-    status: str               # "clear" | "review" | "controlled"
-    severity: str             # "green" | "yellow" | "red"
+    status: str  # "clear" | "review" | "controlled"
+    severity: str  # "green" | "yellow" | "red"
     end_user_name: str | None
     end_user_country: str | None
     destination_country: str | None
@@ -272,7 +272,6 @@ class ReviewCreate(BaseModel):
             raise ValueError("reason må være minst 10 tegn")
         return v.strip()
 
-
     @field_validator("rule_reference")
     @classmethod
     def validate_rule_reference(cls, v: str) -> str:
@@ -374,7 +373,7 @@ class InvoiceFieldsUpdate(BaseModel):
 
     invoice_number: str | None = None
     invoice_date: date | None = None
-    total_amount: str | None = None   # Streng → Decimal i service
+    total_amount: str | None = None  # Streng → Decimal i service
     currency: str | None = None
     incoterms: str | None = None
     transport_mode: str | None = None
@@ -382,7 +381,7 @@ class InvoiceFieldsUpdate(BaseModel):
     po_number: str | None = None
     comments: str | None = None
     instructions: str | None = None
-    vat_amount: str | None = None    # Streng → Decimal i service
+    vat_amount: str | None = None  # Streng → Decimal i service
     vat_rate: str | None = None
 
     @field_validator("total_amount", mode="before")
@@ -403,9 +402,7 @@ class InvoiceFieldsUpdate(BaseModel):
         try:
             Decimal(cleaned)
         except InvalidOperation as exc:
-            raise ValueError(
-                f"total_amount må være et gyldig tall, fikk: '{v}'"
-            ) from exc
+            raise ValueError(f"total_amount må være et gyldig tall, fikk: '{v}'") from exc
         return cleaned
 
 

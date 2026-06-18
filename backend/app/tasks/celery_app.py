@@ -32,21 +32,24 @@ def _reset_db_pool_after_fork(**kwargs: object) -> None:
     """
     # Nullstill den persistente event-loopen i async_runtime
     from app.tasks import async_runtime as _ar
+
     if _ar._loop is not None and not _ar._loop.is_closed():
         try:
             _ar._loop.close()
-        except Exception:
+        except Exception:  # noqa: S110
             pass
     _ar._loop = None
 
     # Kast arvede asyncpg-forbindelser
     from app.core.database import get_engine
+
     engine = get_engine()
     loop = asyncio.new_event_loop()
     try:
         loop.run_until_complete(engine.dispose())
     finally:
         loop.close()
+
 
 celery_app = Celery(
     "xlent_compliance",
@@ -66,11 +69,7 @@ celery_app = Celery(
 )
 
 watchdog_interval = max(1, min(60, int(settings.screening_watchdog_interval_minutes or 1)))
-watchdog_schedule = (
-    crontab(minute="*")
-    if watchdog_interval == 1
-    else crontab(minute=f"*/{watchdog_interval}")
-)
+watchdog_schedule = crontab(minute="*") if watchdog_interval == 1 else crontab(minute=f"*/{watchdog_interval}")
 
 celery_app.conf.update(
     task_serializer="json",

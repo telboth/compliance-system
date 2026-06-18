@@ -34,4 +34,3 @@ def run_scheduled() -> dict[str, str]:
         }
 
     return run_async(_run())
-

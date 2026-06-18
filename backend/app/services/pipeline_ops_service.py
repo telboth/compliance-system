@@ -196,16 +196,10 @@ async def get_pipeline_metrics(
     lookback = max(1, min(24 * 14, int(lookback_hours or 24)))
     since = now - timedelta(hours=lookback)
 
-    total_invoices = int(
-        (await session.execute(select(func.count()).select_from(Invoice))).scalar_one()
-    )
+    total_invoices = int((await session.execute(select(func.count()).select_from(Invoice))).scalar_one())
     total_recent = int(
         (
-            await session.execute(
-                select(func.count())
-                .select_from(Invoice)
-                .where(Invoice.created_at >= since)
-            )
+            await session.execute(select(func.count()).select_from(Invoice).where(Invoice.created_at >= since))
         ).scalar_one()
     )
 
@@ -214,16 +208,20 @@ async def get_pipeline_metrics(
     completed_events: dict[str, int] = {"parsing": 0, "extracting": 0, "screening": 0}
 
     event_rows = (
-        await session.execute(
-            select(InvoicePipelineEvent)
-            .where(
-                InvoicePipelineEvent.created_at >= (since - timedelta(days=7)),
-                InvoicePipelineEvent.stage.in_(("parsing", "extracting", "screening")),
-                InvoicePipelineEvent.action.in_(("started", "completed")),
+        (
+            await session.execute(
+                select(InvoicePipelineEvent)
+                .where(
+                    InvoicePipelineEvent.created_at >= (since - timedelta(days=7)),
+                    InvoicePipelineEvent.stage.in_(("parsing", "extracting", "screening")),
+                    InvoicePipelineEvent.action.in_(("started", "completed")),
+                )
+                .order_by(InvoicePipelineEvent.invoice_id.asc(), InvoicePipelineEvent.created_at.asc())
             )
-            .order_by(InvoicePipelineEvent.invoice_id.asc(), InvoicePipelineEvent.created_at.asc())
         )
-    ).scalars().all()
+        .scalars()
+        .all()
+    )
     window_rows = [row for row in event_rows if row.created_at >= since]
     event_counter: dict[tuple[str, str], int] = defaultdict(int)
     for row in window_rows:
@@ -252,18 +250,14 @@ async def get_pipeline_metrics(
         in_progress = int(
             (
                 await session.execute(
-                    select(func.count())
-                    .select_from(Invoice)
-                    .where(Invoice.status == stage.in_progress_status)
+                    select(func.count()).select_from(Invoice).where(Invoice.status == stage.in_progress_status)
                 )
             ).scalar_one()
         )
         failed = int(
             (
                 await session.execute(
-                    select(func.count())
-                    .select_from(Invoice)
-                    .where(Invoice.status == stage.failed_status)
+                    select(func.count()).select_from(Invoice).where(Invoice.status == stage.failed_status)
                 )
             ).scalar_one()
         )
@@ -292,9 +286,7 @@ async def get_pipeline_metrics(
             )
         )
         if stuck > 0:
-            alerts.append(
-                f"{stage.name}: {stuck} stuck (eldre enn {stage.stale_minutes} min)."
-            )
+            alerts.append(f"{stage.name}: {stuck} stuck (eldre enn {stage.stale_minutes} min).")
         if failed > 0:
             alerts.append(f"{stage.name}: {failed} med feilstatus.")
 
@@ -354,25 +346,31 @@ async def list_pipeline_recovery_candidates(
         InvoiceStatus.SCREENING_FAILED,
     )
     rows = (
-        await session.execute(
-            select(Invoice)
-            .where(
-                Invoice.status.in_(statuses),
-                (
-                    (Invoice.status.in_(
+        (
+            await session.execute(
+                select(Invoice)
+                .where(
+                    Invoice.status.in_(statuses),
+                    (
                         (
-                            InvoiceStatus.PARSING_FAILED,
-                            InvoiceStatus.EXTRACTION_FAILED,
-                            InvoiceStatus.SCREENING_FAILED,
+                            Invoice.status.in_(
+                                (
+                                    InvoiceStatus.PARSING_FAILED,
+                                    InvoiceStatus.EXTRACTION_FAILED,
+                                    InvoiceStatus.SCREENING_FAILED,
+                                )
+                            )
                         )
-                    ))
-                    | (Invoice.updated_at < stale_cutoff)
-                ),
+                        | (Invoice.updated_at < stale_cutoff)
+                    ),
+                )
+                .order_by(Invoice.updated_at.asc())
+                .limit(query_limit)
             )
-            .order_by(Invoice.updated_at.asc())
-            .limit(query_limit)
         )
-    ).scalars().all()
+        .scalars()
+        .all()
+    )
 
     items: list[PipelineRecoveryItem] = []
     for invoice in rows:
@@ -394,9 +392,7 @@ async def list_pipeline_recovery_candidates(
                 invoice_number=invoice.invoice_number,
                 original_filename=invoice.original_filename,
                 status=invoice.status.value,
-                compliance_score=(
-                    invoice.compliance_score.value if invoice.compliance_score else None
-                ),
+                compliance_score=(invoice.compliance_score.value if invoice.compliance_score else None),
                 updated_at=invoice.updated_at,
                 minutes_in_status=_minutes_since(now, invoice.updated_at),
                 reason=(reason[:400] if reason else None),

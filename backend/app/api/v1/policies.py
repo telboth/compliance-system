@@ -79,9 +79,7 @@ async def get_policy(policy_id: uuid.UUID, session: SessionDep) -> PolicyOut:
 
 
 @router.post("/{policy_id}/versions", response_model=PolicyVersionOut, status_code=status.HTTP_201_CREATED)
-async def add_policy_version(
-    policy_id: uuid.UUID, body: PolicyContentUpdate, session: SessionDep
-) -> PolicyVersionOut:
+async def add_policy_version(policy_id: uuid.UUID, body: PolicyContentUpdate, session: SessionDep) -> PolicyVersionOut:
     """Publiser ny versjon av en eksisterende policy."""
     try:
         version = await policy_service.update_policy_content(
@@ -111,9 +109,7 @@ async def list_versions(policy_id: uuid.UUID, session: SessionDep) -> list[Polic
 
 
 @router.patch("/{policy_id}", response_model=PolicyOut)
-async def update_policy_metadata(
-    policy_id: uuid.UUID, body: PolicyMetadataUpdate, session: SessionDep
-) -> PolicyOut:
+async def update_policy_metadata(policy_id: uuid.UUID, body: PolicyMetadataUpdate, session: SessionDep) -> PolicyOut:
     """Oppdater metadata (tittel, kategori, eier, aktiv-status) uten ny versjon."""
     try:
         policy = await policy_service.update_policy_metadata(

@@ -154,10 +154,7 @@ def _chunk_text(text: str, *, chunk_size: int, overlap: int) -> list[str]:
 
     for paragraph in paragraphs:
         if len(paragraph) > chunk_size:
-            parts = [
-                paragraph[idx : idx + chunk_size]
-                for idx in range(0, len(paragraph), chunk_size)
-            ]
+            parts = [paragraph[idx : idx + chunk_size] for idx in range(0, len(paragraph), chunk_size)]
         else:
             parts = [paragraph]
         for part in parts:
@@ -488,8 +485,7 @@ async def _build_answer(query: str, hits: list[RAGSourceRef]) -> tuple[str | Non
         "En mention i e-postadresse/domene teller som nevnelse. "
         "Hvis evidens er svak, si det tydelig.\n\n"
         f"Spørsmål: {query}\n\n"
-        "Kilder:\n"
-        + "\n".join(context_parts)
+        "Kilder:\n" + "\n".join(context_parts)
     )
 
     client = AsyncOpenAI(api_key=api_key)
@@ -572,7 +568,7 @@ async def search_invoice_rag(body: RAGSearchRequest) -> RAGSearchResponse:
     )
     raw = response.json()
     took_ms = raw.get("took")
-    rows = ((raw.get("hits") or {}).get("hits") or [])
+    rows = (raw.get("hits") or {}).get("hits") or []
 
     scored_hits: list[tuple[int, float, RAGSourceRef]] = []
     for row in rows:

@@ -14,7 +14,7 @@ import uuid
 from datetime import datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import DateTime, String, Text
+from sqlalchemy import DateTime, String
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -51,9 +51,7 @@ class AuditLog(Base):
     action: Mapped[str] = mapped_column(String(128), nullable=False, index=True)
 
     # Hvem utførte handlingen (brukernavn / system-komponent / "system")
-    actor: Mapped[str] = mapped_column(
-        String(128), nullable=False, default="system", index=True
-    )
+    actor: Mapped[str] = mapped_column(String(128), nullable=False, default="system", index=True)
 
     # Strukturert kontekst — modellversjon, score, felt som ble endret, osv.
     details: Mapped[dict | None] = mapped_column(JSONB, nullable=True)

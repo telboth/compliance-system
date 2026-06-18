@@ -248,9 +248,7 @@ class ExtendedScreenStartRequest(BaseModel):
     )
     enable_ai_entity_research: bool = Field(
         default=True,
-        description=(
-            "Aktiver AI-assistert innhenting av eierskap/ledelse fra eksterne kilder."
-        ),
+        description=("Aktiver AI-assistert innhenting av eierskap/ledelse fra eksterne kilder."),
     )
     enable_ai_web_search: bool = Field(
         default=True,

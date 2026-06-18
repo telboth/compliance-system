@@ -45,9 +45,7 @@ async def governance_summary(session: SessionDep) -> dict:
 
 
 @router.get("/invoice/{invoice_id}", response_model=AIDecisionRecordOut)
-async def get_record_for_invoice(
-    invoice_id: uuid.UUID, session: SessionDep
-) -> AIDecisionRecordOut:
+async def get_record_for_invoice(invoice_id: uuid.UUID, session: SessionDep) -> AIDecisionRecordOut:
     """Hent AI-beslutningspost for én spesifikk invoice."""
     record = await ai_governance_service.get_record(session, invoice_id)
     if not record:

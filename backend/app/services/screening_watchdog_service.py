@@ -75,4 +75,3 @@ async def run_extracted_screening_watchdog_cycle() -> dict[str, int | str]:
         "skipped_lock": skipped_lock,
         "failed": failed,
     }
-

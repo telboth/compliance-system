@@ -75,10 +75,7 @@ async def run_sanctions_refresh_cycle_with_trigger(
             yente = get_yente_client()
             response = await yente.trigger_update(token=token, sync=False)
             if response.status_code in {401, 403}:
-                raise RuntimeError(
-                    "Yente avviste /updatez-token "
-                    f"(HTTP {response.status_code})."
-                )
+                raise RuntimeError(f"Yente avviste /updatez-token (HTTP {response.status_code}).")
             response.raise_for_status()
 
             run_row.status = "success"
@@ -143,7 +140,5 @@ async def _create_refresh_run(
 
 async def get_latest_refresh_run(session: AsyncSession) -> SanctionsRefreshRun | None:
     """Hent nyeste refresh-forsok for operasjonell statusvisning."""
-    result = await session.execute(
-        select(SanctionsRefreshRun).order_by(desc(SanctionsRefreshRun.started_at)).limit(1)
-    )
+    result = await session.execute(select(SanctionsRefreshRun).order_by(desc(SanctionsRefreshRun.started_at)).limit(1))
     return result.scalar_one_or_none()

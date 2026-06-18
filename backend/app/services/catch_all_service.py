@@ -50,33 +50,88 @@ _END_USER_ROLES = (
 # Ordgrense-matching brukes for å unngå delstreng-falske positiver.
 
 _MILITARY_KEYWORDS = (
-    "ministry of defence", "ministry of defense", "department of defense",
-    "armed forces", "air force", "naval", "navy", "army", "military",
-    "defence", "defense", "arsenal", "ordnance", "munitions", "artillery",
-    "rocket force", "missile", "military academy", "defence research",
-    "forsvaret", "forsvarsdepartement", "försvarsmakten",
+    "ministry of defence",
+    "ministry of defense",
+    "department of defense",
+    "armed forces",
+    "air force",
+    "naval",
+    "navy",
+    "army",
+    "military",
+    "defence",
+    "defense",
+    "arsenal",
+    "ordnance",
+    "munitions",
+    "artillery",
+    "rocket force",
+    "missile",
+    "military academy",
+    "defence research",
+    "forsvaret",
+    "forsvarsdepartement",
+    "försvarsmakten",
 )
 _NUCLEAR_KEYWORDS = (
-    "nuclear", "atomic energy", "enrichment", "isotope", "reactor",
-    "centrifuge", "radiochemical", "fissile", "uranium", "plutonium",
+    "nuclear",
+    "atomic energy",
+    "enrichment",
+    "isotope",
+    "reactor",
+    "centrifuge",
+    "radiochemical",
+    "fissile",
+    "uranium",
+    "plutonium",
 )
 _RESEARCH_KEYWORDS = (
-    "academy of sciences", "national laboratory", "research institute",
-    "scientific research", "institute of physics", "missile research",
-    "defence research", "aerospace research",
+    "academy of sciences",
+    "national laboratory",
+    "research institute",
+    "scientific research",
+    "institute of physics",
+    "missile research",
+    "defence research",
+    "aerospace research",
 )
 _SENSITIVE_END_USE_KEYWORDS = (
-    "military use", "military application", "military end-use", "for the army",
-    "for the navy", "for the air force", "weapon", "weapons system",
-    "defence application", "defense application", "naval application",
-    "warhead", "missile", "ballistic", "uav", "unmanned aerial",
-    "nuclear", "enrichment", "reactor", "centrifuge", "proliferation",
+    "military use",
+    "military application",
+    "military end-use",
+    "for the army",
+    "for the navy",
+    "for the air force",
+    "weapon",
+    "weapons system",
+    "defence application",
+    "defense application",
+    "naval application",
+    "warhead",
+    "missile",
+    "ballistic",
+    "uav",
+    "unmanned aerial",
+    "nuclear",
+    "enrichment",
+    "reactor",
+    "centrifuge",
+    "proliferation",
 )
 # Mellomledd/diversjonsindikatorer i sluttbrukernavn
 _BROKER_KEYWORDS = (
-    "freight forward", "forwarding", "logistics", "general trading",
-    "trading company", "trading co", "trading llc", "import export",
-    "import-export", "distributor", "reseller", "intermediary",
+    "freight forward",
+    "forwarding",
+    "logistics",
+    "general trading",
+    "trading company",
+    "trading co",
+    "trading llc",
+    "import export",
+    "import-export",
+    "distributor",
+    "reseller",
+    "intermediary",
 )
 
 
@@ -98,9 +153,9 @@ def _kw_hit(text: str | None, keywords: tuple[str, ...]) -> str | None:
 class CatchAllSignal:
     """Ett røde-flagg-signal i catch-all-vurderingen."""
 
-    signal_type: str   # embargoed_end_user | military_end_user | nuclear_end_user |
+    signal_type: str  # embargoed_end_user | military_end_user | nuclear_end_user |
     #                    sensitive_end_use | diversion_risk | undeclared_end_user
-    severity: str      # "yellow" | "red"
+    severity: str  # "yellow" | "red"
     title: str
     detail: str
     entity_name: str | None = None
@@ -120,8 +175,8 @@ class CatchAllSignal:
 @dataclass(frozen=True)
 class CatchAllCheckResult:
     flagged: bool
-    status: str             # clear | review | controlled
-    severity: str           # green | yellow | red
+    status: str  # clear | review | controlled
+    severity: str  # green | yellow | red
     end_user_name: str | None
     end_user_country: str | None
     destination_country: str | None
@@ -192,8 +247,8 @@ def evaluate_invoice_catch_all(
     # Land med høyest risiko av destinasjon og sluttbrukerland
     dest_risk = _country_risk(dest)
     eu_risk = _country_risk(eu_country)
-    worst_country_risk = "high" if "high" in (dest_risk, eu_risk) else (
-        "elevated" if "elevated" in (dest_risk, eu_risk) else "normal"
+    worst_country_risk = (
+        "high" if "high" in (dest_risk, eu_risk) else ("elevated" if "elevated" in (dest_risk, eu_risk) else "normal")
     )
     any_sanctioned = embargo.is_sanctioned(dest) or embargo.is_sanctioned(eu_country)
 
@@ -207,10 +262,7 @@ def evaluate_invoice_catch_all(
                 signal_type="embargoed_end_user",
                 severity="red",
                 title="Sluttbruker/destinasjon under totalembargo",
-                detail=(
-                    f"Land {c} er under totalembargo — eksport er forbudt/"
-                    "lisenspliktig uansett vare."
-                ),
+                detail=(f"Land {c} er under totalembargo — eksport er forbudt/lisenspliktig uansett vare."),
                 entity_name=eu_name,
                 country=c,
             )
@@ -225,10 +277,7 @@ def evaluate_invoice_catch_all(
                 signal_type="military_end_user",
                 severity=sev,
                 title="Mulig militær sluttbruker",
-                detail=(
-                    f"Sluttbrukernavn inneholder «{mil}» — kan indikere "
-                    "militær sluttbruk (catch-all)."
-                ),
+                detail=(f"Sluttbrukernavn inneholder «{mil}» — kan indikere militær sluttbruk (catch-all)."),
                 entity_name=eu_name,
                 country=eu_country,
             )
@@ -243,10 +292,7 @@ def evaluate_invoice_catch_all(
                 signal_type="nuclear_end_user",
                 severity=sev,
                 title="Sensitiv sluttbruker (kjernefysisk/forskning)",
-                detail=(
-                    f"Sluttbrukernavn inneholder «{nuc}» — mulig "
-                    "kjernefysisk/forsknings-sluttbruk."
-                ),
+                detail=(f"Sluttbrukernavn inneholder «{nuc}» — mulig kjernefysisk/forsknings-sluttbruk."),
                 entity_name=eu_name,
                 country=eu_country,
             )
@@ -297,7 +343,9 @@ def evaluate_invoice_catch_all(
 
     # 6. Destinasjon ≠ sluttbrukerland mot sanksjonert land (mulig re-eksport)
     if (
-        dest and eu_country and dest != eu_country
+        dest
+        and eu_country
+        and dest != eu_country
         and (embargo.is_sanctioned(dest) or embargo.is_sanctioned(eu_country))
     ):
         signals.append(
@@ -305,10 +353,7 @@ def evaluate_invoice_catch_all(
                 signal_type="diversion_risk",
                 severity="yellow",
                 title="Mulig re-eksport / diversjon",
-                detail=(
-                    f"Destinasjonsland ({dest}) er ulikt sluttbrukerland "
-                    f"({eu_country}) der ett er sanksjonert."
-                ),
+                detail=(f"Destinasjonsland ({dest}) er ulikt sluttbrukerland ({eu_country}) der ett er sanksjonert."),
                 entity_name=eu_name,
                 country=dest,
             )
@@ -363,8 +408,8 @@ def _build_summary(signals: list[CatchAllSignal], status: str) -> str:
         if s.signal_type not in seen:
             titles.append(s.title)
             seen.add(s.signal_type)
-    prefix = "🔴 Catch-all: lisens kan kreves" if status == _STATUS_CONTROLLED else (
-        "🟡 Catch-all: krever egenvurdering"
+    prefix = (
+        "🔴 Catch-all: lisens kan kreves" if status == _STATUS_CONTROLLED else ("🟡 Catch-all: krever egenvurdering")
     )
     return f"{prefix} — {'; '.join(titles)}"[:512]
 
@@ -392,11 +437,7 @@ async def list_catch_all_invoices(
     Returnerer (results, invoices, total_flagged, total_scanned).
     """
     total_scanned: int = (
-        await session.execute(
-            select(func.count())
-            .select_from(Invoice)
-            .where(Invoice.catch_all_status.is_not(None))
-        )
+        await session.execute(select(func.count()).select_from(Invoice).where(Invoice.catch_all_status.is_not(None)))
     ).scalar_one()
     total_flagged: int = (
         await session.execute(
@@ -467,15 +508,10 @@ async def backfill_catch_all(
             if res.flagged:
                 flagged += 1
             if rescore and inv.review_decision is None:
-                esc = {"red": ComplianceScore.RED, "yellow": ComplianceScore.YELLOW}.get(
-                    res.severity
-                )
+                esc = {"red": ComplianceScore.RED, "yellow": ComplianceScore.YELLOW}.get(res.severity)
                 if esc and (
                     inv.compliance_score == ComplianceScore.GREEN
-                    or (
-                        inv.compliance_score == ComplianceScore.YELLOW
-                        and esc == ComplianceScore.RED
-                    )
+                    or (inv.compliance_score == ComplianceScore.YELLOW and esc == ComplianceScore.RED)
                 ):
                     inv.compliance_score = esc
                     rescored += 1

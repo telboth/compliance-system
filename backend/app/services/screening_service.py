@@ -51,14 +51,17 @@ from app.models.screening import MatchStatus, ScreeningResult
 from app.models.screening_run import ScreeningCandidate, ScreeningRun
 from app.sanctions.embargo import EmbargoEntry, check_country
 from app.sanctions.yente_client import YenteMatch, get_yente_client
-from app.services.pipeline_event_service import append_pipeline_event
-from app.services import audit_service
-from app.services import catch_all_service
-from app.services import export_control_service
+from app.services import (
+    audit_service,
+    catch_all_service,
+    export_control_service,
+    notification_service,
+    rule_engine_service,
+    vendor_service,
+)
 from app.services import internal_watchlist_service as wl_svc
-from app.services import notification_service
-from app.services import rule_engine_service
-from app.services import vendor_service
+from app.services.pipeline_event_service import append_pipeline_event
+from app.utils.email_utils import EMAIL_RE as _EMAIL_RE
 
 logger = get_logger(__name__)
 
@@ -72,7 +75,7 @@ _SCREENED_ROLES = set(EntityRole)
 
 # Dataset-navn brukt i ScreeningResult nar treffet kommer fra landsjekk
 _EMBARGO_DATASET = "country_embargo"
-from app.utils.email_utils import EMAIL_RE as _EMAIL_RE
+
 _GENERIC_EMAIL_PARTS = {
     "admin",
     "accounts",
@@ -300,22 +303,14 @@ def _candidate_quality_score(value: str) -> float:
     tokens = _tokenize_candidate(value)
     if not tokens:
         return -100.0
-    non_generic = sum(
-        1
-        for token in tokens
-        if token not in _GENERIC_CANDIDATE_SINGLE_TOKENS and len(token) >= 3
-    )
+    non_generic = sum(1 for token in tokens if token not in _GENERIC_CANDIDATE_SINGLE_TOKENS and len(token) >= 3)
     noisy = sum(1 for token in tokens if token in _NOISY_CANDIDATE_TOKENS)
     long_tokens = sum(1 for token in tokens if len(token) >= 5)
     return float(non_generic) + (0.2 * float(long_tokens)) - (1.4 * float(noisy))
 
 
 def _choose_candidate_fragment(value: str) -> str:
-    fragments = [
-        part.strip()
-        for part in _NOISY_FRAGMENT_SPLIT_RE.split(value)
-        if part and part.strip()
-    ]
+    fragments = [part.strip() for part in _NOISY_FRAGMENT_SPLIT_RE.split(value) if part and part.strip()]
     if not fragments:
         return value
     return max(fragments, key=_candidate_quality_score)
@@ -337,11 +332,7 @@ def _normalize_candidate_name(value: str) -> str | None:
     if not tokens:
         return None
     noisy = sum(1 for token in tokens if token in _NOISY_CANDIDATE_TOKENS)
-    non_generic = sum(
-        1
-        for token in tokens
-        if token not in _GENERIC_CANDIDATE_SINGLE_TOKENS and len(token) >= 3
-    )
+    non_generic = sum(1 for token in tokens if token not in _GENERIC_CANDIDATE_SINGLE_TOKENS and len(token) >= 3)
     if len(tokens) > 24:
         return None
     if noisy >= 3 and noisy / len(tokens) >= 0.35:
@@ -484,9 +475,7 @@ def _build_screening_candidates(
     by_role: dict[EntityRole, list[Entity]] = {}
     for entity in entities_to_screen:
         by_role.setdefault(entity.role, []).append(entity)
-    fallback_entity = (
-        entities_to_screen[0] if entities_to_screen else (all_entities[0] if all_entities else None)
-    )
+    fallback_entity = entities_to_screen[0] if entities_to_screen else (all_entities[0] if all_entities else None)
     domain_anchor: dict[str, uuid.UUID] = {}
 
     def _add_candidate(
@@ -724,12 +713,8 @@ def _collect_trade_plausibility_results(
         buyer_country = (buyer.country or "").strip().upper()
         cross_border = bool(destination and buyer_country and buyer_country != destination)
 
-        food_hits = sorted(
-            keyword for keyword in _PLAUSIBILITY_FOOD_KEYWORDS if keyword in buyer_name
-        )
-        industrial_hits = sorted(
-            keyword for keyword in _PLAUSIBILITY_INDUSTRIAL_KEYWORDS if keyword in raw_text
-        )
+        food_hits = sorted(keyword for keyword in _PLAUSIBILITY_FOOD_KEYWORDS if keyword in buyer_name)
+        industrial_hits = sorted(keyword for keyword in _PLAUSIBILITY_INDUSTRIAL_KEYWORDS if keyword in raw_text)
 
         if food_hits and cross_border and len(industrial_hits) >= 2:
             dedupe_key = (buyer.id, "industry_mismatch")
@@ -757,14 +742,10 @@ def _collect_trade_plausibility_results(
                 )
 
         free_zone_hits = sorted(
-            keyword
-            for keyword in _PLAUSIBILITY_FREE_ZONE_KEYWORDS
-            if keyword in buyer_name or keyword in buyer_addr
+            keyword for keyword in _PLAUSIBILITY_FREE_ZONE_KEYWORDS if keyword in buyer_name or keyword in buyer_addr
         )
         intermediary_hits = sorted(
-            keyword
-            for keyword in _PLAUSIBILITY_INTERMEDIARY_NAME_KEYWORDS
-            if keyword in buyer_name
+            keyword for keyword in _PLAUSIBILITY_INTERMEDIARY_NAME_KEYWORDS if keyword in buyer_name
         )
         transit_route = buyer_country in _PLAUSIBILITY_TRANSIT_COUNTRIES
         if transit_route and cross_border and free_zone_hits and industrial_hits and intermediary_hits:
@@ -893,7 +874,11 @@ async def _collect_duplicate_invoice_results(
             continue
 
         name_similarity = max(
-            (_similarity_ratio(now_name, prev_name) for now_name in current_buyer_names for prev_name in previous_names),
+            (
+                _similarity_ratio(now_name, prev_name)
+                for now_name in current_buyer_names
+                for prev_name in previous_names
+            ),
             default=0.0,
         )
         if name_similarity < 0.88:
@@ -922,9 +907,17 @@ async def _collect_duplicate_invoice_results(
             continue
 
         suspicious = (
-            (amount_ratio_diff <= 0.005 and name_similarity >= 0.92 and (date_delta_days is None or date_delta_days <= 14))
+            (
+                amount_ratio_diff <= 0.005
+                and name_similarity >= 0.92
+                and (date_delta_days is None or date_delta_days <= 14)
+            )
             or (number_similarity >= 0.90 and amount_ratio_diff <= 0.02 and name_similarity >= 0.88)
-            or (text_similarity >= 0.97 and amount_ratio_diff <= 0.02 and (date_delta_days is None or date_delta_days <= 21))
+            or (
+                text_similarity >= 0.97
+                and amount_ratio_diff <= 0.02
+                and (date_delta_days is None or date_delta_days <= 21)
+            )
         )
         if not suspicious:
             continue
@@ -980,11 +973,7 @@ def _collect_embargo_results(
             country=dest_entry.iso2,
             scope=dest_entry.scope,
         )
-        anchor_id = (
-            entities_to_screen[0].id
-            if entities_to_screen
-            else (all_entities[0].id if all_entities else None)
-        )
+        anchor_id = entities_to_screen[0].id if entities_to_screen else (all_entities[0].id if all_entities else None)
         embargo_hits.append((anchor_id, dest_entry))
 
     for entity in entities_to_screen:
@@ -1003,11 +992,7 @@ def _collect_embargo_results(
     records: list[ScreeningResult] = []
     statuses: list[MatchStatus] = []
     for entity_id, entry in embargo_hits:
-        status = (
-            MatchStatus.CONFIRMED_MATCH
-            if entry.scope == "comprehensive"
-            else MatchStatus.POTENTIAL_MATCH
-        )
+        status = MatchStatus.CONFIRMED_MATCH if entry.scope == "comprehensive" else MatchStatus.POTENTIAL_MATCH
         if entity_id is not None:
             records.append(_make_embargo_result(invoice_id, entity_id, entry, status))
         statuses.append(status)
@@ -1070,18 +1055,20 @@ def _process_yente_batch(
             if candidate.source_email:
                 raw_payload["query_email"] = candidate.source_email
 
-            records.append(ScreeningResult(
-                id=uuid.uuid4(),
-                invoice_id=invoice_id,
-                entity_id=candidate.entity_id,
-                dataset=match.dataset,
-                dataset_entity_id=match.entity_id,
-                matched_name=match.matched_name,
-                score=score_dec,
-                listed_on=match.listed_on,
-                status=status,
-                raw_response=raw_payload or None,
-            ))
+            records.append(
+                ScreeningResult(
+                    id=uuid.uuid4(),
+                    invoice_id=invoice_id,
+                    entity_id=candidate.entity_id,
+                    dataset=match.dataset,
+                    dataset_entity_id=match.entity_id,
+                    matched_name=match.matched_name,
+                    score=score_dec,
+                    listed_on=match.listed_on,
+                    status=status,
+                    raw_response=raw_payload or None,
+                )
+            )
             statuses.append(status)
             entity_with_match.add(candidate.entity_id)
 
@@ -1089,21 +1076,23 @@ def _process_yente_batch(
     for entity_id, primary_candidate in primary_by_entity.items():
         if entity_id in entity_with_match:
             continue
-        records.append(ScreeningResult(
-            id=uuid.uuid4(),
-            invoice_id=invoice_id,
-            entity_id=entity_id,
-            dataset="all",
-            dataset_entity_id=None,
-            matched_name=None,
-            score=Decimal("0.0000"),
-            listed_on=None,
-            status=MatchStatus.CLEAR,
-            raw_response={
-                "query_source": primary_candidate.source,
-                "query_name": primary_candidate.name,
-            },
-        ))
+        records.append(
+            ScreeningResult(
+                id=uuid.uuid4(),
+                invoice_id=invoice_id,
+                entity_id=entity_id,
+                dataset="all",
+                dataset_entity_id=None,
+                matched_name=None,
+                score=Decimal("0.0000"),
+                listed_on=None,
+                status=MatchStatus.CLEAR,
+                raw_response={
+                    "query_source": primary_candidate.source,
+                    "query_name": primary_candidate.name,
+                },
+            )
+        )
         statuses.append(MatchStatus.CLEAR)
 
     return records, statuses, yente_succeeded
@@ -1154,9 +1143,7 @@ async def screen_invoice(
         if not has_lock:
             logger.info("screening_skip_already_running", invoice_id=str(invoice_id))
             await session.rollback()
-            raise ScreeningLockUnavailableError(
-                f"Invoice {invoice_id} is already being screened by another worker."
-            )
+            raise ScreeningLockUnavailableError(f"Invoice {invoice_id} is already being screened by another worker.")
 
         prev_status = invoice.status.value
         invoice.status = InvoiceStatus.SCREENING
@@ -1172,15 +1159,11 @@ async def screen_invoice(
         logger.info("screening_started", invoice_id=str(invoice_id))
 
         # Slett eventuelle gamle screeningresultater (re-screening)
-        await session.execute(
-            delete(ScreeningResult).where(ScreeningResult.invoice_id == invoice_id)
-        )
+        await session.execute(delete(ScreeningResult).where(ScreeningResult.invoice_id == invoice_id))
         await session.flush()
 
         # Hent alle entiteter
-        result = await session.execute(
-            select(Entity).where(Entity.invoice_id == invoice_id)
-        )
+        result = await session.execute(select(Entity).where(Entity.invoice_id == invoice_id))
         all_entities = result.scalars().all()
         entities_to_screen = [e for e in all_entities if e.role in _SCREENED_ROLES]
 
@@ -1220,10 +1203,14 @@ async def screen_invoice(
         try:
             entity_names = [e.name for e in entities_to_screen if e.name]
             email_addresses = [e.email for e in entities_to_screen if e.email]
-            countries = [c for c in [
-                invoice.destination_country,
-                *[e.country for e in entities_to_screen if e.country],
-            ] if c]
+            countries = [
+                c
+                for c in [
+                    invoice.destination_country,
+                    *[e.country for e in entities_to_screen if e.country],
+                ]
+                if c
+            ]
             watchlist_hits = await wl_svc.check_invoice(
                 session,
                 entity_names=entity_names,
@@ -1231,11 +1218,7 @@ async def screen_invoice(
                 countries=countries,
             )
             for hit in watchlist_hits:
-                wl_status = (
-                    MatchStatus.CONFIRMED_MATCH
-                    if hit.severity == "red"
-                    else MatchStatus.POTENTIAL_MATCH
-                )
+                wl_status = MatchStatus.CONFIRMED_MATCH if hit.severity == "red" else MatchStatus.POTENTIAL_MATCH
                 # Finn riktig entity_id for treffet
                 hit_entity_id: uuid.UUID | None = None
                 for e in entities_to_screen:
@@ -1383,11 +1366,7 @@ async def screen_invoice(
 
         # Dersom yente ble forsøkt men feilet for ALLE entiteter,
         # og vi heller ikke har embargo-treff, er screeningen ufullstendig.
-        yente_completely_failed = (
-            yente_attempted
-            and yente_succeeded == 0
-            and not embargo_hit_count
-        )
+        yente_completely_failed = yente_attempted and yente_succeeded == 0 and not embargo_hit_count
 
         if yente_completely_failed and not all_statuses:
             prev_status = invoice.status.value
@@ -1470,9 +1449,7 @@ async def screen_invoice(
 
         # ── Regelmotor — evaluer alle aktive YAML-regler ──────────────────────
         # all_entities er allerede hentet ovenfor; lines lastes her for regelmotor.
-        lines_result = await session.execute(
-            select(InvoiceLine).where(InvoiceLine.invoice_id == invoice_id)
-        )
+        lines_result = await session.execute(select(InvoiceLine).where(InvoiceLine.invoice_id == invoice_id))
         invoice_lines = list(lines_result.scalars().all())
 
         try:
@@ -1512,20 +1489,13 @@ async def screen_invoice(
         # Rent lokalt, ingen nettverkskall. Setter export_control_status og
         # eskalerer compliance_score (militært treff → RØD, dual-use → GUL/RØD).
         try:
-            ec_result = export_control_service.evaluate_invoice_export_control(
-                invoice, lines=invoice_lines
-            )
+            ec_result = export_control_service.evaluate_invoice_export_control(invoice, lines=invoice_lines)
             invoice.export_control_status = ec_result.status
             invoice.export_control_summary = ec_result.summary
-            ec_escalate = {"red": ComplianceScore.RED, "yellow": ComplianceScore.YELLOW}.get(
-                ec_result.severity
-            )
+            ec_escalate = {"red": ComplianceScore.RED, "yellow": ComplianceScore.YELLOW}.get(ec_result.severity)
             if ec_escalate and (
                 invoice.compliance_score == ComplianceScore.GREEN
-                or (
-                    invoice.compliance_score == ComplianceScore.YELLOW
-                    and ec_escalate == ComplianceScore.RED
-                )
+                or (invoice.compliance_score == ComplianceScore.YELLOW and ec_escalate == ComplianceScore.RED)
             ):
                 invoice.compliance_score = ec_escalate
             if ec_result.flagged:
@@ -1548,15 +1518,10 @@ async def screen_invoice(
             )
             invoice.catch_all_status = ca_result.status
             invoice.catch_all_summary = ca_result.summary
-            ca_escalate = {"red": ComplianceScore.RED, "yellow": ComplianceScore.YELLOW}.get(
-                ca_result.severity
-            )
+            ca_escalate = {"red": ComplianceScore.RED, "yellow": ComplianceScore.YELLOW}.get(ca_result.severity)
             if ca_escalate and (
                 invoice.compliance_score == ComplianceScore.GREEN
-                or (
-                    invoice.compliance_score == ComplianceScore.YELLOW
-                    and ca_escalate == ComplianceScore.RED
-                )
+                or (invoice.compliance_score == ComplianceScore.YELLOW and ca_escalate == ComplianceScore.RED)
             ):
                 invoice.compliance_score = ca_escalate
             if ca_result.flagged:
@@ -1574,10 +1539,13 @@ async def screen_invoice(
 
         # ── Vendor Register — oppdater risikoprofil for SELLER/BUYER-entiteter ─
         from app.models.entity import EntityRole as _EntityRole
+
         vendor_roles = {_EntityRole.SELLER, _EntityRole.BUYER, _EntityRole.CONSIGNOR, _EntityRole.CONSIGNEE}
         worst_status = (
-            MatchStatus.CONFIRMED_MATCH if any(s == MatchStatus.CONFIRMED_MATCH for s in all_statuses)
-            else MatchStatus.POTENTIAL_MATCH if any(s == MatchStatus.POTENTIAL_MATCH for s in all_statuses)
+            MatchStatus.CONFIRMED_MATCH
+            if any(s == MatchStatus.CONFIRMED_MATCH for s in all_statuses)
+            else MatchStatus.POTENTIAL_MATCH
+            if any(s == MatchStatus.POTENTIAL_MATCH for s in all_statuses)
             else MatchStatus.CLEAR
         )
         try:
@@ -1719,9 +1687,7 @@ async def get_screening_candidates_preview(
     if not invoice:
         raise ValueError(f"Invoice {invoice_id} finnes ikke")
 
-    result = await session.execute(
-        select(Entity).where(Entity.invoice_id == invoice_id)
-    )
+    result = await session.execute(select(Entity).where(Entity.invoice_id == invoice_id))
     all_entities = result.scalars().all()
     entities_to_screen = [e for e in all_entities if e.role in _SCREENED_ROLES]
     entity_map = {entity.id: entity for entity in all_entities}

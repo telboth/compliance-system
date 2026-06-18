@@ -29,17 +29,13 @@ logger = get_logger(__name__)
 
 async def _next_version_number(session: AsyncSession, policy_id: uuid.UUID) -> int:
     result = await session.execute(
-        select(func.max(CompliancePolicyVersion.version_number)).where(
-            CompliancePolicyVersion.policy_id == policy_id
-        )
+        select(func.max(CompliancePolicyVersion.version_number)).where(CompliancePolicyVersion.policy_id == policy_id)
     )
     current_max = result.scalar_one()
     return (current_max or 0) + 1
 
 
-async def _get_policy_or_raise(
-    session: AsyncSession, policy_id: uuid.UUID
-) -> CompliancePolicy:
+async def _get_policy_or_raise(session: AsyncSession, policy_id: uuid.UUID) -> CompliancePolicy:
     policy = await session.get(
         CompliancePolicy,
         policy_id,
@@ -112,13 +108,11 @@ async def update_policy_content(
     Setter is_current=False på alle eksisterende versjoner og oppretter
     en ny med forhøyet versjonsnummer.
     """
-    policy = await _get_policy_or_raise(session, policy_id)
+    await _get_policy_or_raise(session, policy_id)
 
     # Sett alle eksisterende versjoner til ikke-aktive
     await session.execute(
-        update(CompliancePolicyVersion)
-        .where(CompliancePolicyVersion.policy_id == policy_id)
-        .values(is_current=False)
+        update(CompliancePolicyVersion).where(CompliancePolicyVersion.policy_id == policy_id).values(is_current=False)
     )
 
     next_version = await _next_version_number(session, policy_id)
@@ -166,15 +160,11 @@ async def update_policy_metadata(
     return policy
 
 
-async def get_policy(
-    session: AsyncSession, policy_id: uuid.UUID
-) -> CompliancePolicy:
+async def get_policy(session: AsyncSession, policy_id: uuid.UUID) -> CompliancePolicy:
     return await _get_policy_or_raise(session, policy_id)
 
 
-async def get_current_version(
-    session: AsyncSession, policy_id: uuid.UUID
-) -> CompliancePolicyVersion | None:
+async def get_current_version(session: AsyncSession, policy_id: uuid.UUID) -> CompliancePolicyVersion | None:
     result = await session.execute(
         select(CompliancePolicyVersion).where(
             CompliancePolicyVersion.policy_id == policy_id,
@@ -198,16 +188,12 @@ async def list_policies(
     if is_active is not None:
         base = base.where(CompliancePolicy.is_active == is_active)
 
-    total = (
-        await session.execute(select(func.count()).select_from(base.subquery()))
-    ).scalar_one()
+    total = (await session.execute(select(func.count()).select_from(base.subquery()))).scalar_one()
 
     rows = list(
         (
             await session.execute(
-                base.order_by(CompliancePolicy.category, CompliancePolicy.title)
-                .limit(limit)
-                .offset(offset)
+                base.order_by(CompliancePolicy.category, CompliancePolicy.title).limit(limit).offset(offset)
             )
         )
         .scalars()

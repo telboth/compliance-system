@@ -9,10 +9,10 @@ from dataclasses import dataclass, field
 class ParserMethod(str, enum.Enum):
     """Hvilken metode som ble brukt for å hente ut tekst."""
 
-    DIGITAL = "digital"         # PDF med tekstlag
-    OCR = "ocr"                 # Skannet PDF eller bilde-OCR
-    HYBRID = "hybrid"           # Blanding av digital og OCR
-    SPREADSHEET = "spreadsheet" # Excel-fil lest direkte av Docling
+    DIGITAL = "digital"  # PDF med tekstlag
+    OCR = "ocr"  # Skannet PDF eller bilde-OCR
+    HYBRID = "hybrid"  # Blanding av digital og OCR
+    SPREADSHEET = "spreadsheet"  # Excel-fil lest direkte av Docling
 
 
 class SourceFileType(str, enum.Enum):

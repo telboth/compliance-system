@@ -16,7 +16,9 @@ router = APIRouter()
 @router.get("", response_model=VendorListResponse)
 async def list_vendors(
     session: SessionDep,
-    risk_level: str | None = Query(default=None, description="Filtrer på risikonivå ('low'|'medium'|'high'|'critical')"),
+    risk_level: str | None = Query(
+        default=None, description="Filtrer på risikonivå ('low'|'medium'|'high'|'critical')"
+    ),
     country: str | None = Query(default=None, description="Filtrer på landkode (ISO-3166-1 alpha-2)"),
     search: str | None = Query(default=None, description="Søk på leverandørnavn"),
     limit: int = Query(default=50, ge=1, le=500),
@@ -53,9 +55,7 @@ async def update_notes(
     session: SessionDep,
 ) -> VendorOut:
     """Oppdater friekstnotes for en leverandør."""
-    vendor = await vendor_service.update_vendor_notes(
-        session, vendor_id, notes=body.notes
-    )
+    vendor = await vendor_service.update_vendor_notes(session, vendor_id, notes=body.notes)
     if not vendor:
         raise HTTPException(status_code=404, detail="Vendor ikke funnet")
     await session.commit()

@@ -47,10 +47,10 @@ def _now() -> datetime:
 
 async def _get_state(session: AsyncSession) -> ExportListSyncState:
     row = (
-        await session.execute(
-            select(ExportListSyncState).where(ExportListSyncState.list_code == _LIST_CODE)
-        )
-    ).scalars().first()
+        (await session.execute(select(ExportListSyncState).where(ExportListSyncState.list_code == _LIST_CODE)))
+        .scalars()
+        .first()
+    )
     if row is None:
         row = ExportListSyncState(list_code=_LIST_CODE, status=_STATUS_IDLE)
         session.add(row)
@@ -189,10 +189,8 @@ async def trigger_import(
             new_iso2s.add(iso2)
 
             existing = (
-                await session.execute(
-                    select(EmbargoCountry).where(EmbargoCountry.iso2 == iso2)
-                )
-            ).scalars().first()
+                (await session.execute(select(EmbargoCountry).where(EmbargoCountry.iso2 == iso2))).scalars().first()
+            )
 
             name = row.get("name", iso2)
             sources = row.get("sources", "")
@@ -208,21 +206,21 @@ async def trigger_import(
                 existing.source_version = source_version
                 updated += 1
             else:
-                session.add(EmbargoCountry(
-                    iso2=iso2,
-                    name=name,
-                    sources=sources,
-                    scope=scope,
-                    note=note,
-                    is_active=True,
-                    source_version=source_version,
-                ))
+                session.add(
+                    EmbargoCountry(
+                        iso2=iso2,
+                        name=name,
+                        sources=sources,
+                        scope=scope,
+                        note=note,
+                        is_active=True,
+                        source_version=source_version,
+                    )
+                )
                 created += 1
 
         # Deaktiver land som ikke lenger er paa lista
-        all_existing = list(
-            (await session.execute(select(EmbargoCountry))).scalars().all()
-        )
+        all_existing = list((await session.execute(select(EmbargoCountry))).scalars().all())
         deactivated = 0
         for row_db in all_existing:
             if row_db.iso2 not in new_iso2s and row_db.is_active:
@@ -231,9 +229,7 @@ async def trigger_import(
 
         total = len(new_iso2s)
         state.status = _STATUS_OK
-        state.status_message = (
-            f"Import fullfort: {created} nye, {updated} oppdatert, {deactivated} deaktivert"
-        )
+        state.status_message = f"Import fullfort: {created} nye, {updated} oppdatert, {deactivated} deaktivert"
         state.last_imported_at = _now()
         state.last_imported_by = triggered_by
         state.current_version = source_version
@@ -246,7 +242,10 @@ async def trigger_import(
         reloaded = await load_cache_from_db(session)
         log.info(
             "embargo_import_done created=%d updated=%d deactivated=%d cache=%d",
-            created, updated, deactivated, reloaded,
+            created,
+            updated,
+            deactivated,
+            reloaded,
         )
 
         await notification_service.create(

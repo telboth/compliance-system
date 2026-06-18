@@ -186,13 +186,15 @@ class YenteClient:
                     status = "error"
                 else:
                     status = "pending"
-                datasets.append(YenteDataset(
-                    name=ds.get("name", ""),
-                    title=ds.get("title"),
-                    entity_count=ds.get("entity_count"),
-                    last_updated=ds.get("updated_at") or ds.get("last_export"),
-                    status=status,
-                ))
+                datasets.append(
+                    YenteDataset(
+                        name=ds.get("name", ""),
+                        title=ds.get("title"),
+                        entity_count=ds.get("entity_count"),
+                        last_updated=ds.get("updated_at") or ds.get("last_export"),
+                        status=status,
+                    )
+                )
             return datasets
         except Exception as exc:
             logger.error("yente_list_datasets_failed", error=str(exc))
@@ -278,14 +280,16 @@ class YenteClient:
 
             # Hent datasett fra hit
             for ds in hit.get("datasets", ["unknown"]):
-                matches.append(YenteMatch(
-                    dataset=ds,
-                    entity_id=hit.get("id"),
-                    matched_name=hit.get("caption"),
-                    score=score,
-                    listed_on=listed_on,
-                    raw=hit,
-                ))
+                matches.append(
+                    YenteMatch(
+                        dataset=ds,
+                        entity_id=hit.get("id"),
+                        matched_name=hit.get("caption"),
+                        score=score,
+                        listed_on=listed_on,
+                        raw=hit,
+                    )
+                )
 
         matches.sort(key=lambda m: m.score, reverse=True)
         logger.info(

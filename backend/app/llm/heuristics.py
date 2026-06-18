@@ -24,9 +24,7 @@ from dataclasses import dataclass, field
 # ── Kompilerte mønstre ────────────────────────────────────────────────────────
 
 # RFC 5322-light: fanger de aller fleste reelle epostadresser.
-_RE_EMAIL = re.compile(
-    r"\b[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}\b"
-)
+_RE_EMAIL = re.compile(r"\b[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}\b")
 
 # HS-koder: 4 sifre, punktum, 2 sifre, valgfritt punktum + 2-4 sifre.
 # Eksempler: 8517.12  |  8517.12.00  |  8471.30.0000
@@ -51,18 +49,46 @@ _RE_SERIAL = re.compile(
 # Vanlige ISO 4217-valutakoder som forekommer i handelsfakturaer.
 # Sortert etter lengde (lengst først) for å unngå deltreff (f.eks. "NOK" før "NO").
 _COMMON_CURRENCIES = (
-    "USD", "EUR", "NOK", "GBP", "JPY", "CHF", "CAD", "AUD",
-    "SGD", "MYR", "DKK", "SEK", "HKD", "CNY", "INR", "BRL",
-    "ZAR", "AED", "SAR", "KWD", "QAR", "THB", "IDR", "PHP",
-    "NZD", "MXN", "TWD", "KRW", "TRY", "PLN", "CZK", "HUF",
+    "USD",
+    "EUR",
+    "NOK",
+    "GBP",
+    "JPY",
+    "CHF",
+    "CAD",
+    "AUD",
+    "SGD",
+    "MYR",
+    "DKK",
+    "SEK",
+    "HKD",
+    "CNY",
+    "INR",
+    "BRL",
+    "ZAR",
+    "AED",
+    "SAR",
+    "KWD",
+    "QAR",
+    "THB",
+    "IDR",
+    "PHP",
+    "NZD",
+    "MXN",
+    "TWD",
+    "KRW",
+    "TRY",
+    "PLN",
+    "CZK",
+    "HUF",
 )
 
 # Regex: valutakode som eget ord, gjerne fulgt av/etterfulgt av et tall,
 # eller som en del av benevnelse som "US$" eller "EUR ".
 _RE_CURRENCY = re.compile(
     r"\b(" + "|".join(_COMMON_CURRENCIES) + r")\b"
-    r"|US\$"                            # US$ → USD
-    r"|\bEUR\b",                        # reservert for fullstendighet
+    r"|US\$"  # US$ → USD
+    r"|\bEUR\b",  # reservert for fullstendighet
     re.IGNORECASE,
 )
 
@@ -104,6 +130,7 @@ _RE_CONSIGNEE = re.compile(
 
 # ── Resultat-dataklasse ───────────────────────────────────────────────────────
 
+
 @dataclass
 class HeuristicResult:
     """Samling av verdier funnet via regex-søk i rå tekst."""
@@ -122,14 +149,21 @@ class HeuristicResult:
     po_number: str | None = None
 
     def is_empty(self) -> bool:
-        return not any([
-            self.emails, self.hs_codes, self.eccn_codes,
-            self.serial_numbers, self.entity_hints, self.currency,
-            self.po_number,
-        ])
+        return not any(
+            [
+                self.emails,
+                self.hs_codes,
+                self.eccn_codes,
+                self.serial_numbers,
+                self.entity_hints,
+                self.currency,
+                self.po_number,
+            ]
+        )
 
 
 # ── Ekstraktor ────────────────────────────────────────────────────────────────
+
 
 class HeuristicExtractor:
     """Trekker ut felter fra rå tekst med regex — ingen nettverkskall."""
@@ -140,21 +174,15 @@ class HeuristicExtractor:
         Bruker dict.fromkeys() for å bevare rekkefølgen (første forekomst)
         mens duplikater elimineres — viktig for linjetilordning i merger.
         """
-        emails = list(dict.fromkeys(
-            m.lower() for m in _RE_EMAIL.findall(text)
-        ))
+        emails = list(dict.fromkeys(m.lower() for m in _RE_EMAIL.findall(text)))
 
         hs_codes = list(dict.fromkeys(_RE_HS.findall(text)))
 
-        eccn_codes = list(dict.fromkeys(
-            m.upper() for m in _RE_ECCN.findall(text)
-        ))
+        eccn_codes = list(dict.fromkeys(m.upper() for m in _RE_ECCN.findall(text)))
         if _RE_EAR99.search(text) and "EAR99" not in eccn_codes:
             eccn_codes.append("EAR99")
 
-        serial_numbers = list(dict.fromkeys(
-            m.upper().strip() for m in _RE_SERIAL.findall(text)
-        ))
+        serial_numbers = list(dict.fromkeys(m.upper().strip() for m in _RE_SERIAL.findall(text)))
 
         entity_hints: list[tuple[str, str]] = []
         for m in _RE_CONSIGNOR.finditer(text):

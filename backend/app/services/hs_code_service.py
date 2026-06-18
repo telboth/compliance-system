@@ -23,9 +23,9 @@ class HSClassification:
     chapter_description: str
     heading: str | None
     heading_description: str | None
-    risk_level: str | None          # "high" | "medium" | None
+    risk_level: str | None  # "high" | "medium" | None
     risk_reason: str | None
-    is_controlled: bool             # krever eksportlisens / ekstra aktsomhet
+    is_controlled: bool  # krever eksportlisens / ekstra aktsomhet
     dual_use_flag: bool
 
 
@@ -50,7 +50,12 @@ _CHAPTER_RISK: dict[str, tuple[str, str | None, str | None, bool]] = {
     "76": ("Aluminium og aluminiumsprodukter", None, None, False),
     "82": ("Verktøy og skjæreredskaper av uedle metaller", None, None, False),
     "83": ("Diverse varer av uedle metaller", None, None, False),
-    "84": ("Maskiner og mekaniske apparater", "medium", "Dual-use maskiner og nykleær teknologi mulig — sjekk ECCN", True),
+    "84": (
+        "Maskiner og mekaniske apparater",
+        "medium",
+        "Dual-use maskiner og nykleær teknologi mulig — sjekk ECCN",
+        True,
+    ),
     "85": ("Elektriske maskiner og apparater", "medium", "Elektronikk med dual-use potensiale — sjekk ECCN", True),
     "86": ("Jernbanemateriell", None, None, False),
     "87": ("Kjøretøy unntatt jernbanevogner", "medium", "Militære kjøretøy mulig (8710)", True),

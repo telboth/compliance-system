@@ -7,7 +7,7 @@ Returnerer en selvstending HTML-side optimalisert for print-til-PDF.
 from __future__ import annotations
 
 import uuid
-from datetime import date
+from datetime import UTC, date
 
 from fastapi import APIRouter, HTTPException, status
 from fastapi.responses import HTMLResponse
@@ -94,6 +94,7 @@ def _fmt_datetime(dt: object) -> str:
         return "—"
     try:
         from datetime import datetime
+
         if isinstance(dt, str):
             dt = datetime.fromisoformat(dt)
         return dt.strftime("%d.%m.%Y %H:%M UTC")
@@ -102,9 +103,9 @@ def _fmt_datetime(dt: object) -> str:
 
 
 def build_report_html(invoice: Invoice) -> str:
-    from datetime import datetime, timezone
+    from datetime import datetime
 
-    generated_at = datetime.now(tz=timezone.utc).strftime("%d.%m.%Y %H:%M UTC")
+    generated_at = datetime.now(tz=UTC).strftime("%d.%m.%Y %H:%M UTC")
     score_val = invoice.compliance_score.value if invoice.compliance_score else None
     status_val = invoice.status.value
 
@@ -123,9 +124,7 @@ def build_report_html(invoice: Invoice) -> str:
         ("Original filnavn", _esc(invoice.original_filename)),
         ("Lastet opp", _fmt_datetime(invoice.created_at)),
     ]
-    meta_html = "\n".join(
-        f"<dt>{label}</dt><dd>{val}</dd>" for label, val in meta_rows
-    )
+    meta_html = "\n".join(f"<dt>{label}</dt><dd>{val}</dd>" for label, val in meta_rows)
 
     # ── Parter ────────────────────────────────────────────────────────────────
     entities_html = ""
@@ -191,9 +190,9 @@ def build_report_html(invoice: Invoice) -> str:
         is_approved = invoice.review_decision == "approved"
         decision_html = f"""
         <h2>Manuell review-beslutning</h2>
-        <div class="decision-box {'decision-approved' if is_approved else 'decision-blocked'}">
+        <div class="decision-box {"decision-approved" if is_approved else "decision-blocked"}">
           <p style="font-weight:700;font-size:12pt">
-            {'✓ Godkjent' if is_approved else '🔒 Blokkert'}
+            {"✓ Godkjent" if is_approved else "🔒 Blokkert"}
           </p>
           <dl class="meta" style="margin-top:8px">
             <dt>Besluttet av</dt><dd>{_esc(invoice.reviewed_by)}</dd>
@@ -288,7 +287,7 @@ async def get_invoice_report(
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail=f"Rapport er kun tilgjengelig for screened/approved/blocked-fakturaer. "
-                   f"Nåværende status: {invoice.status.value}",
+            f"Nåværende status: {invoice.status.value}",
         )
 
     html = build_report_html(invoice)

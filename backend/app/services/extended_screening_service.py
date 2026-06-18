@@ -5,8 +5,8 @@ from __future__ import annotations
 import asyncio
 import json
 import re
-import uuid
 import time
+import uuid
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from difflib import SequenceMatcher
@@ -43,8 +43,7 @@ _GLEIF_API_URL = "https://api.gleif.org/api/v1/lei-records"
 _WIKIPEDIA_SUMMARY_API_URL = "https://en.wikipedia.org/api/rest_v1/page/summary"
 _UK_SANCTIONS_CSV_URL = "https://sanctionslist.fcdo.gov.uk/docs/UK-Sanctions-List.csv"
 _WORLD_BANK_DEBARRED_API_URL = (
-    "https://apigwext.worldbank.org/dvsvc/v1.0/json/"
-    "APPLICATION/ADOBE_EXPRNCE_MGR/FIRM/SANCTIONED_FIRM"
+    "https://apigwext.worldbank.org/dvsvc/v1.0/json/APPLICATION/ADOBE_EXPRNCE_MGR/FIRM/SANCTIONED_FIRM"
 )
 _OPENCORPORATES_SEARCH_API_URL = "https://api.opencorporates.com/v0.4/companies/search"
 _OPENCORPORATES_COMPANY_API_URL = "https://api.opencorporates.com/v0.4/companies"
@@ -148,9 +147,7 @@ _HIGH_TRUST_REFERENCE_DOMAINS = {
     "opencorporates.com",
 }
 _PERSON_NAME_PATTERN = re.compile(r"\b[A-Z][a-z]+ [A-Z][a-z]+\b")
-_COMPANY_SUFFIX_PATTERN = re.compile(
-    r"\b(?:Inc|Ltd|LLC|PLC|GmbH|ASA|AS|AG|BV|S\\.A\\.|S\\.R\\.L\\.)\b"
-)
+_COMPANY_SUFFIX_PATTERN = re.compile(r"\b(?:Inc|Ltd|LLC|PLC|GmbH|ASA|AS|AG|BV|S\\.A\\.|S\\.R\\.L\\.)\b")
 
 _COMPANY_QIDS = {
     "Q43229",  # organization
@@ -373,11 +370,7 @@ def _normalize_text(value: str) -> str:
 
 
 def _seed_tokens(seed_name: str) -> set[str]:
-    return {
-        token
-        for token in _tokenize(seed_name)
-        if len(token) >= 4 and token not in _GENERIC_COMPANY_TOKENS
-    }
+    return {token for token in _tokenize(seed_name) if len(token) >= 4 and token not in _GENERIC_COMPANY_TOKENS}
 
 
 def _is_domain_related_to_seed(source_url: str | None, seed_name: str) -> bool:
@@ -775,9 +768,7 @@ def _candidate_allowed_for_seed(
     if _is_low_signal_description(description):
         return False, "low_signal_description"
 
-    expected_type = (
-        "person" if seed_entity.entity_type.value == "person" else "company"
-    )
+    expected_type = "person" if seed_entity.entity_type.value == "person" else "company"
 
     if candidate_type != expected_type:
         return False, "type_mismatch"
@@ -1024,11 +1015,7 @@ async def _fetch_wikipedia_summary(
         return None
     content_urls = payload.get("content_urls") or {}
     desktop = content_urls.get("desktop") if isinstance(content_urls, dict) else {}
-    page_url = (
-        str((desktop or {}).get("page") or "").strip()
-        if isinstance(desktop, dict)
-        else ""
-    )
+    page_url = str((desktop or {}).get("page") or "").strip() if isinstance(desktop, dict) else ""
     return {
         "provider": "wikipedia",
         "source_url": page_url or wikipedia_url,
@@ -1089,10 +1076,7 @@ async def _opencorporates_fetch_company(
     params: dict[str, Any] = {}
     if api_token:
         params["api_token"] = api_token
-    url = (
-        f"{_OPENCORPORATES_COMPANY_API_URL}/"
-        f"{quote(jurisdiction_code)}/{quote(company_number)}"
-    )
+    url = f"{_OPENCORPORATES_COMPANY_API_URL}/{quote(jurisdiction_code)}/{quote(company_number)}"
     try:
         response = await client.get(url, params=params)
         response.raise_for_status()
@@ -1227,17 +1211,17 @@ def _build_research_queries(seed_name: str) -> list[str]:
     if not name:
         return []
     return [
-        f"\"{name}\" sanctions",
-        f"\"{name}\" sanctioned entity",
-        f"\"{name}\" ownership structure",
-        f"\"{name}\" shareholders",
-        f"\"{name}\" beneficial owner",
-        f"\"{name}\" ultimate parent company",
-        f"\"{name}\" board of directors",
-        f"\"{name}\" executive leadership",
-        f"\"{name}\" governance report",
-        f"\"{name}\" connected to Russia",
-        f"\"{name}\" export control",
+        f'"{name}" sanctions',
+        f'"{name}" sanctioned entity',
+        f'"{name}" ownership structure',
+        f'"{name}" shareholders',
+        f'"{name}" beneficial owner',
+        f'"{name}" ultimate parent company',
+        f'"{name}" board of directors',
+        f'"{name}" executive leadership',
+        f'"{name}" governance report',
+        f'"{name}" connected to Russia',
+        f'"{name}" export control',
         f"{name} actionnaires direction",
     ]
 
@@ -1279,6 +1263,7 @@ async def _duckduckgo_html_search(
     max_results: int = 5,
 ) -> list[dict[str, Any]]:
     global _DDG_DIRECT_BLOCKED_UNTIL
+
     async def _extract_from_html(html: str, provider: str) -> list[dict[str, Any]]:
         rows: list[dict[str, Any]] = []
         seen_urls: set[str] = set()
@@ -1520,8 +1505,7 @@ async def _ai_summarize_web_findings(
         "Return strict JSON with keys: summary_text, key_claims.\n"
         "key_claims must be an array of objects with keys: claim, source_url, quote, confidence.\n"
         "Only include claims with explicit quote support.\n"
-        "Evidence:\n"
-        + "\n".join(lines)
+        "Evidence:\n" + "\n".join(lines)
     )
 
     try:
@@ -1569,10 +1553,7 @@ def _extract_profile_rows_from_ai(
             name = str(row.get("name") or "").strip()
             if len(name) < 3:
                 continue
-            if (
-                default_role in {"board_member", "executive"}
-                and not _is_plausible_person_name(name)
-            ):
+            if default_role in {"board_member", "executive"} and not _is_plausible_person_name(name):
                 continue
             conf = row.get("confidence")
             if not isinstance(conf, float | int):
@@ -1683,10 +1664,7 @@ async def _build_ownership_management_profile(
         evidence_rows.append(row)
         if bucket == "ultimate_parent":
             current = profile.get("ultimate_parent")
-            if (
-                not isinstance(current, dict)
-                or float(current.get("confidence") or 0.0) < confidence
-            ):
+            if not isinstance(current, dict) or float(current.get("confidence") or 0.0) < confidence:
                 profile["ultimate_parent"] = row
         elif bucket == "direct_owner":
             profile["direct_owners"].append(row)
@@ -1782,11 +1760,7 @@ async def _build_ownership_management_profile(
         officers = details.get("officers") or []
         if isinstance(officers, list):
             for officer_row in officers[:10]:
-                officer = (
-                    (officer_row or {}).get("officer")
-                    if isinstance(officer_row, dict)
-                    else None
-                )
+                officer = (officer_row or {}).get("officer") if isinstance(officer_row, dict) else None
                 if not isinstance(officer, dict):
                     continue
                 person_name = str(officer.get("name") or "").strip()
@@ -1809,17 +1783,12 @@ async def _build_ownership_management_profile(
                 lower_pos = position.lower()
                 if any(token in lower_pos for token in ("director", "chair", "board")):
                     profile["board_members"].append(row)
-                elif any(
-                    token in lower_pos
-                    for token in ("ceo", "chief", "executive", "president")
-                ):
+                elif any(token in lower_pos for token in ("ceo", "chief", "executive", "president")):
                     profile["executives"].append(row)
                 else:
                     profile["executives"].append(row)
     if not oc_companies:
-        profile["diagnostics"].append(
-            "Ingen OpenCorporates-profil funnet over navnelikhets-terskel."
-        )
+        profile["diagnostics"].append("Ingen OpenCorporates-profil funnet over navnelikhets-terskel.")
 
     for finding in brreg_findings:
         if not isinstance(finding, dict):
@@ -1882,18 +1851,12 @@ async def _build_ownership_management_profile(
             canonical_domains.add(_canonicalize_domain(_domain_of_url(company_site)))
 
     canonical_domains = {
-        domain
-        for domain in canonical_domains
-        if domain and not _is_registry_or_generic_domain(domain)
+        domain for domain in canonical_domains if domain and not _is_registry_or_generic_domain(domain)
     }
     if canonical_domains:
-        profile["diagnostics"].append(
-            "Canonical domener brukt for websøk: " + ", ".join(sorted(canonical_domains)[:5])
-        )
+        profile["diagnostics"].append("Canonical domener brukt for websøk: " + ", ".join(sorted(canonical_domains)[:5]))
     else:
-        profile["diagnostics"].append(
-            "Ingen canonical domener funnet; bruker globalt websøk som fallback."
-        )
+        profile["diagnostics"].append("Ingen canonical domener funnet; bruker globalt websøk som fallback.")
 
     # Bredere web-søk: domenebasert + global fallback + offisielle sanksjonsdomener.
     if enable_ai_web_search:
@@ -1965,11 +1928,9 @@ async def _build_ownership_management_profile(
                 )
                 if not snippets:
                     parts = re.split(r"(?<=[.!?])\s+", page_text[:_MAX_WEB_SNIPPET_LEN])
-                    snippets = [
-                        part.strip()[:280]
-                        for part in parts
-                        if len(part.strip()) >= 40
-                    ][: query_profile.max_snippets_per_page]
+                    snippets = [part.strip()[:280] for part in parts if len(part.strip()) >= 40][
+                        : query_profile.max_snippets_per_page
+                    ]
                 if not snippets:
                     continue
                 for snippet in snippets:
@@ -1988,11 +1949,7 @@ async def _build_ownership_management_profile(
 
                     domain = _domain_of_url(source_url)
                     is_official = _is_official_sanctions_domain(domain)
-                    evidence_role = (
-                        "web_search_sanctions_signal"
-                        if has_sanctions
-                        else "web_search_governance_signal"
-                    )
+                    evidence_role = "web_search_sanctions_signal" if has_sanctions else "web_search_governance_signal"
                     evidence_conf = 0.82 if is_official and has_sanctions else 0.66
                     evidence_rows.append(
                         {
@@ -2054,9 +2011,7 @@ async def _build_ownership_management_profile(
                                 }
                             )
         if search_pages_with_signal == 0:
-            profile["diagnostics"].append(
-                "Websøk fant ingen sider med tydelige governance/sanksjons-signaler."
-            )
+            profile["diagnostics"].append("Websøk fant ingen sider med tydelige governance/sanksjons-signaler.")
 
     web_evidence_rows = [
         row
@@ -2167,9 +2122,7 @@ async def _build_ownership_management_profile(
         )
     profile["risk_country_signals"] = list(
         {
-            (str(row.get("country")), str(row.get("source"))): row
-            for row in country_rows
-            if isinstance(row, dict)
+            (str(row.get("country")), str(row.get("source"))): row for row in country_rows if isinstance(row, dict)
         }.values()
     )
     if not profile["source_evidence"]:
@@ -2206,9 +2159,7 @@ async def _match_external_sanctions(
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     result = await session.execute(
         select(ExternalWatchlistEntry).where(
-            ExternalWatchlistEntry.source.in_(
-                [SOURCE_UK_SANCTIONS, SOURCE_WORLD_BANK_DEBARRED]
-            )
+            ExternalWatchlistEntry.source.in_([SOURCE_UK_SANCTIONS, SOURCE_WORLD_BANK_DEBARRED])
         )
     )
     entries = result.scalars().all()
@@ -2300,18 +2251,14 @@ async def _match_external_sanctions(
             {
                 "provider": source_name,
                 "source_url": (
-                    _UK_SANCTIONS_CSV_URL
-                    if source_name == SOURCE_UK_SANCTIONS
-                    else _WORLD_BANK_DEBARRED_API_URL
+                    _UK_SANCTIONS_CSV_URL if source_name == SOURCE_UK_SANCTIONS else _WORLD_BANK_DEBARRED_API_URL
                 ),
                 "enabled": enabled,
                 "status": "disabled" if not enabled else str(row.get("status") or "unknown"),
                 "error": str(row.get("error_message") or "") or None,
                 "record_count": row.get("entry_count"),
                 "fetched_at": (
-                    row.get("last_updated").isoformat()
-                    if isinstance(row.get("last_updated"), datetime)
-                    else None
+                    row.get("last_updated").isoformat() if isinstance(row.get("last_updated"), datetime) else None
                 ),
             }
         )
@@ -2412,9 +2359,7 @@ async def _search_brreg_companies(
                         fornavn = str(navn_obj.get("fornavn") or "").strip()
                         mellomnavn = str(navn_obj.get("mellomnavn") or "").strip()
                         etternavn = str(navn_obj.get("etternavn") or "").strip()
-                        person_name = " ".join(
-                            part for part in [fornavn, mellomnavn, etternavn] if part
-                        ).strip()
+                        person_name = " ".join(part for part in [fornavn, mellomnavn, etternavn] if part).strip()
                     if len(person_name) < 4:
                         continue
                     assoc_key = (orgnr, person_name.lower())
@@ -2434,9 +2379,7 @@ async def _search_brreg_companies(
                             "target": {
                                 "qid": f"BRREG_PERSON:{orgnr}:{person_name}",
                                 "name": person_name,
-                                "description": (
-                                    f"Role code: {role_type}" if role_type else "Brreg role"
-                                ),
+                                "description": (f"Role code: {role_type}" if role_type else "Brreg role"),
                                 "type": "person",
                             },
                         }
@@ -2830,10 +2773,7 @@ def _summary_from_payload(payload: dict[str, Any]) -> tuple[str, str]:
     if website_findings:
         return (
             "low",
-            (
-                "Lav risiko: ingen sanksjonstreff, men nettside ga "
-                "styrings/eierskapssignaler for manuell vurdering."
-            ),
+            ("Lav risiko: ingen sanksjonstreff, men nettside ga styrings/eierskapssignaler for manuell vurdering."),
         )
 
     ownership_count = 0
@@ -3005,9 +2945,7 @@ def _resolve_claim_verification(
         )
         slot["providers"].add(claim.source_provider)
         conf = _as_float(claim.confidence)
-        if conf is not None and (
-            slot["max_confidence"] is None or conf > float(slot["max_confidence"])
-        ):
+        if conf is not None and (slot["max_confidence"] is None or conf > float(slot["max_confidence"])):
             slot["max_confidence"] = conf
 
         if claim.claim_type in _EXCLUSIVE_CLAIM_TYPES:
@@ -3072,9 +3010,7 @@ def _resolve_claim_verification(
                 "support_providers": providers,
                 "subject_normalized": subject_key,
                 "object_normalized": object_key,
-                "selected_candidate_used": (
-                    reason_code == "selected_wikidata_candidate_high_confidence"
-                ),
+                "selected_candidate_used": (reason_code == "selected_wikidata_candidate_high_confidence"),
                 "source_tier": source_tier,
             },
         }
@@ -3242,10 +3178,7 @@ def _build_phase1_sources(
             if not isinstance(row, dict):
                 continue
             url = str(row.get("source_url") or "").strip()
-            provider = (
-                str(row.get("source_provider") or "ownership_evidence").strip()
-                or "ownership_evidence"
-            )
+            provider = str(row.get("source_provider") or "ownership_evidence").strip() or "ownership_evidence"
             if not url:
                 continue
             key = (provider, url)
@@ -3471,6 +3404,7 @@ def _build_phase1_claims(
 
     ownership = payload.get("ownership_management") or {}
     if isinstance(ownership, dict):
+
         def _append_ownership_claims(rows: Any, claim_type: str) -> None:
             if not isinstance(rows, list):
                 return
@@ -3514,10 +3448,7 @@ def _build_phase1_claims(
         dataset_entity_id = str(hit.get("dataset_entity_id") or "").strip()
         if not target_name or not dataset:
             continue
-        source_provider = (
-            str(hit.get("source_provider") or "sanctions_match").strip()
-            or "sanctions_match"
-        )
+        source_provider = str(hit.get("source_provider") or "sanctions_match").strip() or "sanctions_match"
         source_url = None
         if dataset == "UK_SANCTIONS":
             source_url = _UK_SANCTIONS_CSV_URL
@@ -3555,12 +3486,8 @@ async def _persist_phase1_artifacts(
     payload: dict[str, Any],
     seed_name: str,
 ) -> None:
-    await session.execute(
-        delete(ExtendedScreenSource).where(ExtendedScreenSource.run_id == run.id)
-    )
-    await session.execute(
-        delete(ExtendedScreenClaim).where(ExtendedScreenClaim.run_id == run.id)
-    )
+    await session.execute(delete(ExtendedScreenSource).where(ExtendedScreenSource.run_id == run.id))
+    await session.execute(delete(ExtendedScreenClaim).where(ExtendedScreenClaim.run_id == run.id))
     await session.flush()
 
     for row in _build_phase1_sources(run=run, payload=payload):
@@ -3709,22 +3636,14 @@ async def _build_extended_payload(
                         qid=qid,
                         label=label,
                         description=str(top.get("description") or "").strip() or None,
-                        aliases=[
-                            str(a).strip()
-                            for a in (top.get("aliases") or [])
-                            if str(a).strip()
-                        ],
+                        aliases=[str(a).strip() for a in (top.get("aliases") or []) if str(a).strip()],
                         confidence=_name_similarity(seed_name, label),
                     )
                 ]
 
         if not candidates:
             payload["summary"]["notes"].append("Ingen Wikidata-kandidater over terskel.")
-        candidate_docs = (
-            await _wikidata_get_entities(client, [c.qid for c in candidates])
-            if candidates
-            else {}
-        )
+        candidate_docs = await _wikidata_get_entities(client, [c.qid for c in candidates]) if candidates else {}
 
         filtered_candidates: list[_Candidate] = []
         candidate_rows: list[dict[str, Any]] = []
@@ -3755,12 +3674,8 @@ async def _build_extended_payload(
         payload["wikidata_candidates"] = candidate_rows
 
         if not filtered_candidates:
-            payload["summary"]["notes"].append(
-                "Kandidater funnet, men filtrert bort av presisjonsregler."
-            )
-            payload["summary"]["notes"].append(
-                "Fortsetter med web-/kildesøk uten Wikidata-relasjonsgraf."
-            )
+            payload["summary"]["notes"].append("Kandidater funnet, men filtrert bort av presisjonsregler.")
+            payload["summary"]["notes"].append("Fortsetter med web-/kildesøk uten Wikidata-relasjonsgraf.")
 
         # Gather related IDs in one pass, then bulk-fetch details.
         related_ids: list[str] = []
@@ -3790,9 +3705,7 @@ async def _build_extended_payload(
 
             candidate_type = _item_type(doc)
             payload["summary"]["notes"].append(
-                "Wikidata-kandidat valgt: "
-                f"{candidate.label} ({candidate.qid}), "
-                f"confidence {candidate.confidence:.2f}."
+                f"Wikidata-kandidat valgt: {candidate.label} ({candidate.qid}), confidence {candidate.confidence:.2f}."
             )
 
             websites = _extract_claim_strings(doc, "P856", limit=3)
@@ -3867,9 +3780,7 @@ async def _build_extended_payload(
             deduped_associations.extend(brreg_associations)
 
         selected_candidate_qids = {
-            str(row.get("qid"))
-            for row in payload["wikidata_candidates"]
-            if bool(row.get("selected"))
+            str(row.get("qid")) for row in payload["wikidata_candidates"] if bool(row.get("selected"))
         }
         relation_decisions: list[dict[str, Any]] = []
         effective_associations: list[dict[str, Any]] = []
@@ -3964,9 +3875,7 @@ async def _build_extended_payload(
                 "status": "ok" if config["enable_brreg"] else "disabled",
                 "error": None,
                 "record_count": len(payload.get("brreg_findings") or []),
-                "fetched_at": datetime.now(UTC).isoformat()
-                if config["enable_brreg"]
-                else None,
+                "fetched_at": datetime.now(UTC).isoformat() if config["enable_brreg"] else None,
             },
             *external_sources,
         ]
@@ -4077,9 +3986,7 @@ async def _build_extended_payload(
             "counts": {
                 "candidates": len(payload["wikidata_candidates"]),
                 "candidates_selected": sum(
-                    1
-                    for row in payload["wikidata_candidates"]
-                    if bool((row or {}).get("selected"))
+                    1 for row in payload["wikidata_candidates"] if bool((row or {}).get("selected"))
                 ),
                 "associations_total": len(deduped_associations),
                 "associations": len(payload["associations"]),
@@ -4088,56 +3995,24 @@ async def _build_extended_payload(
                 "brreg_findings": len(payload["brreg_findings"]),
                 "country_exposure": len(payload["country_exposure"]),
                 "website_findings": len(payload["website_findings"]),
-                "ownership_evidence": len(
-                    (payload.get("ownership_management") or {}).get("source_evidence") or []
-                ),
+                "ownership_evidence": len((payload.get("ownership_management") or {}).get("source_evidence") or []),
                 "web_queries_planned": int(
-                    (
-                        (payload.get("ownership_management") or {})
-                        .get("web_research", {})
-                        .get("queries_planned")
-                    )
-                    or 0
+                    ((payload.get("ownership_management") or {}).get("web_research", {}).get("queries_planned")) or 0
                 ),
                 "web_queries_executed": int(
-                    (
-                        (payload.get("ownership_management") or {})
-                        .get("web_research", {})
-                        .get("queries_executed")
-                    )
-                    or 0
+                    ((payload.get("ownership_management") or {}).get("web_research", {}).get("queries_executed")) or 0
                 ),
                 "web_results_found": int(
-                    (
-                        (payload.get("ownership_management") or {})
-                        .get("web_research", {})
-                        .get("results_found")
-                    )
-                    or 0
+                    ((payload.get("ownership_management") or {}).get("web_research", {}).get("results_found")) or 0
                 ),
                 "web_pages_fetched": int(
-                    (
-                        (payload.get("ownership_management") or {})
-                        .get("web_research", {})
-                        .get("pages_fetched")
-                    )
-                    or 0
+                    ((payload.get("ownership_management") or {}).get("web_research", {}).get("pages_fetched")) or 0
                 ),
                 "web_pages_with_signal": int(
-                    (
-                        (payload.get("ownership_management") or {})
-                        .get("web_research", {})
-                        .get("pages_with_signal")
-                    )
-                    or 0
+                    ((payload.get("ownership_management") or {}).get("web_research", {}).get("pages_with_signal")) or 0
                 ),
                 "web_fetch_errors": int(
-                    (
-                        (payload.get("ownership_management") or {})
-                        .get("web_research", {})
-                        .get("fetch_errors")
-                    )
-                    or 0
+                    ((payload.get("ownership_management") or {}).get("web_research", {}).get("fetch_errors")) or 0
                 ),
                 "ownership_people_companies": sum(
                     len((payload.get("ownership_management") or {}).get(key) or [])
@@ -4147,7 +4022,8 @@ async def _build_extended_payload(
                         "board_members",
                         "executives",
                     )
-                ) + (
+                )
+                + (
                     1
                     if isinstance(
                         (payload.get("ownership_management") or {}).get("ultimate_parent"),
@@ -4156,9 +4032,7 @@ async def _build_extended_payload(
                     else 0
                 ),
                 "relations_excluded": sum(
-                    1
-                    for row in payload["relation_decisions"]
-                    if not bool((row or {}).get("included"))
+                    1 for row in payload["relation_decisions"] if not bool((row or {}).get("included"))
                 ),
             },
         }
@@ -4258,9 +4132,7 @@ async def execute_extended_screen_run(run_id: uuid.UUID) -> None:
             if not entity or not invoice:
                 raise ValueError("Mangler seed-entity eller invoice")
 
-            timeout_seconds = int(
-                getattr(get_settings(), "extended_screen_run_timeout_seconds", 240) or 240
-            )
+            timeout_seconds = int(getattr(get_settings(), "extended_screen_run_timeout_seconds", 240) or 240)
             payload = await asyncio.wait_for(
                 _build_extended_payload(
                     session=session,
@@ -4293,15 +4165,14 @@ async def execute_extended_screen_run(run_id: uuid.UUID) -> None:
                 entity_id=str(run.entity_id),
                 risk=run.summary_risk,
             )
-        except asyncio.TimeoutError:
+        except TimeoutError:
             logger.exception(
                 "extended_screen_run_timeout",
                 run_id=str(run.id),
             )
             run.status = "failed"
             run.error_message = (
-                "Utvidet screening timet ut før ferdigstilling. "
-                "Prøv lavere aggressivitet eller smalere scope."
+                "Utvidet screening timet ut før ferdigstilling. Prøv lavere aggressivitet eller smalere scope."
             )[:1000]
             run.finished_at = datetime.now(UTC)
             await session.commit()
@@ -4363,9 +4234,9 @@ async def list_extended_screen_feedback(
         raise ValueError("Run matcher ikke invoice/entity")
 
     result = await session.execute(
-        select(ExtendedScreenFeedback).where(
-            ExtendedScreenFeedback.run_id == run_id
-        ).order_by(ExtendedScreenFeedback.created_at.desc())
+        select(ExtendedScreenFeedback)
+        .where(ExtendedScreenFeedback.run_id == run_id)
+        .order_by(ExtendedScreenFeedback.created_at.desc())
     )
     return list(result.scalars().all())
 

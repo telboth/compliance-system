@@ -33,4 +33,3 @@ class ExternalWatchlistEntry(UUIDPrimaryKeyMixin, Base):
         onupdate=func.now(),
         nullable=False,
     )
-

@@ -41,6 +41,7 @@ class ClaudeClient(LLMClient):
     def _get_client(self):  # type: ignore[return]
         if self._client is None:
             from anthropic import AsyncAnthropic  # lazy import
+
             self._client = AsyncAnthropic(api_key=self._api_key)
         return self._client
 

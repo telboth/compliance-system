@@ -26,9 +26,7 @@ router = APIRouter()
 async def list_catch_all_invoices(
     session: SessionDep,
     flagged_only: bool = Query(default=True, description="Vis kun fakturaer med signaler"),
-    signal_filter: str | None = Query(
-        default=None, description="Filtrer på signaltype (f.eks. 'military_end_user')"
-    ),
+    signal_filter: str | None = Query(default=None, description="Filtrer på signaltype (f.eks. 'military_end_user')"),
     limit: int = Query(default=50, ge=1, le=200),
     offset: int = Query(default=0, ge=0),
 ) -> CatchAllListResponse:

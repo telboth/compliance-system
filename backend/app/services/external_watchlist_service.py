@@ -26,8 +26,7 @@ SOURCE_BRREG_LOOKUP = "brreg_registry_lookup"
 
 _UK_SANCTIONS_CSV_URL = "https://sanctionslist.fcdo.gov.uk/docs/UK-Sanctions-List.csv"
 _WORLD_BANK_DEBARRED_API_URL = (
-    "https://apigwext.worldbank.org/dvsvc/v1.0/json/"
-    "APPLICATION/ADOBE_EXPRNCE_MGR/FIRM/SANCTIONED_FIRM"
+    "https://apigwext.worldbank.org/dvsvc/v1.0/json/APPLICATION/ADOBE_EXPRNCE_MGR/FIRM/SANCTIONED_FIRM"
 )
 _BRREG_ENHETER_API_URL = "https://data.brreg.no/enhetsregisteret/api/enheter"
 
@@ -49,9 +48,7 @@ def _first_non_empty(row: dict[str, Any], keys: list[str]) -> str:
 
 
 async def _get_or_create_status_row(session: AsyncSession, source: str) -> SanctionsList:
-    row = (
-        await session.execute(select(SanctionsList).where(SanctionsList.source == source))
-    ).scalar_one_or_none()
+    row = (await session.execute(select(SanctionsList).where(SanctionsList.source == source))).scalar_one_or_none()
     if row:
         return row
     row = SanctionsList(source=source, update_status="unknown")
@@ -67,9 +64,7 @@ async def _store_entries(
     source: str,
     rows: list[dict[str, Any]],
 ) -> None:
-    await session.execute(
-        delete(ExternalWatchlistEntry).where(ExternalWatchlistEntry.source == source)
-    )
+    await session.execute(delete(ExternalWatchlistEntry).where(ExternalWatchlistEntry.source == source))
     if rows:
         await session.execute(insert(ExternalWatchlistEntry), rows)
 
@@ -249,12 +244,14 @@ async def list_external_source_health(
     settings = get_settings()
     stale_after = timedelta(hours=max(1, settings.external_source_stale_hours))
     rows = (
-        await session.execute(
-            select(SanctionsList).where(
-                SanctionsList.source.in_([SOURCE_UK_SANCTIONS, SOURCE_WORLD_BANK_DEBARRED])
+        (
+            await session.execute(
+                select(SanctionsList).where(SanctionsList.source.in_([SOURCE_UK_SANCTIONS, SOURCE_WORLD_BANK_DEBARRED]))
             )
         )
-    ).scalars().all()
+        .scalars()
+        .all()
+    )
     by_source = {row.source: row for row in rows}
 
     out: list[dict[str, Any]] = []

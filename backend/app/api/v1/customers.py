@@ -43,9 +43,7 @@ async def list_customers_endpoint(
     offset: int = Query(0, ge=0),
     search: str | None = Query(None, description="Fritekst-søk i kundenavn"),
 ) -> CustomerListResponse:
-    customers, total = await customer_service.list_customers(
-        session, limit=limit, offset=offset, search=search
-    )
+    customers, total = await customer_service.list_customers(session, limit=limit, offset=offset, search=search)
     return CustomerListResponse(
         items=[CustomerRead.model_validate(c) for c in customers],
         total=total,

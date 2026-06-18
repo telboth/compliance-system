@@ -190,21 +190,14 @@ async def _geocode_location(
             cached.hit_count = int(cached.hit_count or 0) + 1
             cached.last_used_at = datetime.now(UTC)
             budget.cache_hits += 1
-            if (
-                cached.status == "success"
-                and cached.latitude is not None
-                and cached.longitude is not None
-            ):
+            if cached.status == "success" and cached.latitude is not None and cached.longitude is not None:
                 return _GeocodeResult(
                     lat=float(cached.latitude),
                     lon=float(cached.longitude),
                     precision=cached.precision_level,
                     cache_hit=True,
                 )
-            if (
-                cached.status == "failed"
-                and cached.updated_at >= datetime.now(UTC) - _FAILED_CACHE_TTL
-            ):
+            if cached.status == "failed" and cached.updated_at >= datetime.now(UTC) - _FAILED_CACHE_TTL:
                 continue
 
         if not budget.can_call_external():
@@ -404,9 +397,7 @@ async def build_shipments_map(
                 invoice_date=invoice.invoice_date,
                 total_amount=_decimal_to_str(invoice.total_amount),
                 currency=invoice.currency,
-                compliance_score=(
-                    invoice.compliance_score.value if invoice.compliance_score else None
-                ),
+                compliance_score=(invoice.compliance_score.value if invoice.compliance_score else None),
                 risk_level=level,
                 screening_hits=screening_hits,
                 source=ShipmentMapPoint(

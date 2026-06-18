@@ -82,4 +82,3 @@ class ScreeningCandidate(UUIDPrimaryKeyMixin, Base):
 
     run = relationship("ScreeningRun", back_populates="candidates")
     invoice = relationship("Invoice")
-

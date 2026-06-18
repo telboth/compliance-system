@@ -48,8 +48,8 @@ logger = get_logger(__name__)
 # Lazy singletons. Opprettet første gang konverteren brukes, deretter gjenbrukt.
 _standard_converter: DocumentConverter | None = None
 _multimodal_converter: DocumentConverter | None = None
-_xlsx_converter: DocumentConverter | None = None    # XLSX — ingen OCR
-_image_converter: DocumentConverter | None = None   # Bilde-fallback EasyOCR
+_xlsx_converter: DocumentConverter | None = None  # XLSX — ingen OCR
+_image_converter: DocumentConverter | None = None  # Bilde-fallback EasyOCR
 
 
 def _get_standard_converter() -> DocumentConverter:
@@ -312,11 +312,7 @@ def _extract_pdf(
     settings = get_settings()
     active_pipeline = pipeline or settings.docling_pipeline
 
-    converter = (
-        _get_multimodal_converter()
-        if active_pipeline == "multimodal"
-        else _get_standard_converter()
-    )
+    converter = _get_multimodal_converter() if active_pipeline == "multimodal" else _get_standard_converter()
 
     try:
         log.info("docling_pdf_conversion_started", pipeline=active_pipeline)  # type: ignore[attr-defined]
@@ -389,6 +385,7 @@ def _extract_image(file_path: Path, log: object) -> ParsedDocument:
     if api_key:
         try:
             from app.parsers.vision_parser import transcribe_image_with_vision  # lazy import
+
             log.info(  # type: ignore[attr-defined]
                 "docling_image_vision_transcription_started",
                 model=settings.docling_vlm_model,

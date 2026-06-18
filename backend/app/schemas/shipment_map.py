@@ -39,4 +39,3 @@ class ShipmentMapResponse(BaseModel):
     geocode_cache_hits: int
     geocode_external_calls: int
     items: list[ShipmentMapRoute]
-

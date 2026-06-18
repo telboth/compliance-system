@@ -28,13 +28,9 @@ class Notification(Base):
 
     __tablename__ = "notifications"
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
-    )
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     message: Mapped[str] = mapped_column(String(512), nullable=False)
-    level: Mapped[str] = mapped_column(
-        String(16), nullable=False, default="info"
-    )
+    level: Mapped[str] = mapped_column(String(16), nullable=False, default="info")
     """info | warn | error"""
 
     invoice_id: Mapped[uuid.UUID | None] = mapped_column(
@@ -45,11 +41,7 @@ class Notification(Base):
     )
     """Lenker varselet til en spesifikk faktura (valgfritt)."""
 
-    target_roles: Mapped[list] = mapped_column(
-        JSONB, nullable=False, default=list
-    )
+    target_roles: Mapped[list] = mapped_column(JSONB, nullable=False, default=list)
     """Liste over roller som skal se varselet, f.eks. ['compliance_officer', 'admin']."""
 
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), nullable=False, index=True
-    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, index=True)

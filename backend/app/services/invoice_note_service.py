@@ -106,24 +106,20 @@ def derive_vat_note(invoice: Invoice) -> tuple[str, str]:
 
     if check.flagged:
         return "error", _clip(
-            check.reason
-            or "Mulig feilregistrert VAT ved eksport (regel + data indikerer avvik).",
+            check.reason or "Mulig feilregistrert VAT ved eksport (regel + data indikerer avvik).",
             512,
         ) or "Mulig feilregistrert VAT ved eksport."
 
-    llm_warn = (
-        ("vat" in comments or "mva" in comments)
-        and any(
-            token in comments
-            for token in (
-                "mismatch",
-                "incorrect",
-                "wrong",
-                "should be 0",
-                "zero-rated",
-                "vat exempt",
-                "export",
-            )
+    llm_warn = ("vat" in comments or "mva" in comments) and any(
+        token in comments
+        for token in (
+            "mismatch",
+            "incorrect",
+            "wrong",
+            "should be 0",
+            "zero-rated",
+            "vat exempt",
+            "export",
         )
     )
 
@@ -174,21 +170,16 @@ def derive_email_note(invoice: Invoice) -> tuple[str, str]:
     # Varsle tidligere ved avvik mellom domener og entitetsnavn.
     if free_domains and unmatched_domains:
         return "error", (
-            "Free-mail + avvikende domener oppdaget "
-            f"({', '.join(sorted((free_domains | unmatched_domains))[:3])})."
+            f"Free-mail + avvikende domener oppdaget ({', '.join(sorted(free_domains | unmatched_domains)[:3])})."
         )
     if free_domains:
         return "warn", f"Free-mail domene brukt ({', '.join(sorted(free_domains)[:2])})."
     if entity_tokens and unmatched_domains and not matched_domains:
         return "warn", (
-            "E-postdomener matcher ikke identifiserte entiteter "
-            f"({', '.join(sorted(unmatched_domains)[:2])})."
+            f"E-postdomener matcher ikke identifiserte entiteter ({', '.join(sorted(unmatched_domains)[:2])})."
         )
     if len(unmatched_domains) >= 2:
-        return "warn", (
-            "Flere e-postdomener avviker fra entitetsnavn "
-            f"({', '.join(sorted(unmatched_domains)[:2])})."
-        )
+        return "warn", (f"Flere e-postdomener avviker fra entitetsnavn ({', '.join(sorted(unmatched_domains)[:2])}).")
     if unmatched_domains and matched_domains:
         return "warn", (
             "Minst ett e-postdomene avviker fra ellers konsistente domener "
@@ -198,8 +189,7 @@ def derive_email_note(invoice: Invoice) -> tuple[str, str]:
         return "warn", "Flere ulike e-postdomener funnet uten tydelig entitetsmatch."
     if unmatched_domains and len(emails) >= 3:
         return "warn", (
-            "Mange e-postadresser funnet, og minst ett domene avviker "
-            f"({', '.join(sorted(unmatched_domains)[:1])})."
+            f"Mange e-postadresser funnet, og minst ett domene avviker ({', '.join(sorted(unmatched_domains)[:1])})."
         )
 
     return "ok", "E-postdomener virker konsistente med identifiserte entiteter."

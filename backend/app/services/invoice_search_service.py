@@ -561,9 +561,9 @@ def _extract_inner_hits(source: dict[str, Any], path: str, field: str) -> list[s
     for name, path_block in inner_hits.items():
         if not isinstance(name, str) or not name.startswith(path):
             continue
-        hits = ((path_block.get("hits") or {}).get("hits") or [])
+        hits = (path_block.get("hits") or {}).get("hits") or []
         for hit in hits:
-            value = ((hit.get("_source") or {}).get(field))
+            value = (hit.get("_source") or {}).get(field)
             if isinstance(value, str) and value.strip():
                 out.append(value.strip())
     return list(dict.fromkeys(out))
@@ -675,8 +675,8 @@ async def search_invoices(
         expected_statuses={200},
     )
     raw = response.json()
-    hits_raw = ((raw.get("hits") or {}).get("hits") or [])
-    total_raw = ((raw.get("hits") or {}).get("total") or {})
+    hits_raw = (raw.get("hits") or {}).get("hits") or []
+    total_raw = (raw.get("hits") or {}).get("total") or {}
     total = int(total_raw.get("value") or 0) if isinstance(total_raw, dict) else int(total_raw or 0)
     took_ms = raw.get("took")
 
@@ -711,9 +711,7 @@ async def search_invoices(
         hits.append(hit)
 
     query_mode = (
-        "structured"
-        if any([entity_q, line_q, serial_number, destination_country, date_from, date_to])
-        else "global"
+        "structured" if any([entity_q, line_q, serial_number, destination_country, date_from, date_to]) else "global"
     )
     return InvoiceSearchResponse(
         total=total,

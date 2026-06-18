@@ -5,8 +5,8 @@ from __future__ import annotations
 from pathlib import Path
 from uuid import UUID
 
-from app.tasks.celery_app import celery_app
 from app.tasks.async_runtime import run_async
+from app.tasks.celery_app import celery_app
 
 
 @celery_app.task(name="app.tasks.process_invoice.run")

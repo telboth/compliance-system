@@ -32,9 +32,7 @@ async def create_customer(session: AsyncSession, data: CustomerCreate) -> Custom
 
 async def get_customer(session: AsyncSession, customer_id: uuid.UUID) -> Customer:
     """Hent en kunde. Reiser NotFoundError hvis ikke funnet."""
-    result = await session.execute(
-        select(Customer).where(Customer.id == customer_id)
-    )
+    result = await session.execute(select(Customer).where(Customer.id == customer_id))
     customer = result.scalar_one_or_none()
     if customer is None:
         raise NotFoundError(

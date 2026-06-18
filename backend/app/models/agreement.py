@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import uuid
 from datetime import date, datetime
-from typing import TYPE_CHECKING
 
 from sqlalchemy import Boolean, Date, DateTime, ForeignKey, String, Text
 from sqlalchemy.dialects.postgresql import JSONB, UUID
@@ -57,9 +56,7 @@ class Agreement(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     extraction_model: Mapped[str | None] = mapped_column(String(128), nullable=True)
     extraction_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
-    results: Mapped[list[AgreementCheckResult]] = relationship(
-        back_populates="agreement", cascade="all, delete-orphan"
-    )
+    results: Mapped[list[AgreementCheckResult]] = relationship(back_populates="agreement", cascade="all, delete-orphan")
 
 
 class AgreementCheckResult(UUIDPrimaryKeyMixin, Base):
@@ -73,12 +70,8 @@ class AgreementCheckResult(UUIDPrimaryKeyMixin, Base):
         nullable=False,
         index=True,
     )
-    invoice_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), nullable=False, index=True
-    )
-    checked_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), nullable=False, index=True
-    )
+    invoice_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False, index=True)
+    checked_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, index=True)
 
     # True = ingen avvik
     compliant: Mapped[bool] = mapped_column(Boolean, nullable=False)

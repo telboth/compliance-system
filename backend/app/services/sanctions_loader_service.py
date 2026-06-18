@@ -126,16 +126,12 @@ async def refresh_local_sanctions_sources(session: AsyncSession) -> list[dict[st
 
 async def list_local_sanctions_statuses(session: AsyncSession) -> list[SanctionsList]:
     """Returner lokale statusrader for alle kilder."""
-    result = await session.execute(
-        select(SanctionsList).order_by(SanctionsList.source.asc())
-    )
+    result = await session.execute(select(SanctionsList).order_by(SanctionsList.source.asc()))
     return list(result.scalars().all())
 
 
 async def _get_or_create_status_row(session: AsyncSession, source: str) -> SanctionsList:
-    row = (
-        await session.execute(select(SanctionsList).where(SanctionsList.source == source))
-    ).scalar_one_or_none()
+    row = (await session.execute(select(SanctionsList).where(SanctionsList.source == source))).scalar_one_or_none()
     if row:
         return row
     row = SanctionsList(source=source, update_status="unknown")

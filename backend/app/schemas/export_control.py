@@ -56,7 +56,7 @@ class ExportControlReferenceItem(BaseModel):
 
 class ExportControlReferenceResponse(BaseModel):
     total: int
-    item_count_total: int   # totalt antall importerte punkter (for "lista lastet?"-indikator)
+    item_count_total: int  # totalt antall importerte punkter (for "lista lastet?"-indikator)
     items: list[ExportControlReferenceItem]
 
 

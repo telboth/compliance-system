@@ -6,7 +6,7 @@ import uuid
 from datetime import date, datetime
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, status
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -87,6 +87,7 @@ async def create_agreement(
         original_filename = file.filename
         try:
             from app.parsers import parse_pdf
+
             pdf_path, _, _ = await file_storage.save_upload(file)
             # Forsøk å parse tekst fra PDF
             try:
@@ -160,6 +161,7 @@ async def list_agreement_checks(
 ) -> list[AgreementCheckOut]:
     """List alle sjekker gjort mot en rammeavtale."""
     from app.models.agreement import AgreementCheckResult
+
     result = await session.execute(
         select(AgreementCheckResult)
         .where(AgreementCheckResult.agreement_id == agreement_id)

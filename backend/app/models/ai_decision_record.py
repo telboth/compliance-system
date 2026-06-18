@@ -57,9 +57,7 @@ class AIDecisionRecord(UUIDPrimaryKeyMixin, TimestampMixin, Base):
 
     # EU AI Act-kategorisering
     # "minimal_risk" | "limited_risk" | "high_risk"
-    eu_ai_act_category: Mapped[str] = mapped_column(
-        String(32), nullable=False, default="limited_risk"
-    )
+    eu_ai_act_category: Mapped[str] = mapped_column(String(32), nullable=False, default="limited_risk")
 
     # Annex III høy-risiko-klasse (om relevant; NULL for limited/minimal risk)
     annex_iii_class: Mapped[str | None] = mapped_column(String(64), nullable=True)

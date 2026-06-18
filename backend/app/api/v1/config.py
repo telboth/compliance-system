@@ -25,8 +25,10 @@ router = APIRouter(tags=["config"])
 
 # ── Schemas ───────────────────────────────────────────────────────────────────
 
+
 class KeysStatusResponse(BaseModel):
     """Boolsk tilstedeværelse per nøkkel — aldri selve verdien."""
+
     anthropic: bool
     openai: bool
 
@@ -37,6 +39,7 @@ class KeysUpdateRequest(BaseModel):
 
 
 # ── Endepunkter ───────────────────────────────────────────────────────────────
+
 
 @router.get("/keys/status", response_model=KeysStatusResponse)
 async def get_keys_status() -> KeysStatusResponse:
@@ -99,6 +102,7 @@ async def update_keys(
 
 
 # ── Intern hjelpefunksjon ─────────────────────────────────────────────────────
+
 
 def _write_secrets(updates: dict[str, str]) -> None:
     """

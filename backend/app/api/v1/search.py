@@ -78,9 +78,7 @@ async def search_invoices_endpoint(
     entity_q: str | None = Query(None, description="Søk i entitetsnavn (fuzzy)."),
     line_q: str | None = Query(None, description="Søk i varelinjer/varenavn (fuzzy)."),
     serial_number: str | None = Query(None, description="Eksakt serienummer-søk."),
-    destination_country: str | None = Query(
-        None, description="Filtrer på destinasjonsland (ISO2)."
-    ),
+    destination_country: str | None = Query(None, description="Filtrer på destinasjonsland (ISO2)."),
     date_from: date | None = Query(None, description="Fakturadato fra og med."),
     date_to: date | None = Query(None, description="Fakturadato til og med."),
     limit: int = Query(50, ge=1, le=200),

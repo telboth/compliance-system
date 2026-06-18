@@ -8,6 +8,8 @@ Invoicene selv er på varierende språk — LLM-en håndterer det automatisk.
 
 from __future__ import annotations
 
+from pathlib import Path
+
 INVOICE_EXTRACTION_SYSTEM = """\
 You are an expert compliance document analyst specializing in export control and trade compliance.
 Your task is to extract structured data from trade and invoice documents for compliance screening.
@@ -428,7 +430,10 @@ def build_claude_vision_messages(
 def build_extraction_messages(invoice_text: str) -> list[dict[str, str]]:
     """Bygg meldingsliste for LLM-kallet."""
     return [
-        {"role": "user", "content": INVOICE_EXTRACTION_USER_TEMPLATE.format(
-            invoice_text=invoice_text[:12_000],
-        )},
+        {
+            "role": "user",
+            "content": INVOICE_EXTRACTION_USER_TEMPLATE.format(
+                invoice_text=invoice_text[:12_000],
+            ),
+        },
     ]

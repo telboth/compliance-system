@@ -56,9 +56,7 @@ def register_exception_handlers(app: FastAPI) -> None:
     """Registrer feilhåndterere på FastAPI-app-en."""
 
     @app.exception_handler(ApplicationError)
-    async def _application_error_handler(
-        request: Request, exc: ApplicationError
-    ) -> JSONResponse:
+    async def _application_error_handler(request: Request, exc: ApplicationError) -> JSONResponse:
         logger.warning(
             "application_error",
             code=exc.code,

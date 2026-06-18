@@ -15,7 +15,7 @@ from __future__ import annotations
 import uuid
 from datetime import UTC, datetime
 
-from sqlalchemy import func, select, text
+from sqlalchemy import func, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -50,36 +50,40 @@ async def upsert_decision_record(
     low_conf_str = ", ".join(low_confidence_fields) if low_confidence_fields else None
     now = datetime.now(UTC)
 
-    stmt = pg_insert(AIDecisionRecord).values(
-        id=uuid.uuid4(),
-        invoice_id=invoice_id,
-        model_id=model_id[:128],
-        model_provider=model_provider[:64],
-        input_tokens=input_tokens,
-        output_tokens=output_tokens,
-        overall_confidence=overall_confidence,
-        low_confidence_fields=low_conf_str,
-        eu_ai_act_category=eu_ai_act_category[:32],
-        annex_iii_class=_DEFAULT_ANNEX_III,
-        requires_human_oversight=_REQUIRES_HUMAN_OVERSIGHT,
-        decision_at=now,
-        raw_extraction_meta=raw_extraction_meta,
-        created_at=now,
-        updated_at=now,
-    ).on_conflict_do_update(
-        index_elements=["invoice_id"],
-        set_={
-            "model_id": model_id[:128],
-            "model_provider": model_provider[:64],
-            "input_tokens": input_tokens,
-            "output_tokens": output_tokens,
-            "overall_confidence": overall_confidence,
-            "low_confidence_fields": low_conf_str,
-            "eu_ai_act_category": eu_ai_act_category[:32],
-            "decision_at": now,
-            "raw_extraction_meta": raw_extraction_meta,
-            "updated_at": now,
-        },
+    stmt = (
+        pg_insert(AIDecisionRecord)
+        .values(
+            id=uuid.uuid4(),
+            invoice_id=invoice_id,
+            model_id=model_id[:128],
+            model_provider=model_provider[:64],
+            input_tokens=input_tokens,
+            output_tokens=output_tokens,
+            overall_confidence=overall_confidence,
+            low_confidence_fields=low_conf_str,
+            eu_ai_act_category=eu_ai_act_category[:32],
+            annex_iii_class=_DEFAULT_ANNEX_III,
+            requires_human_oversight=_REQUIRES_HUMAN_OVERSIGHT,
+            decision_at=now,
+            raw_extraction_meta=raw_extraction_meta,
+            created_at=now,
+            updated_at=now,
+        )
+        .on_conflict_do_update(
+            index_elements=["invoice_id"],
+            set_={
+                "model_id": model_id[:128],
+                "model_provider": model_provider[:64],
+                "input_tokens": input_tokens,
+                "output_tokens": output_tokens,
+                "overall_confidence": overall_confidence,
+                "low_confidence_fields": low_conf_str,
+                "eu_ai_act_category": eu_ai_act_category[:32],
+                "decision_at": now,
+                "raw_extraction_meta": raw_extraction_meta,
+                "updated_at": now,
+            },
+        )
     )
     await session.execute(stmt)
     logger.debug(
@@ -89,12 +93,8 @@ async def upsert_decision_record(
     )
 
 
-async def get_record(
-    session: AsyncSession, invoice_id: uuid.UUID
-) -> AIDecisionRecord | None:
-    result = await session.execute(
-        select(AIDecisionRecord).where(AIDecisionRecord.invoice_id == invoice_id)
-    )
+async def get_record(session: AsyncSession, invoice_id: uuid.UUID) -> AIDecisionRecord | None:
+    result = await session.execute(select(AIDecisionRecord).where(AIDecisionRecord.invoice_id == invoice_id))
     return result.scalar_one_or_none()
 
 
@@ -112,18 +112,10 @@ async def list_records(
     if model_id:
         base = base.where(AIDecisionRecord.model_id == model_id)
 
-    total = (
-        await session.execute(select(func.count()).select_from(base.subquery()))
-    ).scalar_one()
+    total = (await session.execute(select(func.count()).select_from(base.subquery()))).scalar_one()
 
     rows = list(
-        (
-            await session.execute(
-                base.order_by(AIDecisionRecord.decision_at.desc())
-                .limit(limit)
-                .offset(offset)
-            )
-        )
+        (await session.execute(base.order_by(AIDecisionRecord.decision_at.desc()).limit(limit).offset(offset)))
         .scalars()
         .all()
     )

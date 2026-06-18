@@ -7,9 +7,9 @@ hentes av frontend via GET /api/v1/notifications?role=<rolle>.
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
-from sqlalchemy import select, desc
+from sqlalchemy import desc, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.logging import get_logger
@@ -40,7 +40,7 @@ async def create(
         level=level,
         invoice_id=invoice_id,
         target_roles=target_roles,
-        created_at=datetime.now(tz=timezone.utc),
+        created_at=datetime.now(tz=UTC),
     )
     session.add(notif)
     # Ikke commit her — caller håndterer transaksjonen
@@ -61,7 +61,7 @@ async def list_for_role(
     """
     # JSONB @> sjekker om role finnes i target_roles.
     # target_roles=["all"] er en spesialverdi som vises til alle brukere.
-    from sqlalchemy import func, cast, or_
+    from sqlalchemy import cast, func, or_
     from sqlalchemy.dialects.postgresql import JSONB
 
     role_filter = or_(
@@ -69,17 +69,9 @@ async def list_for_role(
         Notification.target_roles.contains(cast(["all"], JSONB)),
     )
 
-    count_stmt = select(func.count()).select_from(
-        select(Notification.id).where(role_filter).subquery()
-    )
+    count_stmt = select(func.count()).select_from(select(Notification.id).where(role_filter).subquery())
     total: int = (await session.execute(count_stmt)).scalar_one()
 
-    stmt = (
-        select(Notification)
-        .where(role_filter)
-        .order_by(desc(Notification.created_at))
-        .limit(limit)
-        .offset(offset)
-    )
+    stmt = select(Notification).where(role_filter).order_by(desc(Notification.created_at)).limit(limit).offset(offset)
     items = list((await session.execute(stmt)).scalars().all())
     return items, total

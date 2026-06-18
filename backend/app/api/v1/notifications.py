@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
+import uuid
+from datetime import datetime
+
 from fastapi import APIRouter, Query
 from pydantic import BaseModel
-from datetime import datetime
-import uuid
 
 from app.core.database import SessionDep
 from app.services import notification_service
@@ -44,9 +45,7 @@ async def list_notifications(
 
     Frontend sender gjeldende rolle fra AuthContext.
     """
-    items, total = await notification_service.list_for_role(
-        session, role=role, limit=limit, offset=offset
-    )
+    items, total = await notification_service.list_for_role(session, role=role, limit=limit, offset=offset)
     return NotificationListResponse(
         items=[NotificationOut.model_validate(n) for n in items],
         total=total,

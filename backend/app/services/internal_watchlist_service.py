@@ -13,13 +13,11 @@ from __future__ import annotations
 import re
 import uuid
 from dataclasses import dataclass
-from typing import Any
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.internal_watchlist import WatchlistEntry
-
 
 # ── CRUD ───────────────────────────────────────────────────────────────────────
 
@@ -34,12 +32,14 @@ async def list_entries(
     stmt = select(WatchlistEntry)
     if active_only:
         stmt = stmt.where(WatchlistEntry.is_active == True)  # noqa: E712
-    count_result = await session.execute(
+    await session.execute(
         select(WatchlistEntry).where(WatchlistEntry.is_active == True)  # noqa: E712
-        if active_only else select(WatchlistEntry)
+        if active_only
+        else select(WatchlistEntry)
     )
     # enkel total-count
     from sqlalchemy import func
+
     count_stmt = select(func.count()).select_from(WatchlistEntry)
     if active_only:
         count_stmt = count_stmt.where(WatchlistEntry.is_active == True)  # noqa: E712
@@ -52,6 +52,7 @@ async def list_entries(
 
 async def get_entry(session: AsyncSession, entry_id: uuid.UUID) -> WatchlistEntry:
     from app.core.errors import NotFoundError
+
     entry = await session.get(WatchlistEntry, entry_id)
     if not entry:
         raise NotFoundError(f"Watchlist-oppføring {entry_id} ikke funnet")
@@ -118,8 +119,8 @@ class WatchlistHit:
     value: str
     reason: str | None
     severity: str
-    matched_field: str   # hva som matcha (f.eks. "entity_name", "country")
-    matched_value: str   # den faktiske verdien som trigget treffet
+    matched_field: str  # hva som matcha (f.eks. "entity_name", "country")
+    matched_value: str  # den faktiske verdien som trigget treffet
 
 
 async def check_invoice(
@@ -148,42 +149,48 @@ async def check_invoice(
         if entry.entry_type == "name":
             for name in entity_names:
                 if name and entry.value.lower() == name.lower():
-                    hits.append(WatchlistHit(
-                        entry_id=entry.id,
-                        entry_type=entry.entry_type,
-                        value=entry.value,
-                        reason=entry.reason,
-                        severity=entry.severity,
-                        matched_field="entity_name",
-                        matched_value=name,
-                    ))
+                    hits.append(
+                        WatchlistHit(
+                            entry_id=entry.id,
+                            entry_type=entry.entry_type,
+                            value=entry.value,
+                            reason=entry.reason,
+                            severity=entry.severity,
+                            matched_field="entity_name",
+                            matched_value=name,
+                        )
+                    )
 
         elif entry.entry_type == "email_domain":
             domain = entry.value.lower().lstrip("@")
             for email in email_addresses:
                 if email and email.lower().endswith(f"@{domain}"):
-                    hits.append(WatchlistHit(
-                        entry_id=entry.id,
-                        entry_type=entry.entry_type,
-                        value=entry.value,
-                        reason=entry.reason,
-                        severity=entry.severity,
-                        matched_field="email",
-                        matched_value=email,
-                    ))
+                    hits.append(
+                        WatchlistHit(
+                            entry_id=entry.id,
+                            entry_type=entry.entry_type,
+                            value=entry.value,
+                            reason=entry.reason,
+                            severity=entry.severity,
+                            matched_field="email",
+                            matched_value=email,
+                        )
+                    )
 
         elif entry.entry_type == "country":
             for country in countries:
                 if country and entry.value.upper() == country.upper():
-                    hits.append(WatchlistHit(
-                        entry_id=entry.id,
-                        entry_type=entry.entry_type,
-                        value=entry.value,
-                        reason=entry.reason,
-                        severity=entry.severity,
-                        matched_field="country",
-                        matched_value=country,
-                    ))
+                    hits.append(
+                        WatchlistHit(
+                            entry_id=entry.id,
+                            entry_type=entry.entry_type,
+                            value=entry.value,
+                            reason=entry.reason,
+                            severity=entry.severity,
+                            matched_field="country",
+                            matched_value=country,
+                        )
+                    )
 
         elif entry.entry_type == "regex":
             try:
@@ -193,15 +200,17 @@ async def check_invoice(
             all_strings = entity_names + email_addresses + countries
             for s in all_strings:
                 if s and pattern.search(s):
-                    hits.append(WatchlistHit(
-                        entry_id=entry.id,
-                        entry_type=entry.entry_type,
-                        value=entry.value,
-                        reason=entry.reason,
-                        severity=entry.severity,
-                        matched_field="regex_match",
-                        matched_value=s,
-                    ))
+                    hits.append(
+                        WatchlistHit(
+                            entry_id=entry.id,
+                            entry_type=entry.entry_type,
+                            value=entry.value,
+                            reason=entry.reason,
+                            severity=entry.severity,
+                            matched_field="regex_match",
+                            matched_value=s,
+                        )
+                    )
 
     return hits
 

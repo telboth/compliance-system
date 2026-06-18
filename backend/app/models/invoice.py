@@ -96,9 +96,7 @@ class Invoice(UUIDPrimaryKeyMixin, TimestampMixin, Base):
 
     __tablename__ = "invoices"
 
-    invoice_number: Mapped[str | None] = mapped_column(
-        String(64), nullable=True, index=True
-    )
+    invoice_number: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
     customer_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("customers.id", ondelete="SET NULL"),

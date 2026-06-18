@@ -52,7 +52,7 @@ class ExtractedLine(BaseModel):
     unit_of_measure: str | None = None
     unit_price: str | None = None
     total_price: str | None = None
-    currency: str | None = None   # ISO 4217 — arves fra faktura-nivå hvis ikke oppgitt per linje
+    currency: str | None = None  # ISO 4217 — arves fra faktura-nivå hvis ikke oppgitt per linje
     confidence: Confidence = 0.0
 
 
@@ -130,14 +130,9 @@ class InvoiceExtractionResult(BaseModel):
         # Felt med confidence > 0 er «funnet» — 0.0 betyr fraværende/uleselig
         found = {k: v for k, v in scalar_fields.items() if v.confidence > 0.0}
         if found:
-            self.overall_confidence = round(
-                sum(f.confidence for f in found.values()) / len(found), 3
-            )
+            self.overall_confidence = round(sum(f.confidence for f in found.values()) / len(found), 3)
         else:
             self.overall_confidence = 0.0
 
         # Lav-konfidens-liste: kun felt som er funnet men med konfidens under terskelen
-        self.low_confidence_fields = [
-            name for name, field in found.items()
-            if field.confidence < threshold
-        ]
+        self.low_confidence_fields = [name for name, field in found.items() if field.confidence < threshold]

@@ -65,6 +65,7 @@ def _warm_docling(logger: object) -> None:  # type: ignore[type-arg]
     """
     try:
         from app.core.gpu import get_gpu_info
+
         gpu = get_gpu_info()
         logger.info(  # type: ignore[union-attr]
             "gpu_status",
@@ -79,6 +80,7 @@ def _warm_docling(logger: object) -> None:  # type: ignore[type-arg]
             _get_standard_converter,
             _get_xlsx_converter,
         )
+
         std_conv = _get_standard_converter()
         _get_xlsx_converter()
         _get_image_converter()
@@ -96,6 +98,7 @@ def _warm_docling(logger: object) -> None:  # type: ignore[type-arg]
 
         try:
             import easyocr
+
             gpu_flag = gpu.available and gpu.device == "cuda"
             easyocr.Reader(["en"], gpu=gpu_flag, verbose=False)
             logger.info("easyocr_models_cached", gpu=gpu_flag)  # type: ignore[union-attr]
@@ -138,7 +141,8 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
     # Seed og last embargo-cache fra DB.
     try:
         from app.core.database import get_session_factory
-        from app.sanctions.embargo import seed_db_from_static, load_cache_from_db
+        from app.sanctions.embargo import load_cache_from_db, seed_db_from_static
+
         async with get_session_factory()() as _s:
             seeded = await seed_db_from_static(_s)
             if seeded:
@@ -216,12 +220,12 @@ async def _recover_stuck_invoices(logger: object, settings: object) -> None:  # 
             logger.info("startup_recovery_requeue_parse", invoice_id=str(iid))  # type: ignore[attr-defined]
 
         elif istatus in {_InvoiceStatus.PARSED, _InvoiceStatus.EXTRACTING} and (
-            settings.auto_extract_after_parse
-            or istatus == _InvoiceStatus.EXTRACTING
+            settings.auto_extract_after_parse or istatus == _InvoiceStatus.EXTRACTING
         ):
             # Trigger ekstraksjon direkte — parsing er allerede ferdig
             async def _do_extract(invoice_id: object = iid) -> None:  # type: ignore[type-arg]
                 from app.services.extraction_service import run_extraction
+
                 try:
                     async with get_session_factory()() as ext_session:
                         await run_extraction(ext_session, invoice_id)  # type: ignore[arg-type]
@@ -244,7 +248,8 @@ async def _recover_stuck_invoices(logger: object, settings: object) -> None:  # 
 
         elif istatus == _InvoiceStatus.SCREENING:
             async with get_session_factory()() as session:
-                from datetime import UTC as _UTC, datetime as _datetime
+                from datetime import UTC as _UTC
+                from datetime import datetime as _datetime
 
                 from sqlalchemy import select as _select2
 

@@ -88,9 +88,7 @@ class RuleVersion(UUIDPrimaryKeyMixin, Base):
     rule_definition: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
     # Hvem opprettet versjonen
     created_by: Mapped[str] = mapped_column(String(128), nullable=False, default="system")
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), nullable=False, index=True
-    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, index=True)
     comment: Mapped[str | None] = mapped_column(String(512), nullable=True)
 
     rule: Mapped[Rule] = relationship(back_populates="versions")

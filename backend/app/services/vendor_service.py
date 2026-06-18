@@ -128,16 +128,12 @@ async def list_vendors(
     if search:
         base = base.where(Vendor.name_normalized.ilike(f"%{_normalize_name(search)}%"))
 
-    total = (
-        await session.execute(select(func.count()).select_from(base.subquery()))
-    ).scalar_one()
+    total = (await session.execute(select(func.count()).select_from(base.subquery()))).scalar_one()
 
     rows = list(
         (
             await session.execute(
-                base.order_by(Vendor.risk_level.desc(), Vendor.name_normalized.asc())
-                .limit(limit)
-                .offset(offset)
+                base.order_by(Vendor.risk_level.desc(), Vendor.name_normalized.asc()).limit(limit).offset(offset)
             )
         )
         .scalars()

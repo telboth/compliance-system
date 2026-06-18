@@ -10,10 +10,9 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.database import get_session, SessionDep
+from app.core.database import SessionDep, get_session
 from app.core.errors import NotFoundError
 from app.services import rule_engine_service as re_svc
-from app.services.rule_engine_service import RuleResult
 
 router = APIRouter()
 
@@ -64,6 +63,7 @@ class RuleUpdate(BaseModel):
 
 class RuleTestRequest(BaseModel):
     """Test en YAML-regel mot oppgitte felt uten å lagre den."""
+
     rule_yaml: str
     context: dict[str, Any]
 
@@ -175,7 +175,6 @@ async def test_rule(body: RuleTestRequest) -> RuleTestResponse:
         defn = re_svc.parse_rule_yaml(body.rule_yaml)
         conditions = defn.get("conditions", {})
         # Bygg minimalt context-objekt
-        import dataclasses
         ctx = re_svc.InvoiceContext(
             invoice_id=uuid.uuid4(),
             destination_country=body.context.get("destination_country"),
@@ -219,23 +218,24 @@ async def rerun_rules(
     """
     from sqlalchemy import select
     from sqlalchemy.orm import selectinload
-    from app.models.invoice import Invoice, InvoiceStatus, ComplianceScore
-    from app.models.entity import Entity
-    from app.models.invoice_line import InvoiceLine
+
+    from app.models.invoice import ComplianceScore, Invoice, InvoiceStatus
     from app.services import audit_service
 
-    _SEVERITY_ORDER = {"green": 0, "yellow": 1, "red": 2}
-    _SCORE_FROM_SEV = {"green": ComplianceScore.GREEN, "yellow": ComplianceScore.YELLOW, "red": ComplianceScore.RED}
+    _SEVERITY_ORDER = {"green": 0, "yellow": 1, "red": 2}  # noqa: N806
+    _SCORE_FROM_SEV = {"green": ComplianceScore.GREEN, "yellow": ComplianceScore.YELLOW, "red": ComplianceScore.RED}  # noqa: N806
 
     stmt = (
         select(Invoice)
         .where(
-            Invoice.status.in_([
-                InvoiceStatus.SCREENED,
-                InvoiceStatus.APPROVED,
-                InvoiceStatus.BLOCKED,
-                InvoiceStatus.EXTRACTED,
-            ])
+            Invoice.status.in_(
+                [
+                    InvoiceStatus.SCREENED,
+                    InvoiceStatus.APPROVED,
+                    InvoiceStatus.BLOCKED,
+                    InvoiceStatus.EXTRACTED,
+                ]
+            )
         )
         .options(selectinload(Invoice.entities), selectinload(Invoice.lines))
         .limit(limit)
@@ -249,7 +249,8 @@ async def rerun_rules(
     for invoice in invoices:
         evaluated += 1
         results = await re_svc.evaluate_invoice(
-            session, invoice,
+            session,
+            invoice,
             entities=list(invoice.entities),
             lines=list(invoice.lines),
             write_audit=False,
@@ -279,12 +280,14 @@ async def rerun_rules(
                 },
             )
             score_changed += 1
-            details.append({
-                "invoice_id": str(invoice.id),
-                "filename": invoice.original_filename,
-                "old_score": old_val,
-                "new_score": worst_sev,
-            })
+            details.append(
+                {
+                    "invoice_id": str(invoice.id),
+                    "filename": invoice.original_filename,
+                    "old_score": old_val,
+                    "new_score": worst_sev,
+                }
+            )
 
     await session.commit()
     return RerunResponse(evaluated=evaluated, score_changed=score_changed, details=details)

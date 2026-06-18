@@ -16,10 +16,8 @@ from __future__ import annotations
 
 import csv
 import io
-from datetime import UTC, datetime, timedelta
-from decimal import Decimal
-
 from collections.abc import Awaitable
+from datetime import UTC, datetime, timedelta
 from typing import Any, TypeVar
 
 from sqlalchemy import case, func, select
@@ -106,9 +104,7 @@ async def avg_days_to_resolution(session: AsyncSession, *, months: int = 12) -> 
 
     result = await session.execute(
         select(
-            func.avg(
-                func.extract("epoch", Invoice.reviewed_at - Invoice.updated_at) / 86400.0
-            ).label("avg_days")
+            func.avg(func.extract("epoch", Invoice.reviewed_at - Invoice.updated_at) / 86400.0).label("avg_days")
         ).where(
             Invoice.reviewed_at.is_not(None),
             Invoice.review_decision.is_not(None),
@@ -120,9 +116,7 @@ async def avg_days_to_resolution(session: AsyncSession, *, months: int = 12) -> 
     return {"avg_days_to_resolution": avg_days, "months": months}
 
 
-async def top_flagged_countries(
-    session: AsyncSession, *, limit: int = 10, months: int = 12
-) -> list[dict]:
+async def top_flagged_countries(session: AsyncSession, *, limit: int = 10, months: int = 12) -> list[dict]:
     """Land (destination_country) med flest screening-treff."""
     since = _months_back(months)
 
@@ -145,9 +139,7 @@ async def top_flagged_countries(
     return [{"country": row.country, "hit_count": row.hit_count} for row in result]
 
 
-async def top_flagged_entities(
-    session: AsyncSession, *, limit: int = 10, months: int = 12
-) -> list[dict]:
+async def top_flagged_entities(session: AsyncSession, *, limit: int = 10, months: int = 12) -> list[dict]:
     """Entitetsnavn med flest confirmed/potential matches."""
     since = _months_back(months)
 
@@ -305,7 +297,13 @@ def kri_to_csv(report: dict) -> str:
     buf = io.StringIO()
     w = csv.writer(buf)
 
-    w.writerow(["KRI-rapport", f"Generert: {report.get('generated_at', '')}", f"Periode: {report.get('period_months', 12)} mnd"])
+    w.writerow(
+        [
+            "KRI-rapport",
+            f"Generert: {report.get('generated_at', '')}",
+            f"Periode: {report.get('period_months', 12)} mnd",
+        ]
+    )
     w.writerow([])
 
     # Screening hit rate

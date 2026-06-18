@@ -2,11 +2,9 @@
 
 from __future__ import annotations
 
-import uuid
 from datetime import datetime
 
 from sqlalchemy import Boolean, DateTime, Index, String, Text, func
-from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.database import Base
@@ -30,9 +28,7 @@ class RegulatoryAlert(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     summary: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     # Publiseringstidspunkt fra feeden (kan mangle)
-    published_at: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), nullable=True
-    )
+    published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     # Tidspunkt for når vi hentet elementet
     fetched_at: Mapped[datetime] = mapped_column(

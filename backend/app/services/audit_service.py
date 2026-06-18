@@ -20,7 +20,7 @@ from __future__ import annotations
 import hashlib
 import json
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 from sqlalchemy import select
@@ -77,7 +77,7 @@ async def log(
 
     Kalles inne i en eksisterende database-transaksjon — ikke commit her.
     """
-    now = datetime.now(tz=timezone.utc)
+    now = datetime.now(tz=UTC)
     prev_hash = await _get_previous_hash(session, invoice_id)
     details_json = json.dumps(details or {}, ensure_ascii=False, sort_keys=True)
     current_hash = _compute_hash(
@@ -111,12 +111,7 @@ async def get_for_invoice(
     limit: int = 200,
 ) -> list[AuditLog]:
     """Hent alle audit-innslag for en invoice, nyeste først."""
-    stmt = (
-        select(AuditLog)
-        .where(AuditLog.invoice_id == invoice_id)
-        .order_by(AuditLog.created_at.asc())
-        .limit(limit)
-    )
+    stmt = select(AuditLog).where(AuditLog.invoice_id == invoice_id).order_by(AuditLog.created_at.asc()).limit(limit)
     result = await session.execute(stmt)
     return list(result.scalars().all())
 
@@ -138,14 +133,11 @@ async def verify_chain(
         expected_prev = None if prev == GENESIS_HASH else prev
         if row.previous_hash != expected_prev:
             errors.append(
-                f"Rad {row.id}: previous_hash mismatch "
-                f"(forventet {expected_prev!r}, fant {row.previous_hash!r})"
+                f"Rad {row.id}: previous_hash mismatch (forventet {expected_prev!r}, fant {row.previous_hash!r})"
             )
 
         # Verifiser at current_hash stemmer
-        details_json = json.dumps(
-            row.details or {}, ensure_ascii=False, sort_keys=True
-        )
+        details_json = json.dumps(row.details or {}, ensure_ascii=False, sort_keys=True)
         expected_hash = _compute_hash(
             previous_hash=prev,
             invoice_id=str(row.invoice_id) if row.invoice_id else "",
@@ -155,9 +147,7 @@ async def verify_chain(
             details_json=details_json,
         )
         if row.current_hash != expected_hash:
-            errors.append(
-                f"Rad {row.id}: hash-brudd — innslaget kan ha blitt endret"
-            )
+            errors.append(f"Rad {row.id}: hash-brudd — innslaget kan ha blitt endret")
 
         prev = row.current_hash
 

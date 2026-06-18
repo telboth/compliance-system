@@ -39,10 +39,10 @@ from app.models.entity import Entity, EntityRole, EntityType
 from app.models.invoice import Invoice, InvoiceStatus
 from app.models.invoice_line import InvoiceLine
 from app.parsers.models import SourceFileType
-from app.services.invoice_note_service import apply_invoice_notes
-from app.services.pipeline_event_service import append_pipeline_event
-from app.services.invoice_service import get_invoice
 from app.services import audit_service
+from app.services.invoice_note_service import apply_invoice_notes
+from app.services.invoice_service import get_invoice
+from app.services.pipeline_event_service import append_pipeline_event
 
 logger = get_logger(__name__)
 _background_tasks: set[asyncio.Task[None]] = set()
@@ -146,9 +146,7 @@ async def run_extraction(
     except TimeoutError as exc:
         prev_status = invoice.status.value
         invoice.status = InvoiceStatus.EXTRACTION_FAILED
-        invoice.extraction_error = (
-            "LLM-ekstraksjon timet ut. Prøv re-ekstrahering eller bytt modell."
-        )
+        invoice.extraction_error = "LLM-ekstraksjon timet ut. Prøv re-ekstrahering eller bytt modell."
         await append_pipeline_event(
             session,
             invoice_id=invoice.id,
@@ -413,7 +411,7 @@ async def _persist_result(
             stage="post_extraction",
             overall_confidence=result.overall_confidence,
         )
-        return   # stopp pipeline — ikke gå videre til screening
+        return  # stopp pipeline — ikke gå videre til screening
 
     invoice.status = InvoiceStatus.EXTRACTED
 
@@ -509,12 +507,14 @@ def _is_empty_extraction(invoice: Invoice, result: InvoiceExtractionResult) -> t
         (True, grunn)  → bør avvises som not_invoice
         (False, "")    → ser ut som en faktura, fortsett
     """
-    critical_null = sum([
-        invoice.invoice_number is None,
-        invoice.total_amount is None,
-        invoice.currency is None,
-        invoice.invoice_date is None,
-    ])
+    critical_null = sum(
+        [
+            invoice.invoice_number is None,
+            invoice.total_amount is None,
+            invoice.currency is None,
+            invoice.invoice_date is None,
+        ]
+    )
     overall = result.overall_confidence or 0.0
 
     if critical_null >= 3 and overall < 0.25:

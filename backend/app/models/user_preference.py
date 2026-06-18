@@ -14,11 +14,8 @@ class UserPreference(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     """Key/value-preferanser per bruker for frontend-oppsett."""
 
     __tablename__ = "user_preferences"
-    __table_args__ = (
-        UniqueConstraint("actor_name", "preference_key", name="uq_user_preferences_actor_key"),
-    )
+    __table_args__ = (UniqueConstraint("actor_name", "preference_key", name="uq_user_preferences_actor_key"),)
 
     actor_name: Mapped[str] = mapped_column(String(128), nullable=False, index=True)
     preference_key: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
     value: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
-

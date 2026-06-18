@@ -1,4 +1,4 @@
-﻿"""Tjeneste for automatisk sjekk og import av DEKSAs varelister.
+"""Tjeneste for automatisk sjekk og import av DEKSAs varelister.
 
 Flyten er:
   1. check_for_updates()  — HTTP HEAD mot source_url, sammenligner ETag/Last-Modified.
@@ -49,14 +49,12 @@ def _now() -> datetime:
     return datetime.now(UTC)
 
 
-async def _get_or_create_state(
-    session: AsyncSession, list_code: str
-) -> ExportListSyncState:
+async def _get_or_create_state(session: AsyncSession, list_code: str) -> ExportListSyncState:
     row = (
-        await session.execute(
-            select(ExportListSyncState).where(ExportListSyncState.list_code == list_code)
-        )
-    ).scalars().first()
+        (await session.execute(select(ExportListSyncState).where(ExportListSyncState.list_code == list_code)))
+        .scalars()
+        .first()
+    )
     if row is None:
         row = ExportListSyncState(list_code=list_code, status=_STATUS_IDLE)
         session.add(row)
@@ -66,9 +64,7 @@ async def _get_or_create_state(
 
 async def get_all_states(session: AsyncSession) -> list[ExportListSyncState]:
     """Hent tilstandsrad for begge lister (brukes av API og UI)."""
-    rows = list(
-        (await session.execute(select(ExportListSyncState))).scalars().all()
-    )
+    rows = list((await session.execute(select(ExportListSyncState))).scalars().all())
     existing_codes = {r.list_code for r in rows}
     for code in _LIST_CODES:
         if code not in existing_codes:
@@ -143,9 +139,7 @@ async def check_for_updates(session: AsyncSession) -> dict[str, str]:
                 state.status = _STATUS_ERROR
                 state.status_message = f"HTTP {resp.status_code} ved sjekk av {state.source_url}"
                 results[code] = "error"
-                log.warning(
-                    "export_list_check_failed list_code=%s status=%s", code, resp.status_code
-                )
+                log.warning("export_list_check_failed list_code=%s status=%s", code, resp.status_code)
         except Exception as exc:
             state.status = _STATUS_ERROR
             state.status_message = f"Feil ved sjekk: {exc}"
@@ -189,7 +183,7 @@ async def trigger_import(
 
     Returnerer {"created": int, "updated": int, "errors": int}.
     """
-    from app.services.export_control_service import upsert_item, count_items
+    from app.services.export_control_service import count_items, upsert_item
 
     state = await _get_or_create_state(session, list_code)
     if not state.source_url:
@@ -239,9 +233,7 @@ async def trigger_import(
         total = await count_items(session)
         label = "Militaer vareliste" if list_code == "I" else "Dual-use vareliste"
         state.status = _STATUS_OK
-        state.status_message = (
-            f"Import fullfort: {created} nye, {updated} oppdatert, {errors} feil"
-        )
+        state.status_message = f"Import fullfort: {created} nye, {updated} oppdatert, {errors} feil"
         state.last_imported_at = _now()
         state.last_imported_by = triggered_by
         state.current_version = source_version
@@ -252,7 +244,10 @@ async def trigger_import(
         await session.commit()
         log.info(
             "export_list_import_done list_code=%s created=%d updated=%d errors=%d",
-            list_code, created, updated, errors,
+            list_code,
+            created,
+            updated,
+            errors,
         )
 
         await notification_service.create(

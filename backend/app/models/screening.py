@@ -68,8 +68,7 @@ class ScreeningResult(UUIDPrimaryKeyMixin, Base):
 
     # Beregnét utfall
     status: Mapped[MatchStatus] = mapped_column(
-        Enum(MatchStatus, name="match_status",
-             values_callable=lambda e: [x.value for x in e]),
+        Enum(MatchStatus, name="match_status", values_callable=lambda e: [x.value for x in e]),
         nullable=False,
     )
 

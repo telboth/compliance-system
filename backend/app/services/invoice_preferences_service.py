@@ -10,7 +10,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.user_preference import UserPreference
 from app.schemas.invoice import InvoiceListPreferencesUpdate
 
-
 INVOICE_LIST_PREF_KEY = "invoice_list"
 
 
