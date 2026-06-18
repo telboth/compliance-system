@@ -47,6 +47,14 @@ class ExportControlListItem(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     # Versjon/kilde for sporbarhet, f.eks. "EU-2021/821-2024-09" eller "deksa-seed"
     source_version: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
 
+    # Kjemikalie-/materialtillegg for presis matching
+    # Kommaseparerte CAS-numre: "7440-33-7, 12012-35-0"
+    cas_numbers: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Alternative navn/synonymer: "wolfram, tungsten carbide, WC, wolframkarbid"
+    synonyms: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Relevante tolltarifnumre: "8101.10, 8101.94"
+    hs_codes: Mapped[str | None] = mapped_column(Text, nullable=True)
+
     __table_args__ = (
         Index(
             "uq_export_control_item_code_source",

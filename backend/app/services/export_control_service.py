@@ -1,4 +1,4 @@
-"""Eksportkontroll-tjeneste — matcher fakturalinjer mot DEKSAs varelister.
+﻿"""Eksportkontroll-tjeneste — matcher fakturalinjer mot DEKSAs varelister.
 
 Tre matchere med fallende konfidens kjøres mot hver fakturalinje:
 
@@ -38,6 +38,9 @@ from app.services.hs_code_service import classify as classify_hs
 
 # Kontrollkode-mønster for å finne ECCN/ML inne i fritekstbeskrivelse
 _CODE_IN_TEXT_RE = re.compile(r"\b(ML\s?\d{1,2}|[0-9][A-E]\d{3})\b", re.IGNORECASE)
+
+# CAS-nummer-mønster: 2–7 siffer, bindestrek, 2 siffer, bindestrek, 1 siffer
+_CAS_RE = re.compile(r"\b(\d{2,7}-\d{2}-\d)\b")
 
 _STATUS_CLEAR = "clear"
 _STATUS_REVIEW = "review"
@@ -192,19 +195,162 @@ def _keyword_hits(line_index: int, description: str | None) -> list[ExportContro
 _CONF_RANK = {"high": 3, "medium": 2, "low": 1}
 
 
-def _match_line(line_index: int, line) -> list[ExportControlLineHit]:
-    """Match én fakturalinje med alle tre matcherne, dedupliser per kategori."""
+# ── Kjemikali-indeks (DB-basert, fjerde matchlag) ─────────────────────────────
+
+
+@dataclass
+class ChemicalIndex:
+    """In-memory indeks for CAS-nummer- og synonymmatch mot DB-importert liste.
+
+    Bygges én gang per request/task via ``load_chemical_index(session)`` og
+    sendes inn som parameter til ``evaluate_invoice_export_control()``.
+    Holdes utenfor DB-kallet for å bevare ren-funksjon-semantikken.
+    """
+
+    # Normalisert CAS (kun siffer) → [(list_code, category, category_title, item_code)]
+    _cas: dict[str, list[tuple[str, str, str, str]]]
+    # Lowercased synonym → [(list_code, category, category_title, item_code)]
+    _syn: dict[str, list[tuple[str, str, str, str]]]
+
+    @classmethod
+    def from_items(cls, items: list[ExportControlListItem]) -> "ChemicalIndex":
+        cas: dict[str, list[tuple[str, str, str, str]]] = {}
+        syn: dict[str, list[tuple[str, str, str, str]]] = {}
+        for it in items:
+            entry: tuple[str, str, str, str] = (
+                it.list_code,
+                it.category,
+                it.title or it.category,
+                it.item_code,
+            )
+            if it.cas_numbers:
+                for raw in it.cas_numbers.split(","):
+                    norm = re.sub(r"[^0-9]", "", raw.strip())
+                    if norm:
+                        cas.setdefault(norm, []).append(entry)
+            if it.synonyms:
+                for s in it.synonyms.split(","):
+                    k = s.strip().lower()
+                    if k:
+                        syn.setdefault(k, []).append(entry)
+        return cls(_cas=cas, _syn=syn)
+
+    def lookup_cas(self, cas_number: str) -> list[tuple[str, str, str, str]]:
+        norm = re.sub(r"[^0-9]", "", cas_number)
+        return self._cas.get(norm, [])
+
+    def lookup_synonyms(
+        self, text: str
+    ) -> list[tuple[str, str, str, str, str]]:
+        """Returner liste av (synonym, list_code, category, category_title, item_code)."""
+        results: list[tuple[str, str, str, str, str]] = []
+        seen: set[str] = set()
+        hay = text.lower()
+        for syn, entries in self._syn.items():
+            if syn in seen:
+                continue
+            if re.search(rf"(?<![a-z0-9]){re.escape(syn)}(?![a-z0-9])", hay):
+                for e in entries:
+                    results.append((syn, *e))
+                seen.add(syn)
+        return results
+
+    def is_empty(self) -> bool:
+        return not self._cas and not self._syn
+
+
+async def load_chemical_index(session: AsyncSession) -> ChemicalIndex:
+    """Last alle listepunkter med CAS/synonymer fra DB og bygg søkeindeks."""
+    rows = list(
+        (
+            await session.execute(
+                select(ExportControlListItem).where(
+                    or_(
+                        ExportControlListItem.cas_numbers.is_not(None),
+                        ExportControlListItem.synonyms.is_not(None),
+                    )
+                )
+            )
+        )
+        .scalars()
+        .all()
+    )
+    return ChemicalIndex.from_items(rows)
+
+
+def _chemical_hits(
+    line_index: int,
+    description: str | None,
+    chemical_index: ChemicalIndex,
+) -> list[ExportControlLineHit]:
+    """Fjerde matchlag: CAS-nummer og synonymer mot DB-importert liste."""
+    hits: list[ExportControlLineHit] = []
+    if not description:
+        return hits
+
+    # CAS-nummer i linjebeskrivelsen
+    for cas in _CAS_RE.findall(description):
+        for list_code, category, category_title, item_code in chemical_index.lookup_cas(cas):
+            hits.append(
+                ExportControlLineHit(
+                    line_index=line_index,
+                    line_description=description,
+                    matched_value=cas,
+                    list_code=list_code,
+                    category=category,
+                    category_title=category_title,
+                    item_code=item_code,
+                    confidence="medium",
+                    matched_via="cas",
+                    reason=(
+                        f"CAS-nummer {cas} ({item_code}: {category_title}) "
+                        "funnet i linjebeskrivelsen."
+                    ),
+                )
+            )
+
+    # Synonymmatch
+    for syn, list_code, category, category_title, item_code in chemical_index.lookup_synonyms(
+        description
+    ):
+        hits.append(
+            ExportControlLineHit(
+                line_index=line_index,
+                line_description=description,
+                matched_value=syn,
+                list_code=list_code,
+                category=category,
+                category_title=category_title,
+                item_code=item_code,
+                confidence="low",
+                matched_via="synonym",
+                reason=(
+                    f"Kjemikalie/synonym «{syn}» ({item_code}: {category_title}) "
+                    "funnet i linjebeskrivelsen. Krever egenvurdering."
+                ),
+            )
+        )
+
+    return hits
+
+
+def _match_line(
+    line_index: int,
+    line,
+    chemical_index: "ChemicalIndex | None" = None,
+) -> list[ExportControlLineHit]:
+    """Match en fakturalinje med alle fire matcherne, dedupliser per kategori."""
     description = getattr(line, "description", None)
     candidates: list[ExportControlLineHit] = []
 
-    # 1. Strukturmatch på eksplisitt ECCN-felt
+    # 1. Strukturmatch pa eksplisitt ECCN-felt
     eccn = getattr(line, "eccn", None)
     if eccn:
         hit = _structural_hit(line_index, description, eccn, eccn)
         if hit:
             candidates.append(hit)
 
-    # 1b. Strukturmatch på kode funnet i beskrivelse (f.eks. "ECCN 6A001")
+    # 1b. Strukturmatch pa kode funnet i beskrivelse (f.eks. "ECCN 6A001")
     if description:
         for m in _CODE_IN_TEXT_RE.findall(description):
             hit = _structural_hit(line_index, description, m, m)
@@ -218,8 +364,12 @@ def _match_line(line_index: int, line) -> list[ExportControlLineHit]:
         if hit:
             candidates.append(hit)
 
-    # 3. Nøkkelord
+    # 3. Nokkelord (statisk leksikon)
     candidates.extend(_keyword_hits(line_index, description))
+
+    # 4. CAS-nummer og synonymer mot DB-importert liste
+    if chemical_index is not None and not chemical_index.is_empty():
+        candidates.extend(_chemical_hits(line_index, description, chemical_index))
 
     # Dedupliser: behold sterkeste treff per (list_code, category)
     best: dict[tuple[str, str], ExportControlLineHit] = {}
@@ -244,20 +394,18 @@ def _normalize_country(c: str | None) -> str | None:
 def evaluate_invoice_export_control(
     invoice: Invoice,
     lines: list | None = None,
+    chemical_index: "ChemicalIndex | None" = None,
 ) -> ExportControlCheckResult:
-    """Vurder en faktura mot varelistene basert på linjene.
+    """Vurder en faktura mot varelistene basert pa linjene.
 
-    Ren funksjon (ingen DB/nettverk) slik at den kan kalles ved read-time,
-    på linje med VAT-sjekken.
-
-    ``lines`` kan oppgis eksplisitt for å unngå lazy-loading i async
-    SQLAlchemy (brukes fra screening). Hvis None brukes ``invoice.lines``,
-    som krever at relasjonen er eager-lastet.
+    Ren funksjon (ingen DB/nettverk) slik at den kan kalles ved read-time.
+    ``chemical_index`` kan sendes inn fra asynkrone kallere som har lastet
+    DB-indeksen; hvis None brukes kun det statiske leksikonet (tre lag).
     """
     hits: list[ExportControlLineHit] = []
     line_list = lines if lines is not None else list(getattr(invoice, "lines", []) or [])
     for idx, line in enumerate(line_list):
-        hits.extend(_match_line(idx, line))
+        hits.extend(_match_line(idx, line, chemical_index))
 
     dest = _normalize_country(invoice.destination_country)
     dest_sanctioned = embargo.is_sanctioned(dest)
@@ -379,10 +527,11 @@ async def list_export_control_invoices(
     stmt = stmt.limit(limit).offset(offset)
     invoices = list((await session.execute(stmt)).scalars().all())
 
+    chem_idx = await load_chemical_index(session)
     results: list[ExportControlCheckResult] = []
     kept: list[Invoice] = []
     for inv in invoices:
-        res = evaluate_invoice_export_control(inv)
+        res = evaluate_invoice_export_control(inv, chemical_index=chem_idx)
         if list_filter in {"I", "II"} and not any(h.list_code == list_filter for h in res.hits):
             continue
         results.append(res)
@@ -413,10 +562,13 @@ async def upsert_item(
     title: str | None,
     regime: str | None,
     source_version: str,
+    cas_numbers: str | None = None,
+    synonyms: str | None = None,
+    hs_codes: str | None = None,
 ) -> bool:
     """Sett inn eller oppdater ett listepunkt. Returnerer True hvis nytt.
 
-    Idempotent på (item_code_normalized, source_version).
+    Idempotent pa (item_code_normalized, source_version).
     """
     norm = normalize_item_code(item_code)
     existing = (
@@ -434,6 +586,9 @@ async def upsert_item(
         existing.item_code = item_code
         existing.title = title
         existing.regime = regime
+        existing.cas_numbers = cas_numbers
+        existing.synonyms = synonyms
+        existing.hs_codes = hs_codes
         return False
     session.add(
         ExportControlListItem(
@@ -445,6 +600,9 @@ async def upsert_item(
             title=title,
             regime=regime,
             source_version=source_version,
+            cas_numbers=cas_numbers,
+            synonyms=synonyms,
+            hs_codes=hs_codes,
         )
     )
     return True
@@ -564,6 +722,7 @@ async def backfill_export_control(
 
     Returnerer {processed, flagged, rescored}.
     """
+    chem_idx = await load_chemical_index(session)
     processed = flagged = rescored = 0
     offset = 0
     while True:
@@ -584,7 +743,7 @@ async def backfill_export_control(
         if not rows:
             break
         for inv in rows:
-            res = evaluate_invoice_export_control(inv)
+            res = evaluate_invoice_export_control(inv, chemical_index=chem_idx)
             inv.export_control_status = res.status
             inv.export_control_summary = res.summary
             processed += 1

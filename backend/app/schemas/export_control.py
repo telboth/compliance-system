@@ -49,6 +49,9 @@ class ExportControlReferenceItem(BaseModel):
     title: str | None
     regime: str | None
     source_version: str
+    cas_numbers: str | None = None
+    synonyms: str | None = None
+    hs_codes: str | None = None
 
 
 class ExportControlReferenceResponse(BaseModel):

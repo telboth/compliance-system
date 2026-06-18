@@ -108,7 +108,7 @@ export interface ExportControlLineHit {
   category_title: string;
   item_code: string | null;
   confidence: ExportControlConfidence;
-  matched_via: "eccn" | "hs" | "keyword";
+  matched_via: "eccn" | "hs" | "keyword" | "cas" | "synonym";
   reason: string;
 }
 

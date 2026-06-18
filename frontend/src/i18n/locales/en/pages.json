@@ -557,7 +557,9 @@
     "via": {
       "eccn": "ECCN/ML code",
       "hs": "HS code",
-      "keyword": "Keyword"
+      "keyword": "Keyword",
+      "cas": "CAS number",
+      "synonym": "Chemical name"
     },
     "loading_error": "Could not load export control data. Check that the backend is running.",
     "empty_title": "No list matches found",

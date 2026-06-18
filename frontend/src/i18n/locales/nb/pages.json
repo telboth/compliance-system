@@ -557,7 +557,9 @@
     "via": {
       "eccn": "ECCN/ML-kode",
       "hs": "HS-kode",
-      "keyword": "Nøkkelord"
+      "keyword": "Nøkkelord",
+      "cas": "CAS-nummer",
+      "synonym": "Kjemikalienavn"
     },
     "loading_error": "Kunne ikke laste eksportkontroll-data. Sjekk at backend kjører.",
     "empty_title": "Ingen listematch funnet",
