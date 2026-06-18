@@ -20,7 +20,7 @@ class Vendor(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     __tablename__ = "vendors"
 
     # Normalisert navn (lowercase, stripped)
-    name_normalized: Mapped[str] = mapped_column(String(512), nullable=False, index=True)
+    name_normalized: Mapped[str] = mapped_column(String(512), nullable=False)
     # Originalt navn (sist sett)
     name_display: Mapped[str] = mapped_column(String(512), nullable=False)
 
@@ -32,7 +32,7 @@ class Vendor(UUIDPrimaryKeyMixin, TimestampMixin, Base):
 
     # Risikoprofil — aggregert fra alle screeninger
     # "low" | "medium" | "high" | "critical"
-    risk_level: Mapped[str] = mapped_column(String(16), nullable=False, default="low", index=True)
+    risk_level: Mapped[str] = mapped_column(String(16), nullable=False, default="low")
 
     # Antall fakturaer der denne leverandøren er involvert
     invoice_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)

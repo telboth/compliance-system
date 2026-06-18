@@ -335,6 +335,9 @@ class ReviewQueueItem(BaseModel):
     has_export_control: bool = False
     has_catch_all: bool = False
     awaiting_approval: bool = False
+    vat_check: VatMismatchCheck | None = None
+    export_control_check: ExportControlCheck | None = None
+    catch_all_check: CatchAllCheck | None = None
     review_claimed_by: str | None = None
     review_claimed_at: datetime | None = None
     claim_is_mine: bool = False

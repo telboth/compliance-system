@@ -12,10 +12,22 @@ from sqlalchemy.orm import selectinload
 from app.core.config import get_settings
 from app.core.errors import ApplicationError, NotFoundError
 from app.models.invoice import ApprovalState, ComplianceScore, Invoice, InvoiceStatus
-from app.models.invoice_line import InvoiceLine
 from app.models.screening import MatchStatus, ScreeningResult
-from app.schemas.invoice import ReviewQueueItem, ReviewQueueResponse
+from app.schemas.invoice import (
+    CatchAllCheck,
+    ExportControlCheck,
+    ReviewQueueItem,
+    ReviewQueueResponse,
+    VatMismatchCheck,
+)
 from app.services import audit_service
+from app.services.catch_all_service import evaluate_invoice_catch_all
+from app.services.export_control_service import (
+    ChemicalIndex,
+    evaluate_invoice_export_control,
+    load_chemical_index,
+)
+from app.services.vat_check_service import evaluate_invoice_vat_mismatch
 
 REVIEWABLE_STATUSES = {
     InvoiceStatus.SCREENED,
@@ -360,6 +372,7 @@ async def list_review_queue(
 ) -> ReviewQueueResponse:
     stmt = (
         select(Invoice)
+        .options(selectinload(Invoice.lines), selectinload(Invoice.entities))
         .where(
             Invoice.status.in_(
                 [
@@ -391,7 +404,6 @@ async def list_review_queue(
 
     has_sanctions_hit: dict[uuid.UUID, bool] = dict.fromkeys(invoice_ids, False)
     has_embargo_hit: dict[uuid.UUID, bool] = dict.fromkeys(invoice_ids, False)
-    has_eccn: dict[uuid.UUID, bool] = dict.fromkeys(invoice_ids, False)
     if invoice_ids:
         screening_rows = (
             await session.execute(
@@ -417,27 +429,31 @@ async def list_review_queue(
             if dataset not in {"trade_plausibility", "duplicate_invoice"}:
                 has_sanctions_hit[iid] = True
 
-        eccn_rows = (
-            (
-                await session.execute(
-                    select(InvoiceLine.invoice_id.distinct()).where(
-                        InvoiceLine.invoice_id.in_(invoice_ids),
-                        InvoiceLine.eccn.is_not(None),
-                    )
-                )
-            )
-            .scalars()
-            .all()
-        )
-        for iid in eccn_rows:
-            has_eccn[iid] = True
-
     stale_minutes = _review_claim_stale_minutes()
     now = _now_utc()
+    export_control_index: ChemicalIndex | None = None
+    if any(inv.export_control_status in {"review", "controlled"} for inv in invoices):
+        export_control_index = await load_chemical_index(session)
 
     def _has_ownership_risk(inv: Invoice) -> bool:
         text = (inv.comments or "").lower()
         return any(token in text for token in ("ownership", "beneficial owner", "ultimate parent", "ubo"))
+
+    def _vat_check(inv: Invoice) -> VatMismatchCheck | None:
+        if inv.vat_note_status not in {"warn", "error"}:
+            return None
+        return VatMismatchCheck.model_validate(evaluate_invoice_vat_mismatch(inv).to_dict())
+
+    def _export_control_check(inv: Invoice) -> ExportControlCheck | None:
+        if inv.export_control_status not in {"review", "controlled"}:
+            return None
+        result = evaluate_invoice_export_control(inv, chemical_index=export_control_index).to_dict()
+        return ExportControlCheck.model_validate(result)
+
+    def _catch_all_check(inv: Invoice) -> CatchAllCheck | None:
+        if inv.catch_all_status not in {"review", "controlled"}:
+            return None
+        return CatchAllCheck.model_validate(evaluate_invoice_catch_all(inv).to_dict())
 
     return ReviewQueueResponse(
         items=[
@@ -457,11 +473,14 @@ async def list_review_queue(
                 has_sanctions_hit=has_sanctions_hit.get(inv.id, False),
                 has_embargo_hit=has_embargo_hit.get(inv.id, False),
                 has_ownership_risk=_has_ownership_risk(inv),
-                has_dual_use_risk=has_eccn.get(inv.id, False),
+                has_dual_use_risk=any(bool(getattr(line, "eccn", None)) for line in (inv.lines or [])),
                 has_vat_deviation=(inv.vat_note_status in {"warn", "error"}),
                 has_export_control=(inv.export_control_status in {"review", "controlled"}),
                 has_catch_all=(inv.catch_all_status in {"review", "controlled"}),
                 awaiting_approval=((inv.approval_state.value if inv.approval_state else "") == "pending"),
+                vat_check=_vat_check(inv),
+                export_control_check=_export_control_check(inv),
+                catch_all_check=_catch_all_check(inv),
                 review_claimed_by=inv.review_claimed_by,
                 review_claimed_at=inv.review_claimed_at,
                 claim_is_mine=bool(inv.review_claimed_by and inv.review_claimed_by == actor_name),

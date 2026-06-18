@@ -1,6 +1,6 @@
 """Tjeneste for automatisk sjekk og import av embargo-/sanksjonslanden.
 
-Gjenbruker ExportListSyncState med list_code='embargo' for aa spore
+Gjenbruker ExportListSyncState med list_code='EMBG' for aa spore
 URL, ETag og importhistorikk. Samme flyt som export_list_sync_service:
 
   1. check_for_updates() — HTTP HEAD, varsler alle brukere ved ny versjon.
@@ -32,7 +32,7 @@ from app.services import notification_service
 
 log = logging.getLogger(__name__)
 
-_LIST_CODE = "embargo"
+_LIST_CODE = "EMBG"
 _STATUS_IDLE = "idle"
 _STATUS_CHECKING = "checking"
 _STATUS_AVAILABLE = "update_available"

@@ -11,6 +11,7 @@ from httpx import AsyncClient
 
 from app.models.entity import Entity, EntityRole, EntityType
 from app.models.invoice import ComplianceScore, Invoice, InvoiceDirection, InvoiceStatus
+from app.models.invoice_line import InvoiceLine
 
 
 @pytest.mark.asyncio
@@ -145,6 +146,72 @@ async def test_vat_mismatches_endpoint_returns_flagged_items(
     assert len(body["items"]) == 1
     assert body["items"][0]["invoice_id"] == str(flagged.id)
     assert body["items"][0]["vat_check"]["flagged"] is True
+
+
+@pytest.mark.asyncio
+async def test_review_queue_includes_source_details(
+    client: AsyncClient,
+    db_session,
+) -> None:
+    inv = Invoice(
+        id=uuid.uuid4(),
+        direction=InvoiceDirection.OUTGOING,
+        pdf_path="tests/fixtures/review_queue_detail.pdf",
+        status=InvoiceStatus.SCREENED,
+        compliance_score=ComplianceScore.RED,
+        vat_amount=Decimal("500.00"),
+        vat_rate="25%",
+        vat_note_status="error",
+        export_control_status="review",
+        catch_all_status="review",
+        destination_country="DE",
+        comments="military use",
+    )
+    db_session.add(inv)
+    await db_session.flush()
+    db_session.add_all(
+        [
+            Entity(
+                id=uuid.uuid4(),
+                invoice_id=inv.id,
+                name="Norsk Selger AS",
+                entity_type=EntityType.COMPANY,
+                country="NO",
+                role=EntityRole.SELLER,
+            ),
+            Entity(
+                id=uuid.uuid4(),
+                invoice_id=inv.id,
+                name="German Buyer GmbH",
+                entity_type=EntityType.COMPANY,
+                country="DE",
+                role=EntityRole.BUYER,
+            ),
+            InvoiceLine(
+                id=uuid.uuid4(),
+                invoice_id=inv.id,
+                line_number=1,
+                description="Industrial controller",
+                eccn="6A001",
+            ),
+        ]
+    )
+    await db_session.commit()
+
+    response = await client.get(
+        "/api/v1/invoices/queue/review",
+        headers={"X-Actor-Role": "compliance_officer", "X-Actor-Name": "Kari Officer"},
+    )
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["total"] == 1
+    assert len(body["items"]) == 1
+    item = body["items"][0]
+    assert item["vat_check"]["flagged"] is True
+    assert item["export_control_check"]["flagged"] is True
+    assert item["export_control_check"]["summary"]
+    assert item["catch_all_check"]["flagged"] is True
+    assert item["catch_all_check"]["signals"]
 
 
 @pytest.mark.asyncio

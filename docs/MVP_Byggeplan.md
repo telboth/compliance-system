@@ -7,6 +7,8 @@
 **Demoklar:** Etter sprint 3 (uke 6)  
 **Produksjonsklar MVP:** Etter sprint 6 (uke 12)
 
+**Status:** Dette er en byggeplan og ikke en beskrivelse av dagens kode. For faktisk implementasjon, se `docs/architecture.md` og `docs/api-reference.md`.
+
 ---
 
 ## Innholdsfortegnelse

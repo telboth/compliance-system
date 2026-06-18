@@ -1,17 +1,36 @@
 /**
- * ReviewQueue — liste over fakturaer som venter på manuell beslutning.
+ * ReviewQueue — samlet arbeidsliste for fakturaer som venter på manuell beslutning.
  *
- * Viser fakturaer med compliance_score yellow/red som er i status
- * screened, approved eller blocked. Sortert RED-først, ubehandlede-først.
+ * Viser fakturaer med compliance_score yellow/red som er i status screened,
+ * approved eller blocked. Sortert RED-først, ubehandlede-først. Vareliste,
+ * VAT og catch-all vises her som filtre og detaljer i stedet for egne tabber.
  */
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import clsx from "clsx";
 import { useTranslation } from "react-i18next";
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 
 import { StatusBadge } from "@/components/StatusBadge";
 import { useReviewQueue } from "@/hooks/useInvoices";
 import type { ReviewQueueItem, ComplianceScore } from "@/api/types";
+
+const QUICK_FILTERS = [
+  { key: "all", labelKey: "review_queue.filter_all" },
+  { key: "sanctions", labelKey: "review_queue.filter_sanctions" },
+  { key: "embargo", labelKey: "review_queue.filter_embargo" },
+  { key: "export_control", labelKey: "review_queue.filter_export_control" },
+  { key: "catch_all", labelKey: "review_queue.filter_catch_all" },
+  { key: "ownership", labelKey: "review_queue.filter_ownership" },
+  { key: "dual_use", labelKey: "review_queue.filter_dual_use" },
+  { key: "vat", labelKey: "review_queue.filter_vat" },
+  { key: "awaiting", labelKey: "review_queue.filter_awaiting" },
+] as const;
+
+type QuickFilter = (typeof QUICK_FILTERS)[number]["key"];
+
+function normalizeQuickFilter(value: string | null): QuickFilter {
+  return QUICK_FILTERS.some((filter) => filter.key === value) ? (value as QuickFilter) : "all";
+}
 
 // ── Compliance-score chip ────────────────────────────────────────────────────
 
@@ -69,25 +88,121 @@ function FlagPills({ item }: { item: ReviewQueueItem }) {
   );
 }
 
+type FocusSummary = {
+  key: Exclude<QuickFilter, "all">;
+  label: string;
+  summary: string;
+  cls: string;
+};
+
+function QueueFocus({ item }: { item: ReviewQueueItem }) {
+  const { t } = useTranslation("pages");
+
+  const focus = useMemo<FocusSummary>(() => {
+    if (item.has_sanctions_hit) {
+      return {
+        key: "sanctions",
+        label: t("review_queue.flag.sanctions"),
+        summary: t("review_queue.issue_sanctions"),
+        cls: "bg-red-100 text-red-700",
+      };
+    }
+    if (item.has_embargo_hit) {
+      return {
+        key: "embargo",
+        label: t("review_queue.flag.embargo"),
+        summary: t("review_queue.issue_embargo"),
+        cls: "bg-red-100 text-red-700",
+      };
+    }
+    if (item.has_export_control) {
+      return {
+        key: "export_control",
+        label: t("review_queue.flag.export_control"),
+        summary:
+          item.export_control_check?.summary ??
+          t("review_queue.issue_export_control"),
+        cls: "bg-amber-100 text-amber-700",
+      };
+    }
+    if (item.has_catch_all) {
+      return {
+        key: "catch_all",
+        label: t("review_queue.flag.catch_all"),
+        summary: item.catch_all_check?.summary ?? t("review_queue.issue_catch_all"),
+        cls: "bg-amber-100 text-amber-700",
+      };
+    }
+    if (item.has_vat_deviation) {
+      return {
+        key: "vat",
+        label: t("review_queue.flag.vat"),
+        summary: item.vat_check?.reason ?? t("review_queue.issue_vat"),
+        cls: "bg-gray-100 text-gray-600",
+      };
+    }
+    if (item.has_ownership_risk) {
+      return {
+        key: "ownership",
+        label: t("review_queue.flag.ownership"),
+        summary: t("review_queue.issue_ownership"),
+        cls: "bg-gray-100 text-gray-600",
+      };
+    }
+    if (item.has_dual_use_risk) {
+      return {
+        key: "dual_use",
+        label: t("review_queue.flag.dual_use"),
+        summary: t("review_queue.issue_dual_use"),
+        cls: "bg-yellow-100 text-yellow-700",
+      };
+    }
+    if (item.awaiting_approval) {
+      return {
+        key: "awaiting",
+        label: t("review_queue.filter_awaiting"),
+        summary: t("review_queue.issue_awaiting"),
+        cls: "bg-gray-100 text-gray-600",
+      };
+    }
+    return {
+      key: "awaiting",
+      label: item.status === "screened" ? t("review_queue.pending") : t("review_queue.decided"),
+      summary: t("review_queue.issue_default"),
+      cls: "bg-gray-100 text-gray-600",
+    };
+  }, [item, t]);
+
+  return (
+    <div className="max-w-[28rem] space-y-1">
+      <span
+        className={clsx(
+          "inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide",
+          focus.cls,
+        )}
+      >
+        {focus.label}
+      </span>
+      <div className="text-xs text-xlent-muted">{focus.summary}</div>
+    </div>
+  );
+}
+
 // ── Rad i tabellen ────────────────────────────────────────────────────────────
 
 function QueueRow({ item }: { item: ReviewQueueItem }) {
   const isPending = item.status === "screened";
   const { t, i18n } = useTranslation("pages");
   const { t: tCommon } = useTranslation();
-  const claimText = (() => {
-    if (!item.review_claimed_by) return t("review_queue.claim_open");
-    if (item.claim_is_mine) return t("review_queue.claim_mine");
-    if (item.claim_is_stale) return t("review_queue.claim_stale", { name: item.review_claimed_by });
-    return t("review_queue.claim_other", { name: item.review_claimed_by });
-  })();
-  const claimClass = !item.review_claimed_by
-    ? "text-green-700"
-    : item.claim_is_mine
-      ? "text-blue-700"
-      : item.claim_is_stale
-        ? "text-amber-700"
-        : "text-red-700";
+  const amountText = item.total_amount
+    ? `${Number(item.total_amount).toLocaleString(i18n.language === "en" ? "en-GB" : "nb-NO")} ${item.currency ?? ""}`.trim()
+    : null;
+  const metaParts = [
+    tCommon(`direction.${item.direction}`),
+    item.destination_country ?? null,
+    amountText,
+  ].filter((part): part is string => Boolean(part));
+  const metaText = metaParts.length > 0 ? metaParts.join(" · ") : "—";
   return (
     <tr className="border-t border-gray-100 hover:bg-xlent-surface/50">
       <td className="py-3 pl-4 pr-2">
@@ -103,20 +218,13 @@ function QueueRow({ item }: { item: ReviewQueueItem }) {
         {item.invoice_number && item.original_filename && (
           <span className="ml-2 text-xs text-xlent-muted">#{item.invoice_number}</span>
         )}
+        <div className="mt-1 text-xs text-xlent-muted">{metaText}</div>
       </td>
       <td className="py-3 px-2">
-        <FlagPills item={item} />
-      </td>
-      <td className="py-3 px-2 text-sm text-xlent-muted capitalize">
-        {tCommon(`direction.${item.direction}`)}
-      </td>
-      <td className="py-3 px-2 text-sm text-xlent-muted">
-        {item.destination_country ?? "—"}
-      </td>
-      <td className="py-3 px-2 text-sm tabular-nums text-xlent-muted">
-        {item.total_amount
-          ? `${Number(item.total_amount).toLocaleString(i18n.language === "en" ? "en-GB" : "nb-NO")} ${item.currency ?? ""}`
-          : "—"}
+        <div className="space-y-2">
+          <FlagPills item={item} />
+          <QueueFocus item={item} />
+        </div>
       </td>
       <td className="py-3 px-2">
         <StatusBadge status={item.status} score={item.compliance_score} />
@@ -129,9 +237,6 @@ function QueueRow({ item }: { item: ReviewQueueItem }) {
             {item.review_decision === "approved" ? t("review_queue.decision_approved") : t("review_queue.decision_blocked")}
           </span>
         )}
-      </td>
-      <td className={clsx("py-3 px-2 text-xs font-medium", claimClass)}>
-        {claimText}
       </td>
       <td className="py-3 pl-2 pr-4 text-xs text-xlent-muted">
         {new Date(item.created_at).toLocaleDateString(i18n.language === "en" ? "en-GB" : "nb-NO")}
@@ -161,18 +266,19 @@ function EmptyState() {
 
 export function ReviewQueuePage() {
   const { t } = useTranslation("pages");
+  const [searchParams, setSearchParams] = useSearchParams();
+  const quickFilter = normalizeQuickFilter(searchParams.get("filter"));
   const { data, isLoading, error } = useReviewQueue({ limit: 100 });
-  const [quickFilter, setQuickFilter] = useState<
-    | "all"
-    | "sanctions"
-    | "embargo"
-    | "export_control"
-    | "catch_all"
-    | "ownership"
-    | "dual_use"
-    | "vat"
-    | "awaiting"
-  >("all");
+
+  const setQuickFilter = (next: QuickFilter) => {
+    const nextParams = new URLSearchParams(searchParams);
+    if (next === "all") {
+      nextParams.delete("filter");
+    } else {
+      nextParams.set("filter", next);
+    }
+    setSearchParams(nextParams, { replace: true });
+  };
 
   const filteredItems = useMemo(() => {
     const items = data?.items ?? [];
@@ -195,32 +301,34 @@ export function ReviewQueuePage() {
 
   return (
     <div className="mx-auto max-w-7xl space-y-6 p-6">
-      <header>
-        <h1 className="text-2xl font-semibold text-xlent-ink">{t("review_queue.title")}</h1>
-        <p className="mt-1 text-sm text-xlent-muted">
-          {t("review_queue.subtitle")}
-        </p>
+      <header className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-semibold text-xlent-ink">{t("review_queue.title")}</h1>
+          <p className="mt-1 max-w-3xl text-sm text-xlent-muted">
+            {t("review_queue.subtitle")}
+          </p>
+        </div>
+        <Link
+          to="/export-control/reference"
+          className="text-sm text-xlent-primary hover:underline"
+        >
+          {t("review_queue.reference_link")} →
+        </Link>
       </header>
+
+      <div className="rounded-lg border border-blue-100 bg-blue-50 px-4 py-3 text-xs text-blue-800">
+        {t("review_queue.consolidated_hint")}
+      </div>
 
       {/* Hurtigfiltre */}
       <div className="flex flex-wrap gap-2">
-        {[
-          ["all", t("review_queue.filter_all")],
-          ["sanctions", t("review_queue.filter_sanctions")],
-          ["embargo", t("review_queue.filter_embargo")],
-          ["export_control", t("review_queue.filter_export_control")],
-          ["catch_all", t("review_queue.filter_catch_all")],
-          ["ownership", t("review_queue.filter_ownership")],
-          ["dual_use", t("review_queue.filter_dual_use")],
-          ["vat", t("review_queue.filter_vat")],
-          ["awaiting", t("review_queue.filter_awaiting")],
-        ].map(([key, label]) => {
-          const active = quickFilter === key;
+        {QUICK_FILTERS.map((filter) => {
+          const active = quickFilter === filter.key;
           return (
             <button
-              key={key}
+              key={filter.key}
               type="button"
-              onClick={() => setQuickFilter(key as typeof quickFilter)}
+              onClick={() => setQuickFilter(filter.key)}
               className={clsx(
                 "rounded-full border px-3 py-1 text-xs font-medium",
                 active
@@ -228,7 +336,7 @@ export function ReviewQueuePage() {
                   : "border-gray-300 bg-white text-xlent-muted hover:bg-gray-50",
               )}
             >
-              {label}
+              {t(filter.labelKey)}
             </button>
           );
         })}
@@ -273,13 +381,9 @@ export function ReviewQueuePage() {
               <tr className="bg-xlent-surface text-left text-xs font-semibold uppercase tracking-wide text-xlent-muted">
                 <th className="py-2 pl-4 pr-2">{t("review_queue.col_score")}</th>
                 <th className="px-2 py-2">{t("review_queue.col_invoice")}</th>
-                <th className="px-2 py-2">{t("review_queue.col_flags")}</th>
-                <th className="px-2 py-2">{t("review_queue.col_direction")}</th>
-                <th className="px-2 py-2">{t("review_queue.col_dest")}</th>
-                <th className="px-2 py-2">{t("review_queue.col_amount")}</th>
+                <th className="px-2 py-2">{t("review_queue.col_context")}</th>
                 <th className="px-2 py-2">{t("review_queue.col_status")}</th>
                 <th className="px-2 py-2">{t("review_queue.col_decision")}</th>
-                <th className="px-2 py-2">{t("review_queue.col_claim")}</th>
                 <th className="pl-2 pr-4 py-2">{t("review_queue.col_date")}</th>
               </tr>
             </thead>
@@ -298,7 +402,7 @@ export function ReviewQueuePage() {
                   {pending.length > 0 && (
                     <tr>
                       <td
-                        colSpan={10}
+                        colSpan={6}
                         className="bg-gray-50 px-4 py-2 text-[11px] font-semibold uppercase tracking-wider text-xlent-muted"
                       >
                         {t("review_queue.section_decided")}

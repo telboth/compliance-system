@@ -28,8 +28,6 @@ import {
   reparseInvoice,
   reviewInvoice,
   reviewInvoiceAndNext,
-  claimReviewInvoice,
-  releaseReviewClaim,
   escalateInvoiceRisk,
   startExtendedScreening,
   startScreening,
@@ -298,28 +296,6 @@ export function useReviewInvoiceAndNext(invoiceId: string) {
     onSuccess: (data: ReviewAndNextResponse) => {
       queryClient.setQueryData(invoiceKeys.detail(invoiceId), data.invoice);
       void queryClient.invalidateQueries({ queryKey: invoiceKeys.lists() });
-      void queryClient.invalidateQueries({ queryKey: reviewQueueKeys.all });
-    },
-  });
-}
-
-export function useClaimReviewInvoice(invoiceId: string) {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: () => claimReviewInvoice(invoiceId),
-    onSuccess: (data) => {
-      queryClient.setQueryData(invoiceKeys.detail(invoiceId), data);
-      void queryClient.invalidateQueries({ queryKey: reviewQueueKeys.all });
-    },
-  });
-}
-
-export function useReleaseReviewClaim(invoiceId: string) {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: () => releaseReviewClaim(invoiceId),
-    onSuccess: (data) => {
-      queryClient.setQueryData(invoiceKeys.detail(invoiceId), data);
       void queryClient.invalidateQueries({ queryKey: reviewQueueKeys.all });
     },
   });

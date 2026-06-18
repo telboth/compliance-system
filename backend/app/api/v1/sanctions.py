@@ -841,7 +841,7 @@ async def get_screening_candidates(
     response_model=SanctionsStatusResponse,
     summary="Yente-status og datasett-oversikt",
 )
-async def get_sanctions_status() -> SanctionsStatusResponse:
+async def get_sanctions_status(session: SessionDep) -> SanctionsStatusResponse:
     """Hent status for yente-tjenesten og alle konfigurerte sanksjonslister."""
     settings = get_settings()
     yente = get_yente_client()
@@ -851,35 +851,32 @@ async def get_sanctions_status() -> SanctionsStatusResponse:
     external_sources = []
     latest_refresh = None
 
-    from app.core.database import get_session_factory
-
-    async with get_session_factory()() as local_session:
-        rows = await list_local_sanctions_statuses(local_session)
-        latest_refresh = await get_latest_refresh_run(local_session)
-        external_health_rows = await list_external_source_health(local_session)
-        local_sources = [
-            LocalSanctionsSourceStatus(
-                source=row.source,
-                last_updated=row.last_updated,
-                entry_count=row.entry_count,
-                update_status=row.update_status,
-                error_message=row.error_message,
-            )
-            for row in rows
-        ]
-        external_sources = [
-            ExternalSourceHealthStatus(
-                source=str(row.get("source")),
-                enabled=bool(row.get("enabled")),
-                status=str(row.get("status")),
-                entry_count=(int(row.get("entry_count")) if isinstance(row.get("entry_count"), int | float) else None),
-                last_updated=(row.get("last_updated") if isinstance(row.get("last_updated"), datetime) else None),
-                error_message=(str(row.get("error_message")) if row.get("error_message") else None),
-                stale=bool(row.get("stale")),
-            )
-            for row in external_health_rows
-            if isinstance(row, dict)
-        ]
+    rows = await list_local_sanctions_statuses(session)
+    latest_refresh = await get_latest_refresh_run(session)
+    external_health_rows = await list_external_source_health(session)
+    local_sources = [
+        LocalSanctionsSourceStatus(
+            source=row.source,
+            last_updated=row.last_updated,
+            entry_count=row.entry_count,
+            update_status=row.update_status,
+            error_message=row.error_message,
+        )
+        for row in rows
+    ]
+    external_sources = [
+        ExternalSourceHealthStatus(
+            source=str(row.get("source")),
+            enabled=bool(row.get("enabled")),
+            status=str(row.get("status")),
+            entry_count=(int(row.get("entry_count")) if isinstance(row.get("entry_count"), int | float) else None),
+            last_updated=(row.get("last_updated") if isinstance(row.get("last_updated"), datetime) else None),
+            error_message=(str(row.get("error_message")) if row.get("error_message") else None),
+            stale=bool(row.get("stale")),
+        )
+        for row in external_health_rows
+        if isinstance(row, dict)
+    ]
 
     if not healthy:
         return SanctionsStatusResponse(
@@ -1148,7 +1145,12 @@ async def retry_pipeline_invoice(
 
             from app.services.invoice_service import parse_invoice_in_background
 
-            background_tasks.add_task(parse_invoice_in_background, invoice.id, Path(invoice.pdf_path))
+            background_tasks.add_task(
+                parse_invoice_in_background,
+                invoice.id,
+                Path(invoice.pdf_path),
+                engine=session.bind,
+            )
 
         return PipelineRecoveryActionResponse(
             invoice_id=invoice.id,

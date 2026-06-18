@@ -138,15 +138,23 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
     # Pre-warm Docling i bakgrunnen (se _warm_docling for detaljer).
     asyncio.get_running_loop().run_in_executor(None, _warm_docling, logger)
 
-    # Seed og last embargo-cache fra DB.
+    # Seed embargo-data, bootstrap sync-status ved behov, og last cache fra DB.
     try:
         from app.core.database import get_session_factory
+        from app.services.export_control_service import seed_reference_categories
         from app.sanctions.embargo import load_cache_from_db, seed_db_from_static
 
         async with get_session_factory()() as _s:
             seeded = await seed_db_from_static(_s)
             if seeded:
                 logger.info("embargo_seed_complete", count=seeded)
+
+            ec_seeded = await seed_reference_categories(_s)
+            if ec_seeded:
+                logger.info("export_control_seed_complete", count=ec_seeded)
+
+            await _s.commit()
+
             loaded = await load_cache_from_db(_s)
             if loaded:
                 logger.info("embargo_cache_loaded", count=loaded)

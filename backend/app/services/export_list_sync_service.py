@@ -73,6 +73,46 @@ async def get_all_states(session: AsyncSession) -> list[ExportListSyncState]:
     return rows
 
 
+async def bootstrap_seed_state(
+    session: AsyncSession,
+    list_code: str,
+    *,
+    current_version: str,
+    status_message: str,
+    item_count: int | None = None,
+    last_imported_by: str = "seed",
+) -> ExportListSyncState:
+    """Sett initial sync-metadata for en statisk seedet liste.
+
+    Brukes kun når raden fortsatt er tom og ukonfigurert. En aktiv source_url
+    eller eksisterende synkroniseringshistorikk skal ikke overskrives.
+    """
+    state = await _get_or_create_state(session, list_code)
+    has_existing_sync_data = any(
+        value is not None
+        for value in (
+            state.current_version,
+            state.last_checked_at,
+            state.last_imported_at,
+            state.last_imported_by,
+            state.item_count,
+        )
+    )
+    if state.source_url or state.status != _STATUS_IDLE or has_existing_sync_data:
+        return state
+
+    now = _now()
+    state.status = _STATUS_OK
+    state.status_message = status_message
+    state.current_version = current_version
+    state.last_checked_at = now
+    state.last_imported_at = now
+    state.last_imported_by = last_imported_by
+    state.item_count = item_count
+    await session.flush()
+    return state
+
+
 # ── Sjekk for oppdateringer ───────────────────────────────────────────────────
 
 

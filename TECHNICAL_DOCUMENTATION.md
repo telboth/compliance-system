@@ -6,7 +6,7 @@ Denne dokumentasjonen oppfyller kravene i EU AI Act Art. 11 om teknisk dokumenta
 
 XLENT Compliance er et AI-drevet system for compliance-kontroll av eksporttransaksjoner. Systemet:
 
-- Mottar invoices (faktura-PDF-er) via opplasting, e-post eller API
+- Mottar invoices (faktura-PDF-er) via opplasting
 - Ekstraherer strukturerte felter fra invoicen ved hjelp av PDF-parsing (pdfplumber/Tesseract) og en stor språkmodell (LLM)
 - Screener entiteter (kjøper, selger, sluttbruker) mot internasjonale sanksjonslister (UN, EU, OFAC, norske lister)
 - Evaluerer transaksjonen mot konfigurerbare forretningsregler (YAML) og rammeavtaler
@@ -22,12 +22,11 @@ Systemet er ment for compliance-controllere og compliance officers i norske eksp
 
 Se `docs/architecture.md` for diagram. Hovedkomponenter:
 
-1. **Dokument-AI:** PDF → tekst (pdfplumber for digitalt, Tesseract for skannet) → LLM-ekstraksjon → strukturert JSON med konfidens per felt.
-2. **Sanksjonsscreening:** OpenSanctions yente (self-hosted, MIT) med fuzzy matching mot konsoliderte lister.
-3. **Regelmotor:** YAML-konfigurerte regler med AND/OR/NOT-logikk, versjonert.
-4. **Avtale-matching:** LLM parser rammeavtaler til JSON; invoices sjekkes mot avtalebetingelser.
-5. **Beslutningsmotor:** Aggregerer alle resultater til samlet score.
-6. **Audit-logg:** Append-only, hash-kjedet, hellig.
+1. **Dokument-AI:** PDF → tekst/bilder via parser-autodeteksjon → LLM-ekstraksjon → strukturert JSON med konfidens per felt.
+2. **Sanksjonsscreening:** `app/services/screening_service.py` håndterer yente-match, embargo, interne watchlister, eksportkontroll og catch-all-signaler.
+3. **Regelmotor og avtaler:** `app/services/rule_engine_service.py` evaluerer YAML-regler, og `app/services/agreement_service.py` matcher invoices mot rammeavtaler.
+4. **Review og status:** `app/services/invoice_review_service.py` håndterer menneskelig review, mens `Invoice.approval_state` beregnes fra status og compliance score.
+5. **Audit-logg:** `app/services/audit_service.py` skriver hash-kjedede audit-innslag.
 
 ## 4. Datakilder
 
@@ -46,7 +45,7 @@ Se `docs/architecture.md` for diagram. Hovedkomponenter:
 | Invoice-ekstraksjon (backup) | GPT-4o | OpenAI | gpt-4o |
 | Avtale-parsing | Claude Sonnet 4 | Anthropic | claude-sonnet-4-20250514 |
 
-Alle LLM-kall logges med input, output, modellversjon og tidsstempel.
+LLM-kall logges strukturert med modell, tokenbruk og statushendelser. I tillegg lagres AI-governance-rader per invoice i `ai_decision_records` med modell, provider, konfidens og rå metadata.
 
 ## 6. Menneskelig tilsyn (EU AI Act Art. 14)
 
@@ -64,7 +63,7 @@ Alle LLM-kall logges med input, output, modellversjon og tidsstempel.
 ## 8. Datakvalitetskontroll (Art. 10)
 
 - Hver sanksjonsliste-loader validerer innholdet etter nedlasting (forventet entry count, struktur, oppdateringsdato).
-- Lister som er > 48 timer gamle avvises automatisk.
+- Staleness-grenser er konfigurerbare per kilde; de er ikke hardkodet til ett globalt tall.
 - Treningsdata: ingen — systemet bruker pre-trente modeller. Few-shot eksempler i prompts dokumenteres i `backend/app/llm/prompts/`.
 
 ## 9. Begrensninger
@@ -75,4 +74,4 @@ Alle LLM-kall logges med input, output, modellversjon og tidsstempel.
 
 ## 10. Versjonering
 
-Endringer i AI-komponentene dokumenteres i `CHANGELOG.md` med dato, ansvarlig og rasjonale. Modellversjoner låses i konfigurasjon (`app/config.py`).
+Endringer i AI-komponentene dokumenteres i `CHANGELOG.md` med dato, ansvarlig og rasjonale. Modellversjoner låses i konfigurasjon (`backend/app/core/config.py`).

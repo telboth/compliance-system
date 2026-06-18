@@ -1,6 +1,11 @@
 {
   "nav": {
     "invoices": "Fakturaer",
+    "invoice_overview": "Oversikt",
+    "worklists_group": "Arbeidslister",
+    "analysis_group": "Analyse",
+    "configuration_group": "Konfigurasjon",
+    "operations_group": "Drift",
     "dashboard": "📊 Dashboard",
     "customers": "Kunder",
     "review_queue": "Review-kø",
@@ -10,7 +15,7 @@
     "maps": "Kart",
     "risk_map": "🌍 Risikoland",
     "sanctioned_entities": "Sanksjonerte entiteter",
-    "invoice_search": "Invoice-søk",
+    "invoice_search": "Søk",
     "shipments_map": "Forsendelseskart",
     "pipeline_ops": "Pipeline drift",
     "kri": "📈 KRI",

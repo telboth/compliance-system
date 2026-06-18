@@ -465,7 +465,7 @@ const NB: AboutContent = {
             "Inneholder knapp for manuell oppdatering av sanksjonsdatabasen.",
     },
     {
-      icon: "🔍", name: "Fakturasook", path: "/invoice-search",
+      icon: "🔍", name: "Fakturasook", path: "/invoices/search",
       access: "Alle roller",
       desc: "Avansert fulltekstsook paa tvers av alle fakturaer og entiteter. Stotter soek " +
             "paa fakturanummer, serienummer, entitetsnavn, destinasjonsland og HS-kode.",
@@ -484,11 +484,11 @@ const NB: AboutContent = {
             "Hvert knutepunkt kan gi tilbakemelding (relevant / ikke relevant).",
     },
     {
-      icon: "🛡", name: "Eksportkontroll", path: "/export-control",
+      icon: "🛡", name: "Eksportkontroll", path: "/review-queue?filter=export_control",
       access: "Compliance officer, Admin",
-      desc: "Arbeidsliste over fakturaer flagget mot DEKSAs Vareliste I (militaere varer, " +
-            "ML1-ML22) eller Vareliste II (dual-use, kategoriene 0-9). Viser treff per " +
-            "linje med liste, kategori og konfidensnivaa (hoy/medium/lav).",
+      desc: "Filter i review-køen for fakturaer flagget mot DEKSAs Vareliste I " +
+            "(militaere varer, ML1-ML22) eller Vareliste II (dual-use, kategoriene 0-9). " +
+            "Viser treff per linje med liste, kategori og konfidensnivaa (hoy/medium/lav).",
     },
     {
       icon: "📚", name: "Vareliste-referanse", path: "/export-control/reference",
@@ -498,11 +498,11 @@ const NB: AboutContent = {
             "historiske fakturaer mot gjeldende listeversjons.",
     },
     {
-      icon: "🎯", name: "Sluttbruker / catch-all", path: "/catch-all",
+      icon: "🎯", name: "Sluttbruker / catch-all", path: "/review-queue?filter=catch_all",
       access: "Compliance officer, Admin",
-      desc: "Arbeidsliste over fakturaer med risikosignaler i sluttbruker, destinasjon " +
-            "eller tiltenkt bruk etter DEKSAs catch-all-prinsipp. Viser signaler som er " +
-            "utlost: militaer sluttbruker, diversjonsrisiko, nukleaer bruk m.fl.",
+      desc: "Filter i review-køen for fakturaer med risikosignaler i sluttbruker, " +
+            "destinasjon eller tiltenkt bruk etter DEKSAs catch-all-prinsipp. Viser " +
+            "utloste signaler som militaer sluttbruker, diversjonsrisiko, nukleaer bruk m.fl.",
     },
   ],
 
@@ -1191,7 +1191,7 @@ const EN: AboutContent = {
             "Includes a button to trigger a manual refresh of the sanctions database.",
     },
     {
-      icon: "🔍", name: "Invoice search", path: "/invoice-search",
+      icon: "🔍", name: "Invoice search", path: "/invoices/search",
       access: "All roles",
       desc: "Advanced full-text search across all invoices and entities. Supports search by " +
             "invoice number, serial number, entity name, destination country and HS code.",
@@ -1210,11 +1210,11 @@ const EN: AboutContent = {
             "Each node can be marked as relevant or not relevant.",
     },
     {
-      icon: "🛡", name: "Export control", path: "/export-control",
+      icon: "🛡", name: "Export control", path: "/review-queue?filter=export_control",
       access: "Compliance Officer, Admin",
-      desc: "Worklist of invoices flagged against DEKSA Vareliste I (military goods, " +
-            "ML1-ML22) or Vareliste II (dual-use, categories 0-9). Shows hits per line " +
-            "with list, category and confidence level (high/medium/low).",
+      desc: "Filter in the review queue for invoices flagged against DEKSA Vareliste I " +
+            "(military goods, ML1-ML22) or Vareliste II (dual-use, categories 0-9). " +
+            "Shows hits per line with list, category and confidence level (high/medium/low).",
     },
     {
       icon: "📚", name: "Export control reference", path: "/export-control/reference",
@@ -1224,11 +1224,11 @@ const EN: AboutContent = {
             "invoices against the current list version.",
     },
     {
-      icon: "🎯", name: "End-user / catch-all", path: "/catch-all",
+      icon: "🎯", name: "End-user / catch-all", path: "/review-queue?filter=catch_all",
       access: "Compliance Officer, Admin",
-      desc: "Worklist of invoices with risk signals in end-user, destination or intended " +
-            "use under DEKSAs catch-all principle. Shows triggered signals: military " +
-            "end-use, diversion risk, nuclear use, and more.",
+      desc: "Filter in the review queue for invoices with risk signals in end-user, " +
+            "destination or intended use under DEKSA's catch-all principle. Shows " +
+            "triggered signals: military end-use, diversion risk, nuclear use, and more.",
     },
   ],
 

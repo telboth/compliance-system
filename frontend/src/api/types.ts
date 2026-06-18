@@ -335,8 +335,6 @@ export interface Invoice {
   review_reason: string | null;
   reviewed_by: string | null;
   reviewed_at: string | null;
-  review_claimed_by: string | null;
-  review_claimed_at: string | null;
 }
 
 export interface InvoiceSummary {
@@ -412,10 +410,9 @@ export interface ReviewQueueItem {
   has_export_control: boolean;
   has_catch_all: boolean;
   awaiting_approval: boolean;
-  review_claimed_by: string | null;
-  review_claimed_at: string | null;
-  claim_is_mine: boolean;
-  claim_is_stale: boolean;
+  vat_check: VatMismatchCheck | null;
+  export_control_check: ExportControlCheck | null;
+  catch_all_check: CatchAllCheck | null;
 }
 
 export interface ReviewQueueResponse {

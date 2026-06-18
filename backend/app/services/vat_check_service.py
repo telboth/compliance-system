@@ -6,7 +6,7 @@ import re
 from dataclasses import dataclass
 from decimal import Decimal, InvalidOperation
 
-from sqlalchemy import func, select
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -160,25 +160,16 @@ async def list_vat_mismatch_invoices(
 ) -> tuple[list[VatMismatchInvoiceResult], int, int]:
     """Hent invoices med VAT-heuristikk, valgfritt filtrert til kun flaggede.
 
-    Bruker lagret ``vat_note_status`` for databasefiltrering og -paginering
-    slik at hele tabellen ikke lastes inn i minnet.
+    Vi evaluerer på invoice-feltene og entitetene som faktisk er lagret,
+    i stedet for å stole på en separat statuskolonne som kan være utdatert.
     """
-    total_scanned: int = (await session.execute(select(func.count()).select_from(Invoice))).scalar_one()
+    stmt = select(Invoice).options(selectinload(Invoice.entities)).order_by(Invoice.created_at.desc())
+    invoices = list((await session.execute(stmt)).scalars().all())
 
-    total_flagged: int = (
-        await session.execute(select(func.count()).select_from(Invoice).where(Invoice.vat_note_status == "error"))
-    ).scalar_one()
+    results = [VatMismatchInvoiceResult(invoice=inv, check=evaluate_invoice_vat_mismatch(inv)) for inv in invoices]
+    total_scanned = len(results)
+    flagged_results = [result for result in results if result.check.flagged]
+    total_flagged = len(flagged_results)
 
-    stmt = (
-        select(Invoice)
-        .options(selectinload(Invoice.entities))
-        .order_by(Invoice.created_at.desc())
-        .limit(limit)
-        .offset(offset)
-    )
-    if flagged_only:
-        stmt = stmt.where(Invoice.vat_note_status == "error")
-
-    rows = list((await session.execute(stmt)).scalars().all())
-    results = [VatMismatchInvoiceResult(invoice=inv, check=evaluate_invoice_vat_mismatch(inv)) for inv in rows]
-    return results, total_flagged, total_scanned
+    paged_results = flagged_results if flagged_only else results
+    return paged_results[offset : offset + limit], total_flagged, total_scanned

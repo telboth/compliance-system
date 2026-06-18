@@ -3,9 +3,17 @@ from __future__ import annotations
 import csv
 from pathlib import Path
 
+import pytest
+
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 MANIFEST_PATH = PROJECT_ROOT / "Test_invoices" / "ground_truth_manifest.csv"
 INVOICES_DIR = PROJECT_ROOT / "Test_invoices"
+
+if not MANIFEST_PATH.exists():
+    pytest.skip(
+        f"Ingen ground-truth manifest i {MANIFEST_PATH.parent} — sett TEST_INVOICES_DIR eller legg inn testdata.",
+        allow_module_level=True,
+    )
 
 
 def _load_rows() -> list[dict[str, str]]:

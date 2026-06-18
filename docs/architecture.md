@@ -7,7 +7,7 @@ Detaljert arkitekturdokumentasjon. Komplementerer `docs/MVP_Byggeplan.md` (sprin
 ```
 PDF inn → Parsing → LLM-ekstraksjon → Screening + Regler + Avtale-match
                                            ↓
-                                    Beslutningsmotor
+                           Review- og statuslogikk i services
                                            ↓
                           Review (controller) → Audit-logg
 ```
@@ -16,49 +16,46 @@ PDF inn → Parsing → LLM-ekstraksjon → Screening + Regler + Avtale-match
 
 ### Backend (FastAPI)
 
-- `app/main.py` — FastAPI-applikasjon, CORS, middleware-registrering, router-mounting.
-- `app/core/config.py` — Pydantic Settings, lest fra miljøvariabler.
-- `app/core/database.py` — SQLAlchemy 2.0 async engine, session-factory.
-- `app/core/logging.py` — structlog-konfigurasjon.
-- `app/models/` — SQLAlchemy-modeller, én fil per domene-entitet.
-- `app/schemas/` — Pydantic v2 request/response-modeller.
-- `app/api/v1/` — Routere per ressurs (invoices, screening, rules, …).
-- `app/parsers/` — PDF-parsing med autodeteksjon.
-- `app/llm/` — LLM-abstraksjon (ABC + Anthropic + OpenAI-implementasjoner).
-- `app/sanctions/` — Lasting og matching av sanksjonslister.
-- `app/rules/` — Regelmotor (YAML → evaluering).
-- `app/decision/` — Beslutningsmotor som aggregerer alle resultater.
-- `app/audit/` — Hash-kjedet append-only logging.
-- `app/tasks/` — Celery-tasks for asynkron prosessering.
+- `app/main.py` - oppstart, lifespan, CORS og router-mounting.
+- `app/core/` - config, database, logging, errors og enkel rollevalidering.
+- `app/api/v1/` - HTTP-ruter per ressurs.
+- `app/models/` - SQLAlchemy-modeller.
+- `app/schemas/` - Pydantic request/response-modeller.
+- `app/parsers/` - Docling-basert parsing med autodeteksjon.
+- `app/llm/` - LLM-klienter, prompts, response-parsing og heuristikk/merge.
+- `app/sanctions/` - embargo-hjelpere, yente-klient og seed-/cachelogikk.
+- `app/services/` - invoice-pipeline, screening, regler, avtaler, review, audit, risikokvantifisering, eksportkontroll, catch-all, varsler og dashboard/KRI.
+- `app/tasks/` - Celery-tasks og async runtime-hjelpere.
+- `app/rules/default_rules/` - plassholder for standardregler; ingen YAML-filer er sjekket inn ennå.
+
+I dagens kode finnes det ikke egne `app/decision/`- eller `app/audit/`-pakker. Beslutnings- og auditlogikk ligger i services-laget og på `Invoice`-modellen.
 
 ### Frontend (React + Vite)
 
-- `src/api/` — Typesikre API-klienter.
-- `src/hooks/` — TanStack Query hooks per ressurs.
-- `src/pages/` — Toppnivå-views (Dashboard, ReviewQueue, InvoiceDetail, …).
-- `src/components/` — Gjenbrukbare UI-komponenter.
+- `src/api/` - API-klienter og types.
+- `src/hooks/` - TanStack Query hooks per ressurs.
+- `src/pages/` - toppnivå-views som Dashboard, ReviewQueue og InvoiceDetail.
+- `src/components/` - gjenbrukbare UI-komponenter.
 
 ### Asynkron prosessering
 
 Når en invoice lastes opp:
 
-1. API-et lagrer PDF-en og oppretter en `invoices`-rad med status `uploaded`.
-2. En Celery-task `process_invoice` plukker opp jobben:
-   - Parser PDF → tekst
-   - Kaller LLM for ekstraksjon
-   - Screener entiteter
-   - Evaluerer regler
-   - Sjekker mot rammeavtaler
-   - Aggregerer i beslutningsmotoren
-3. Frontend poller status (eller bruker WebSocket i fase 2).
+1. `POST /api/v1/invoices/upload` lagrer filen og oppretter en `invoices`-rad med status `uploaded`.
+2. API-et forsøker å legge jobben i Celery via `app.tasks.process_invoice.run`.
+3. Hvis Celery-enqueue feiler, faller den tilbake til `BackgroundTasks`.
+4. `process_invoice` kaller `invoice_service.parse_invoice_in_background`, som igjen går videre til parsing, ekstraksjon og videre pipeline-steg.
+5. `extraction_service` kan trigge screening automatisk etter ekstraksjon når `AUTO_SCREEN_AFTER_EXTRACT=true`.
+6. Frontend poller status og bruker `approval_state` fra API-et.
+
+`Invoice.approval_state` beregnes automatisk fra `status` og `compliance_score` via SQLAlchemy-events på modellen.
 
 ## Sikkerhet
 
-- Alle endepunkter bak JWT-autentisering (fastapi-users).
-- RBAC: `controller`, `compliance_officer`, `admin`, `readonly`.
-- TLS terminert i Nginx i produksjon.
-- Rate limiting via slowapi.
-- Sensitive felter krypteres ved lagring (fase 6+).
+- Dagens rollevalidering er server-side og header-basert via `X-Actor-Role` og `X-Actor-Name`.
+- `require_roles(...)` brukes på mange muterende ruter, men ikke alle ruter er låst ennå.
+- JWT/fastapi-users er planlagt senere, ikke implementert i dagens kode.
+- `GET /health` og `GET /config/keys/status` er åpne.
 
 ## Skalering
 
