@@ -194,7 +194,7 @@ export function ReviewQueuePage() {
   const shownTotal = filteredItems.length;
 
   return (
-    <div className="mx-auto max-w-5xl space-y-6 p-6">
+    <div className="mx-auto max-w-7xl space-y-6 p-6">
       <header>
         <h1 className="text-2xl font-semibold text-xlent-ink">{t("review_queue.title")}</h1>
         <p className="mt-1 text-sm text-xlent-muted">
@@ -267,7 +267,7 @@ export function ReviewQueuePage() {
       {!isLoading && !error && shownTotal === 0 && <EmptyState />}
 
       {!isLoading && !error && shownTotal > 0 && (
-        <div className="overflow-hidden rounded-lg border border-gray-200 bg-white">
+        <div className="overflow-x-auto rounded-lg border border-gray-200 bg-white">
           <table className="min-w-full">
             <thead>
               <tr className="bg-xlent-surface text-left text-xs font-semibold uppercase tracking-wide text-xlent-muted">
@@ -298,7 +298,7 @@ export function ReviewQueuePage() {
                   {pending.length > 0 && (
                     <tr>
                       <td
-                        colSpan={9}
+                        colSpan={10}
                         className="bg-gray-50 px-4 py-2 text-[11px] font-semibold uppercase tracking-wider text-xlent-muted"
                       >
                         {t("review_queue.section_decided")}
