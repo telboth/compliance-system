@@ -9,6 +9,7 @@ from app.api.v1 import (
     audit_plans,
     catch_all,
     config,
+    embargo_admin,
     control_effectiveness,
     customers,
     policies,
@@ -135,3 +136,10 @@ api_router.include_router(ai_governance.router, prefix="/ai-governance", tags=["
 # Risikokvantifisering — per-invoice under /invoices, admin-bulk under /risk
 api_router.include_router(risk.invoice_router, prefix="/invoices", tags=["risk"])
 api_router.include_router(risk.admin_router, prefix="/risk", tags=["risk"])
+
+# Embargo-administrasjon — land-liste og maanedlig synkronisering
+api_router.include_router(
+    embargo_admin.router,
+    prefix="/embargo",
+    tags=["embargo"],
+)

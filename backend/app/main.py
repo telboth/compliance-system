@@ -135,6 +135,20 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
     # Pre-warm Docling i bakgrunnen (se _warm_docling for detaljer).
     asyncio.get_running_loop().run_in_executor(None, _warm_docling, logger)
 
+    # Seed og last embargo-cache fra DB.
+    try:
+        from app.core.database import get_session_factory
+        from app.sanctions.embargo import seed_db_from_static, load_cache_from_db
+        async with get_session_factory()() as _s:
+            seeded = await seed_db_from_static(_s)
+            if seeded:
+                logger.info("embargo_seed_complete", count=seeded)
+            loaded = await load_cache_from_db(_s)
+            if loaded:
+                logger.info("embargo_cache_loaded", count=loaded)
+    except Exception:
+        logger.exception("embargo_startup_failed")
+
     # Startup-recovery: finn invoices som satt fast under forrige kjøring.
     # Kjøres som en async task slik at oppstart ikke blokkeres.
     _track_startup_task(asyncio.create_task(_recover_stuck_invoices(logger, settings)))
