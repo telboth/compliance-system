@@ -14,6 +14,8 @@ __pycache__/
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/
+.coverage
+backend/.coverage
 *.tsbuildinfo
 backend/celerybeat-schedule
 .DS_Store
