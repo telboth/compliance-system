@@ -94,6 +94,14 @@ celery_app.conf.update(
                 hour=settings.external_source_refresh_hour,
             ),
         },
+        "monthly-world-bank-watchlist-ingest": {
+            "task": "app.tasks.update_external_watchlists.run_world_bank_monthly",
+            "schedule": crontab(
+                minute=settings.world_bank_debarred_refresh_minute,
+                hour=settings.world_bank_debarred_refresh_hour,
+                day_of_month=settings.world_bank_debarred_refresh_day_of_month,
+            ),
+        },
         "screening-watchdog-extracted-stale": {
             "task": "app.tasks.screening_watchdog.run_scheduled",
             "schedule": watchdog_schedule,

@@ -16,6 +16,7 @@ import { useTranslation } from "react-i18next";
 import clsx from "clsx";
 
 import { listExportControlInvoices } from "@/api/exportControl";
+import { InvoiceFilePreviewLink } from "@/components/InvoiceFilePreview";
 import type {
   ExportControlConfidence,
   ExportControlLineHit,
@@ -267,14 +268,12 @@ export function ExportControlPage() {
                     <StatusChip status={item.check.status} />
                   </td>
                   <td className="px-2 py-3">
-                    <Link
-                      to={`/invoices/${item.invoice_id}`}
-                      className="text-sm font-medium text-xlent-primary hover:underline"
-                    >
-                      {item.original_filename ??
-                        item.invoice_number ??
-                        item.invoice_id.slice(0, 8)}
-                    </Link>
+                    <InvoiceFilePreviewLink
+                      invoiceId={item.invoice_id}
+                      filename={item.original_filename}
+                      invoiceNumber={item.invoice_number}
+                      className="text-sm font-medium"
+                    />
                     {item.invoice_number && item.original_filename && (
                       <span className="ml-2 text-xs text-xlent-muted">
                         #{item.invoice_number}

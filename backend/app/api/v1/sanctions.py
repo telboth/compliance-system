@@ -892,6 +892,10 @@ async def get_sanctions_status(session: SessionDep) -> SanctionsStatusResponse:
             external_refresh_schedule_time=(
                 f"{settings.external_source_refresh_hour:02d}:{settings.external_source_refresh_minute:02d}"
             ),
+            world_bank_refresh_schedule_time=(
+                f"{settings.world_bank_debarred_refresh_hour:02d}:{settings.world_bank_debarred_refresh_minute:02d}"
+            ),
+            world_bank_refresh_schedule_day_of_month=settings.world_bank_debarred_refresh_day_of_month,
             last_refresh_run=(
                 SanctionsRefreshRunStatus(
                     trigger=latest_refresh.trigger,
@@ -932,6 +936,10 @@ async def get_sanctions_status(session: SessionDep) -> SanctionsStatusResponse:
         external_refresh_schedule_time=(
             f"{settings.external_source_refresh_hour:02d}:{settings.external_source_refresh_minute:02d}"
         ),
+        world_bank_refresh_schedule_time=(
+            f"{settings.world_bank_debarred_refresh_hour:02d}:{settings.world_bank_debarred_refresh_minute:02d}"
+        ),
+        world_bank_refresh_schedule_day_of_month=settings.world_bank_debarred_refresh_day_of_month,
         last_refresh_run=(
             SanctionsRefreshRunStatus(
                 trigger=latest_refresh.trigger,
@@ -1013,7 +1021,7 @@ async def refresh_sanctions(
 async def refresh_external_sources(
     _actor: ActorContext = Depends(require_roles("admin", "compliance_officer")),
 ) -> SanctionsRefreshResponse:
-    """Trigger manuell ingest av UK/WorldBank for utvidet screening."""
+    """Trigger manuell oppdatering av UK sanctions og World Bank for utvidet screening."""
     result = await run_external_watchlist_ingest_cycle()
     if not bool(result.get("started")):
         return SanctionsRefreshResponse(

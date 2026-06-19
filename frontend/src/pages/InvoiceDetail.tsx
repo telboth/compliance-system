@@ -952,7 +952,7 @@ function EntityCard({
                   checked={enableWorldBankDebarred}
                   onChange={(event) => setEnableWorldBankDebarred(event.target.checked)}
                 />
-                World Bank debarred
+                World Bank Debarred
               </label>
               <label className="inline-flex items-center gap-1">
                 <input

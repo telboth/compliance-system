@@ -43,15 +43,28 @@
     "loading": "Laster side …"
   },
   "ingest": {
-    "title": "Ingest drift",
+    "title": "Oppdateringsstatus",
     "sources": "Eksterne kilder:",
     "checking": "Sjekker …",
     "ok_format": "{{ok}}/{{total}} ok",
     "schedule": "Plan:",
+    "schedule_detail": "UK daglig {{ukTime}} · World Bank månedlig {{wbTime}} (dag {{wbDay}}) · {{timezone}}",
     "last_updated": "Sist oppdatert:",
     "unknown": "Ukjent",
     "warning_prefix": "Varsel:",
     "open_details": "Åpne detaljer"
+  },
+  "file_preview": {
+    "title": "Fakturavisning",
+    "subtitle": "Originalfilen vises direkte fra lagret fakturafil.",
+    "pdf_title": "Faktura PDF",
+    "open_new_tab": "Åpne i ny fane",
+    "download": "Last ned",
+    "close": "Lukk",
+    "preview_unavailable": "Forhåndsvisning er ikke tilgjengelig for filtype",
+    "default_filetype": "fil",
+    "open_details": "Åpne fakturadetaljer",
+    "details_short": "Detaljer"
   },
   "upload": {
     "section_title": "Last opp invoice",

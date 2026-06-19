@@ -138,6 +138,8 @@ class SanctionsStatusResponse(BaseModel):
     refresh_schedule_time: str = "07:40"
     refresh_schedule_timezone: str = "Europe/Oslo"
     external_refresh_schedule_time: str = "07:45"
+    world_bank_refresh_schedule_time: str = "03:15"
+    world_bank_refresh_schedule_day_of_month: int = 1
     last_refresh_run: SanctionsRefreshRunStatus | None = None
 
 
@@ -244,7 +246,7 @@ class ExtendedScreenStartRequest(BaseModel):
     )
     enable_world_bank_debarred: bool = Field(
         default=True,
-        description="Aktiver World Bank debarred-liste i ekstern match.",
+        description="Aktiver World Bank Debarred-listen i ekstern match.",
     )
     enable_ai_entity_research: bool = Field(
         default=True,

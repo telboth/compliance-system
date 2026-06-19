@@ -1,8 +1,8 @@
 import { useMemo, useState } from "react";
 import clsx from "clsx";
-import { Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 
+import { InvoiceFilePreviewLink } from "@/components/InvoiceFilePreview";
 import {
   usePipelineMetrics,
   usePipelineRecovery,
@@ -244,9 +244,11 @@ export function PipelineOpsPage() {
                   {recovery.data.items.map((row) => (
                     <tr key={row.invoice_id} className="border-t border-gray-100 text-xlent-ink">
                       <td className="px-2 py-1.5">
-                        <Link to={`/invoices/${row.invoice_id}`} className="text-xlent-primary hover:underline">
-                          {row.original_filename ?? row.invoice_number ?? row.invoice_id}
-                        </Link>
+                        <InvoiceFilePreviewLink
+                          invoiceId={row.invoice_id}
+                          filename={row.original_filename}
+                          invoiceNumber={row.invoice_number}
+                        />
                       </td>
                       <td className={clsx("px-2 py-1.5 font-medium", statusClass(row.status))}>{row.status}</td>
                       <td className="px-2 py-1.5">{t("pipeline_ops.minutes_short", { minutes: row.minutes_in_status })}</td>

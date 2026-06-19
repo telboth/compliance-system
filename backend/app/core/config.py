@@ -61,10 +61,15 @@ class Settings(BaseSettings):
     # Daglig automatisk sanksjonsoppdatering (Celery Beat).
     sanctions_refresh_hour: int = 7
     sanctions_refresh_minute: int = 40
-    # Daglig ingest av eksterne watchlists (UK/WorldBank).
+    # Daglig oppdatering av eksterne watchlists (UK sanctions).
     external_source_refresh_hour: int = 7
     external_source_refresh_minute: int = 45
     external_source_stale_hours: int = 36
+    # Månedlig oppdatering av World Bank Debarred Firms and Individuals.
+    world_bank_debarred_refresh_hour: int = 3
+    world_bank_debarred_refresh_minute: int = 15
+    world_bank_debarred_refresh_day_of_month: int = 1
+    world_bank_debarred_stale_days: int = 45
 
     # LLM — nøkler leses fra .secrets
     anthropic_api_key: SecretStr = Field(default=SecretStr(""))
@@ -119,7 +124,6 @@ class Settings(BaseSettings):
     yente_url: str = "http://yente:8000"
     yente_update_token: str = ""
     elasticsearch_url: str = "http://elasticsearch:9200"
-    world_bank_debarred_api_key: str = ""  # Sett i .secrets: WORLD_BANK_DEBARRED_API_KEY=
     opencorporates_api_token: str = ""
     extended_screen_ai_model: str = "gpt-4o-mini"
     extended_screen_ai_timeout_seconds: int = 45

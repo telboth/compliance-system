@@ -1,10 +1,11 @@
-"""Regulatorisk Radar — henter og lagrer RSS/Atom-feeds fra regulatoriske kilder.
+"""Regulatorisk Radar — henter og lagrer regulatoriske oppdateringer fra flere kilder.
 
 Støttede kilder:
-  - OFAC (US Treasury) — sanctions updates
-  - EUR-Lex — EU forordninger og direktiver
-  - HM Treasury (UK) — UK sanctions
-  - UN Security Council — consolidated list updates
+  - OFAC (US Treasury) — recent actions / sanctions list updates
+  - HM Treasury (OFSI) — britiske sanksjonsoppdateringer
+  - EUR-Lex — manuell RSS-varsling / ingen stabil offentlig feed
+  - UN Security Council — offisiell RSS-feed
+  - DEKSA — eksportkontrolloppdateringer
 
 Bruker stdlib xml.etree.ElementTree + httpx for ingen ekstra avhengigheter.
 """
@@ -12,10 +13,13 @@ Bruker stdlib xml.etree.ElementTree + httpx for ingen ekstra avhengigheter.
 from __future__ import annotations
 
 import logging
+import re
 import xml.etree.ElementTree as ET
 from datetime import UTC, datetime
 from email.utils import parsedate_to_datetime
-from typing import Any
+from html import unescape
+from typing import Any, TypedDict
+from urllib.parse import urljoin
 
 import httpx
 from sqlalchemy import func, select
@@ -27,33 +31,100 @@ from app.services import notification_service
 logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
-# Definisjon av feeds
+# Definisjon av kilder
 # ---------------------------------------------------------------------------
 
-REGULATORY_FEEDS: list[dict[str, str]] = [
+
+class RegulatorySourceConfig(TypedDict):
+    name: str
+    feed_url: str
+    category: str
+    description: str
+    enabled: bool
+    source_type: str
+    status_note: str | None
+    headers: dict[str, str] | None
+
+
+class RegulatorySourceStatus(TypedDict):
+    name: str
+    feed_url: str
+    category: str
+    description: str
+    enabled: bool
+    source_type: str
+    status_note: str | None
+    status: str
+    alert_count: int
+    latest_alert_at: datetime | None
+
+
+class RegulatoryRefreshSourceResult(TypedDict):
+    name: str
+    feed_url: str
+    category: str
+    description: str
+    enabled: bool
+    source_type: str
+    status_note: str | None
+    result_status: str
+    new_alerts: int
+    message: str | None
+
+
+_DEFAULT_FEED_HEADERS = {
+    "User-Agent": (
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+        "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+    ),
+    "Accept": "application/rss+xml, application/atom+xml, text/xml, text/html, application/xhtml+xml;q=0.9, */*;q=0.8",
+    "Accept-Language": "en-US,en;q=0.9",
+}
+
+
+REGULATORY_FEEDS: list[RegulatorySourceConfig] = [
     {
         "name": "OFAC",
-        "feed_url": "https://ofac.treasury.gov/media/rss/recent-actions.xml",
+        "feed_url": "https://ofac.treasury.gov/recent-actions/sanctions-list-updates",
         "category": "sanctions",
-        "description": "US Office of Foreign Assets Control — nyeste sanksjonsbeslutninger",
+        "description": "US Office of Foreign Assets Control — sanctions list updates og recent actions",
+        "enabled": True,
+        "source_type": "html",
+        "status_note": "OFACs RSS-feed er avviklet; vi henter recent-actions-siden direkte.",
+        "headers": None,
     },
     {
         "name": "EUR-Lex",
-        "feed_url": "https://eur-lex.europa.eu/rss/atom/EU_Notices_OJL_L.xml",
+        "feed_url": "https://eur-lex.europa.eu/content/help/search/predefined-rss.html",
         "category": "export_control",
-        "description": "EU Official Journal — forordninger og direktiver (L-serien)",
+        "description": "EUR-Lex — sanksjonsrelaterte varsler",
+        "enabled": False,
+        "source_type": "disabled",
+        "status_note": (
+            "EUR-Lex krever egen RSS-varsling eller brukerkonfigurasjon. "
+            "Ingen stabil offentlig feed er satt opp her."
+        ),
+        "headers": None,
     },
     {
         "name": "HM Treasury",
-        "feed_url": "https://www.gov.uk/government/collections/financial-sanctions-regime-specific-consolidated-lists.atom",
+        "feed_url": "https://ofsi.blog.gov.uk/feed/",
         "category": "sanctions",
-        "description": "UK HM Treasury — Financial Sanctions konsolidert liste",
+        "description": "UK HM Treasury / OFSI — blogg og sanksjonsoppdateringer",
+        "enabled": True,
+        "source_type": "atom",
+        "status_note": "OFSI-bloggen brukes som aktiv oppdateringskilde for britiske sanksjonsendringer.",
+        "headers": None,
     },
     {
         "name": "UN SC",
-        "feed_url": "https://www.un.org/sc/suborg/en/sanctions/un-sc-consolidated-list.xml",
+        "feed_url": "https://main.un.org/securitycouncil/feed/1.0/updates_unsc_consolidated_list",
         "category": "sanctions",
         "description": "FNs sikkerhetsråd — konsolidert sanksjonsliste",
+        "enabled": True,
+        "source_type": "rss",
+        "status_note": "Offisiell RSS-feed som hentes automatisk.",
+        "headers": None,
     },
     {
         "name": "DEKSA",
@@ -61,6 +132,10 @@ REGULATORY_FEEDS: list[dict[str, str]] = [
         "category": "export_control",
         "description": "Direktoratet for eksportkontroll og sanksjoner — norske "
         "listeoppdateringer, sanksjonsendringer og varslinger",
+        "enabled": True,
+        "source_type": "rss",
+        "status_note": "Offisiell DEKSA-feed.",
+        "headers": None,
     },
 ]
 
@@ -106,7 +181,13 @@ def _parse_date(raw: str | None) -> datetime | None:
     if not raw:
         return None
     raw = raw.strip()
-    for fmt in ("%Y-%m-%dT%H:%M:%S%z", "%Y-%m-%dT%H:%M:%SZ", "%Y-%m-%d"):
+    for fmt in (
+        "%Y-%m-%dT%H:%M:%S%z",
+        "%Y-%m-%dT%H:%M:%SZ",
+        "%Y-%m-%d",
+        "%B %d, %Y",
+        "%b %d, %Y",
+    ):
         try:
             dt = datetime.strptime(raw, fmt)
             if dt.tzinfo is None:
@@ -118,6 +199,34 @@ def _parse_date(raw: str | None) -> datetime | None:
         return parsedate_to_datetime(raw)
     except Exception:
         return None
+
+
+def _parse_ofac_recent_actions(content: bytes) -> list[dict[str, Any]]:
+    """Trekk ut OFAC recent-actions fra HTML-listesiden."""
+    text = content.decode("utf-8", errors="ignore")
+    items: list[dict[str, Any]] = []
+    pattern = re.compile(
+        r'<div class="margin-bottom-4 search-result views-row">.*?'
+        r'<a href="(?P<link>/recent-actions/[^"]+)" hreflang="en">(?P<title>.*?)</a>.*?'
+        r'(?P<date>[A-Za-z]+ \d{1,2}, \d{4}) -\s*<a href="[^"]+">(?P<category>.*?)</a>',
+        re.S,
+    )
+    for match in pattern.finditer(text):
+        title = unescape(match.group("title")).strip()
+        link = urljoin("https://ofac.treasury.gov", match.group("link"))
+        category = unescape(re.sub(r"<[^>]+>", "", match.group("category"))).strip() or None
+        published_at = _parse_date(match.group("date"))
+        if title:
+            items.append(
+                {
+                    "title": title[:512],
+                    "link": link,
+                    "summary": category,
+                    "guid": link[:1024],
+                    "published_at": published_at,
+                }
+            )
+    return items
 
 
 def _parse_rss(content: bytes) -> list[dict[str, Any]]:
@@ -199,48 +308,82 @@ def _parse_feed(content: bytes) -> list[dict[str, Any]]:
 async def fetch_and_store_feed(
     session: AsyncSession,
     *,
-    name: str,
-    feed_url: str,
-    category: str,
+    source: RegulatorySourceConfig,
     timeout_seconds: int = 30,
-) -> int:
-    """Hent ett feed og lagre nye elementer i DB. Returnerer antall nye rader."""
+) -> RegulatoryRefreshSourceResult:
+    """Hent én kilde og lagre nye elementer i DB."""
+    base_result: RegulatoryRefreshSourceResult = {
+        "name": source["name"],
+        "feed_url": source["feed_url"],
+        "category": source["category"],
+        "description": source["description"],
+        "enabled": source["enabled"],
+        "source_type": source["source_type"],
+        "status_note": source["status_note"],
+        "result_status": "checked",
+        "new_alerts": 0,
+        "message": None,
+    }
+
+    if not source["enabled"]:
+        message = source["status_note"] or "Kilden er deaktivert."
+        logger.info("Kilde %s er deaktivert: %s", source["name"], message)
+        base_result["result_status"] = "skipped"
+        base_result["message"] = message
+        return base_result
+
     try:
+        request_headers = dict(_DEFAULT_FEED_HEADERS)
+        if source.get("headers"):
+            request_headers.update(source["headers"])
         async with httpx.AsyncClient(timeout=timeout_seconds, follow_redirects=True) as client:
-            resp = await client.get(feed_url, headers={"Accept": "application/rss+xml, application/atom+xml, text/xml"})
+            resp = await client.get(
+                source["feed_url"],
+                headers=request_headers,
+            )
             resp.raise_for_status()
             content = resp.content
     except Exception as exc:
-        logger.error("Feil ved henting av feed %s (%s): %s", name, feed_url, exc)
-        return 0
+        logger.error("Feil ved henting av feed %s (%s): %s", source["name"], source["feed_url"], exc)
+        base_result["result_status"] = "error"
+        base_result["message"] = str(exc)[:512]
+        return base_result
 
-    parsed = _parse_feed(content)
+    if source["source_type"] == "html":
+        parsed = _parse_ofac_recent_actions(content)
+    else:
+        parsed = _parse_feed(content)
+
     if not parsed:
-        logger.info("Ingen elementer funnet i feed %s", name)
-        return 0
+        logger.info("Ingen elementer funnet i feed %s", source["name"])
+        base_result["result_status"] = "checked"
+        base_result["message"] = "Ingen elementer funnet i kilden."
+        return base_result
 
-    # Hent eksisterende guids for å unngå duplikater
+    # Hent eksisterende guids og hold styr på hva vi allerede har akseptert i denne kjøringen.
     guids = [item["guid"] for item in parsed]
     existing_guids: set[str] = set(
         (await session.execute(select(RegulatoryAlert.guid).where(RegulatoryAlert.guid.in_(guids)))).scalars().all()
     )
-
+    seen_guids = set(existing_guids)
     new_count = 0
     for item in parsed:
-        if item["guid"] in existing_guids:
+        guid = (item["guid"] or "").strip()
+        if not guid or guid in seen_guids:
             continue
+        seen_guids.add(guid)
         severity = _guess_severity(item["title"], item.get("summary"))
         alert = RegulatoryAlert(
-            source=name,
-            feed_url=feed_url,
+            source=source["name"],
+            feed_url=source["feed_url"],
             title=item["title"],
             link=item.get("link"),
             summary=item.get("summary"),
             published_at=item.get("published_at"),
             fetched_at=datetime.now(UTC),
-            guid=item["guid"],
+            guid=guid,
             severity=severity,
-            category=category,
+            category=source["category"],
             is_notified=False,
         )
         session.add(alert)
@@ -248,24 +391,69 @@ async def fetch_and_store_feed(
 
     if new_count:
         await session.flush()
-        logger.info("Feed %s: %d nye varsler lagret", name, new_count)
+        logger.info("Feed %s: %d nye varsler lagret", source["name"], new_count)
 
-    return new_count
+    base_result["result_status"] = "imported" if new_count else "checked"
+    base_result["new_alerts"] = new_count
+    base_result["message"] = f"{new_count} nye varsler lagret" if new_count else "Ingen nye varsler."
+    return base_result
+
+
+async def _load_source_stats(session: AsyncSession) -> dict[str, dict[str, Any]]:
+    stmt = select(
+        RegulatoryAlert.source,
+        func.count().label("alert_count"),
+        func.max(func.coalesce(RegulatoryAlert.published_at, RegulatoryAlert.fetched_at)).label("latest_alert_at"),
+    ).group_by(RegulatoryAlert.source)
+    rows = (await session.execute(stmt)).all()
+    return {
+        source: {
+            "alert_count": int(alert_count),
+            "latest_alert_at": latest_alert_at,
+        }
+        for source, alert_count, latest_alert_at in rows
+    }
+
+
+async def list_sources(session: AsyncSession) -> list[RegulatorySourceStatus]:
+    """Returner konfigurerte kilder med enkle statusdata fra lagrede varsler."""
+    stats = await _load_source_stats(session)
+    sources: list[RegulatorySourceStatus] = []
+    for source in REGULATORY_FEEDS:
+        data = stats.get(source["name"])
+        alert_count = data["alert_count"] if data else 0
+        latest_alert_at = data["latest_alert_at"] if data else None
+        status = "disabled" if not source["enabled"] else ("active" if alert_count else "empty")
+        sources.append(
+            {
+                "name": source["name"],
+                "feed_url": source["feed_url"],
+                "category": source["category"],
+                "description": source["description"],
+                "enabled": source["enabled"],
+                "source_type": source["source_type"],
+                "status_note": source["status_note"],
+                "status": status,
+                "alert_count": alert_count,
+                "latest_alert_at": latest_alert_at,
+            }
+        )
+    return sources
+
+
+async def refresh_sources(session: AsyncSession, *, timeout_seconds: int = 30) -> list[RegulatoryRefreshSourceResult]:
+    """Kjør alle konfigurerte kilder og returner detaljer per kilde."""
+    results: list[RegulatoryRefreshSourceResult] = []
+    for source in REGULATORY_FEEDS:
+        result = await fetch_and_store_feed(session, source=source, timeout_seconds=timeout_seconds)
+        results.append(result)
+    return results
 
 
 async def run_all_feeds(session: AsyncSession, *, timeout_seconds: int = 30) -> dict[str, int]:
-    """Kjør alle konfigurerte feeds og returner {source: antall_nye}."""
-    results: dict[str, int] = {}
-    for feed in REGULATORY_FEEDS:
-        count = await fetch_and_store_feed(
-            session,
-            name=feed["name"],
-            feed_url=feed["feed_url"],
-            category=feed["category"],
-            timeout_seconds=timeout_seconds,
-        )
-        results[feed["name"]] = count
-    return results
+    """Kjør alle konfigurerte kilder og returner {source: antall_nye}."""
+    results = await refresh_sources(session, timeout_seconds=timeout_seconds)
+    return {result["name"]: result["new_alerts"] for result in results}
 
 
 async def notify_unnotified(session: AsyncSession) -> int:

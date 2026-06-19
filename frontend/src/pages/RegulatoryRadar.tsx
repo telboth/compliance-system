@@ -1,17 +1,20 @@
 /**
  * RegulatoryRadar — sanntidsstrøm av regulatoriske varsler.
  *
- * Henter RSS/Atom-feeds fra OFAC, EUR-Lex, HM Treasury og FNs sikkerhetsråd.
- * Controlleren kan filtrere på kilde og alvorlighetsgrad, og starte en
- * manuell oppdatering av feeds.
+ * Viser aktive og inaktive regulatoriske kilder, henter varsler fra de kildene
+ * backend faktisk kan nå, og lar brukeren filtrere på kilde og alvorlighetsgrad.
  */
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import clsx from "clsx";
 
-import { getRegulatoryAlerts, refreshRegulatoryFeeds } from "@/api/regulatory";
-import type { RegulatoryAlert } from "@/api/types";
+import {
+  getRegulatoryAlerts,
+  getRegulatorySourcesList,
+  refreshRegulatoryFeeds,
+} from "@/api/regulatory";
+import type { RegulatoryAlert, RegulatorySource } from "@/api/types";
 
 // ── Badges ────────────────────────────────────────────────────────────────────
 
@@ -55,6 +58,99 @@ function CategoryBadge({ category }: { category: string | null }) {
     <span className="inline-flex items-center rounded bg-gray-100 px-1.5 py-0.5 text-[11px] text-gray-500">
       {category === "sanctions" ? "Sanksjoner" : "Eksportkontroll"}
     </span>
+  );
+}
+
+function SourceStatusBadge({ status }: { status: string }) {
+  const { t } = useTranslation("pages");
+  const colorMap: Record<string, string> = {
+    active: "bg-emerald-100 text-emerald-700",
+    empty: "bg-amber-100 text-amber-700",
+    disabled: "bg-gray-100 text-gray-600",
+    error: "bg-red-100 text-red-700",
+  };
+  const labelMap: Record<string, string> = {
+    active: t("regulatory_radar.source_status_active"),
+    empty: t("regulatory_radar.source_status_empty"),
+    disabled: t("regulatory_radar.source_status_disabled"),
+    error: t("regulatory_radar.source_status_error"),
+  };
+
+  return (
+    <span
+      className={clsx(
+        "inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide",
+        colorMap[status] ?? "bg-gray-100 text-gray-600",
+      )}
+    >
+      {labelMap[status] ?? status}
+    </span>
+  );
+}
+
+function SourceStatusTable({ sources }: { sources: RegulatorySource[] }) {
+  const { t, i18n } = useTranslation("pages");
+  const locale = i18n.language === "en" ? "en-GB" : "nb-NO";
+
+  return (
+    <section className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h2 className="text-sm font-semibold text-xlent-ink">
+            {t("regulatory_radar.sources_title")}
+          </h2>
+          <p className="mt-1 text-xs text-xlent-muted">
+            {t("regulatory_radar.sources_subtitle")}
+          </p>
+        </div>
+        <div className="text-xs text-xlent-muted">
+          {t("regulatory_radar.sources_count", { count: sources.length })}
+        </div>
+      </div>
+
+      <div className="mt-3 overflow-x-auto">
+        <table className="min-w-full divide-y divide-gray-200 text-left text-sm">
+          <thead className="bg-gray-50 text-xs uppercase tracking-wide text-gray-500">
+            <tr>
+              <th className="px-3 py-2">{t("regulatory_radar.col_source")}</th>
+              <th className="px-3 py-2">{t("regulatory_radar.col_status")}</th>
+              <th className="px-3 py-2">{t("regulatory_radar.col_alerts")}</th>
+              <th className="px-3 py-2">{t("regulatory_radar.col_last_alert")}</th>
+              <th className="px-3 py-2">{t("regulatory_radar.col_note")}</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-100">
+            {sources.map((source) => {
+              const latestAlert = source.latest_alert_at
+                ? new Date(source.latest_alert_at).toLocaleDateString(locale, {
+                    day: "numeric",
+                    month: "short",
+                    year: "numeric",
+                  })
+                : "—";
+              return (
+                <tr key={source.name} className="align-top">
+                  <td className="px-3 py-3">
+                    <div className="font-medium text-xlent-ink">{source.name}</div>
+                    <div className="mt-1 text-xs text-xlent-muted">{source.description}</div>
+                  </td>
+                  <td className="px-3 py-3">
+                    <SourceStatusBadge status={source.status} />
+                  </td>
+                  <td className="px-3 py-3 text-xlent-ink">{source.alert_count}</td>
+                  <td className="px-3 py-3 text-xlent-ink">{latestAlert}</td>
+                  <td className="px-3 py-3">
+                    <p className="text-xs leading-relaxed text-xlent-muted">
+                      {source.status_note ?? "—"}
+                    </p>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </section>
   );
 }
 
@@ -165,7 +261,7 @@ function FilterChip({
 
 // ── Hovedelement ──────────────────────────────────────────────────────────────
 
-const SOURCES = ["OFAC", "EUR-Lex", "HM Treasury", "UN SC", "DEKSA"];
+const FALLBACK_SOURCES = ["OFAC", "EUR-Lex", "HM Treasury", "UN SC", "DEKSA"];
 
 export function RegulatoryRadarPage() {
   const { t } = useTranslation("pages");
@@ -185,15 +281,28 @@ export function RegulatoryRadarPage() {
     staleTime: 60_000,
   });
 
+  const {
+    data: sources,
+    isLoading: sourcesLoading,
+    error: sourcesError,
+  } = useQuery({
+    queryKey: ["regulatory-radar-sources"],
+    queryFn: getRegulatorySourcesList,
+    staleTime: 60_000,
+  });
+
   const refreshMutation = useMutation({
     mutationFn: refreshRegulatoryFeeds,
-    onSuccess: () =>
-      queryClient.invalidateQueries({ queryKey: ["regulatory-radar"] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["regulatory-radar"] });
+      queryClient.invalidateQueries({ queryKey: ["regulatory-radar-sources"] });
+    },
   });
 
   const items = data?.items ?? [];
   const critical = items.filter((a) => a.severity === "critical");
   const info = items.filter((a) => a.severity !== "critical");
+  const sourceNames = sources?.map((source) => source.name) ?? FALLBACK_SOURCES;
 
   return (
     <div className="mx-auto max-w-4xl space-y-6 p-6">
@@ -228,6 +337,19 @@ export function RegulatoryRadarPage() {
         </div>
       )}
 
+      {/* Kilder */}
+      {sourcesLoading && (
+        <div className="rounded-lg border border-gray-200 bg-white px-4 py-3 text-sm text-xlent-muted">
+          {t("regulatory_radar.sources_loading")}
+        </div>
+      )}
+      {sourcesError && (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+          {t("regulatory_radar.sources_error")}
+        </div>
+      )}
+      {sources && <SourceStatusTable sources={sources} />}
+
       {/* Kildefiltre */}
       <div className="flex flex-wrap gap-2">
         <FilterChip
@@ -236,7 +358,7 @@ export function RegulatoryRadarPage() {
         >
           {t("regulatory_radar.filter_all_sources")}
         </FilterChip>
-        {SOURCES.map((s) => (
+        {sourceNames.map((s) => (
           <FilterChip
             key={s}
             active={sourceFilter === s}

@@ -1,8 +1,8 @@
 import { useMemo, useState } from "react";
-import { Link } from "react-router-dom";
 import type { AxiosError } from "axios";
 import { useTranslation } from "react-i18next";
 
+import { InvoiceFilePreviewLink } from "@/components/InvoiceFilePreview";
 import { Pagination } from "@/components/Pagination";
 import { CountryAutocomplete } from "@/components/CountryAutocomplete";
 import {
@@ -411,12 +411,11 @@ export function InvoiceSearchPage() {
                             {hit.score.toFixed(2)}
                           </td>
                           <td className="px-3 py-2">
-                            <Link
-                              to={`/invoices/${hit.invoice_id}`}
-                              className="text-xlent-primary hover:underline"
-                            >
-                              {hit.original_filename ?? hit.invoice_number ?? hit.invoice_id}
-                            </Link>
+                            <InvoiceFilePreviewLink
+                              invoiceId={hit.invoice_id}
+                              filename={hit.original_filename}
+                              invoiceNumber={hit.invoice_number}
+                            />
                           </td>
                           <td className="px-3 py-2 text-xs text-xlent-muted">
                             {hit.destination_country ?? "—"}
@@ -662,12 +661,11 @@ export function InvoiceSearchPage() {
                             {hit.score.toFixed(2)}
                           </td>
                           <td className="px-3 py-2">
-                            <Link
-                              to={`/invoices/${hit.invoice_id}`}
-                              className="text-xlent-primary hover:underline"
-                            >
-                              {hit.original_filename ?? hit.invoice_number ?? hit.invoice_id}
-                            </Link>
+                            <InvoiceFilePreviewLink
+                              invoiceId={hit.invoice_id}
+                              filename={hit.original_filename}
+                              invoiceNumber={hit.invoice_number}
+                            />
                           </td>
                           <td className="px-3 py-2 text-xs text-xlent-muted">
                             #{hit.chunk_index}

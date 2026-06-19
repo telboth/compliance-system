@@ -1,15 +1,24 @@
 import { useEffect, useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import clsx from "clsx";
 import { useTranslation } from "react-i18next";
+import { Link } from "react-router-dom";
 
 import { Pagination } from "@/components/Pagination";
+import { getEmbargoSyncStatus } from "@/api/embargo";
+import { getExportListSyncStatus } from "@/api/exportControl";
 import {
   useRefreshExternalSources,
   useRefreshSanctions,
   useSanctionedEntities,
   useSanctionsStatus,
 } from "@/hooks/useInvoices";
-import type { SanctionedEntityType } from "@/api/types";
+import type {
+  EmbargoSyncState,
+  ExportListSyncState,
+  ListSyncStatus,
+  SanctionedEntityType,
+} from "@/api/types";
 
 const selectCls =
   "rounded border border-gray-200 bg-white px-2 py-1 text-xs text-xlent-ink focus:outline-none focus:ring-1 focus:ring-xlent-primary";
@@ -39,6 +48,36 @@ function refreshStatusClass(status: string | undefined): string {
       return "text-amber-700";
     case "skipped":
       return "text-xlent-muted";
+    default:
+      return "text-xlent-muted";
+  }
+}
+
+function fmtDate(iso: string | null | undefined, locale: string): string {
+  if (!iso) return "—";
+  const dt = new Date(iso);
+  if (Number.isNaN(dt.getTime())) return "—";
+  return dt.toLocaleString(locale, {
+    dateStyle: "short",
+    timeStyle: "short",
+  });
+}
+
+function syncStatusText(status: ListSyncStatus | undefined, t: (key: string) => string): string {
+  return t(`list_admin.status.${status ?? "idle"}`);
+}
+
+function syncStatusClass(status: ListSyncStatus | undefined): string {
+  switch (status) {
+    case "ok":
+      return "text-green-700";
+    case "error":
+      return "text-red-700";
+    case "update_available":
+      return "text-amber-700";
+    case "checking":
+    case "importing":
+      return "text-blue-700";
     default:
       return "text-xlent-muted";
   }
@@ -78,6 +117,24 @@ export function SanctionedEntitiesPage() {
     isLoading: sanctionsStatusLoading,
     error: sanctionsStatusError,
   } = useSanctionsStatus(true);
+  const {
+    data: exportListStatuses,
+    isLoading: exportListStatusesLoading,
+    error: exportListStatusesError,
+  } = useQuery({
+    queryKey: ["sanctioned-entities-export-list-status"],
+    queryFn: getExportListSyncStatus,
+    refetchInterval: 15_000,
+  });
+  const {
+    data: embargoStatus,
+    isLoading: embargoStatusLoading,
+    error: embargoStatusError,
+  } = useQuery({
+    queryKey: ["sanctioned-entities-embargo-status"],
+    queryFn: getEmbargoSyncStatus,
+    refetchInterval: 15_000,
+  });
   const refreshMutation = useRefreshSanctions();
   const externalRefreshMutation = useRefreshExternalSources();
 
@@ -88,8 +145,12 @@ export function SanctionedEntitiesPage() {
     return relation === "gte" ? `${t("sanctioned_entities.at_least")} ${total.toLocaleString(locale)}` : total.toLocaleString(locale);
   }, [data, relation, total, t, locale]);
   const latestUpdatedAt = useMemo(() => {
-    const timestamps = (sanctionsStatus?.datasets ?? [])
-      .map((dataset) => dataset.last_updated)
+    const timestamps = [
+      ...(sanctionsStatus?.local_sources ?? []).map((source) => source.last_updated),
+      ...(sanctionsStatus?.datasets ?? []).map((dataset) => dataset.last_updated),
+      sanctionsStatus?.last_refresh_run?.finished_at,
+      sanctionsStatus?.last_refresh_run?.started_at,
+    ]
       .filter((value): value is string => Boolean(value))
       .map((value) => new Date(value))
       .filter((dt) => !Number.isNaN(dt.getTime()));
@@ -97,10 +158,36 @@ export function SanctionedEntitiesPage() {
     timestamps.sort((a, b) => b.getTime() - a.getTime());
     return timestamps[0];
   }, [sanctionsStatus]);
+  const stateI = exportListStatuses?.find((s) => s.list_code === "I");
+  const stateII = exportListStatuses?.find((s) => s.list_code === "II");
+  const deksaRows = useMemo(
+    () => [
+      {
+        key: "I",
+        label: t("list_admin.list_I"),
+        state: stateI,
+        loading: exportListStatusesLoading,
+      },
+      {
+        key: "II",
+        label: t("list_admin.list_II"),
+        state: stateII,
+        loading: exportListStatusesLoading,
+      },
+      {
+        key: "EMBG",
+        label: t("list_admin.list_embargo"),
+        state: embargoStatus,
+        loading: embargoStatusLoading,
+      },
+    ],
+    [t, stateI, stateII, embargoStatus, exportListStatusesLoading, embargoStatusLoading],
+  );
   const latestRun = sanctionsStatus?.last_refresh_run ?? null;
   const externalIssues = (sanctionsStatus?.external_sources ?? []).filter(
     (row) => row.status !== "ok" || row.stale || row.error_message,
   );
+  const deksaErrors = [exportListStatusesError, embargoStatusError].filter(Boolean);
 
   return (
     <div className="mx-auto max-w-5xl space-y-6 p-6">
@@ -110,6 +197,11 @@ export function SanctionedEntitiesPage() {
           {t("sanctioned_entities.subtitle")}
         </p>
       </header>
+
+      <section className="rounded-lg border border-sky-200 bg-sky-50 p-4 text-xs text-sky-900">
+        <p className="font-medium">{t("sanctioned_entities.scope_title")}</p>
+        <p className="mt-1">{t("sanctioned_entities.scope_body")}</p>
+      </section>
 
       <section className="rounded-lg border border-gray-200 bg-white p-4">
         <div className="mb-3 flex flex-wrap items-center justify-between gap-3 rounded border border-gray-100 bg-gray-50 px-3 py-2 text-xs">
@@ -157,8 +249,12 @@ export function SanctionedEntitiesPage() {
             <div>
               {t("sanctioned_entities.scheduled_external_ingest")}:{" "}
               <span className="font-medium text-xlent-ink">
-                {sanctionsStatus?.external_refresh_schedule_time ?? "07:45"}{" "}
-                {sanctionsStatus?.refresh_schedule_timezone ?? "Europe/Oslo"}
+                {t("sanctioned_entities.external_schedule", {
+                  ukTime: sanctionsStatus?.external_refresh_schedule_time ?? "07:45",
+                  wbTime: sanctionsStatus?.world_bank_refresh_schedule_time ?? "03:15",
+                  wbDay: sanctionsStatus?.world_bank_refresh_schedule_day_of_month ?? 1,
+                  timezone: sanctionsStatus?.refresh_schedule_timezone ?? "Europe/Oslo",
+                })}
               </span>
             </div>
             <div>
@@ -294,6 +390,77 @@ export function SanctionedEntitiesPage() {
             </table>
           </div>
         )}
+
+        <section className="mb-3 rounded border border-amber-200 bg-amber-50 p-3">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <h2 className="text-sm font-semibold text-xlent-ink">
+                {t("sanctioned_entities.deksa_title")}
+              </h2>
+              <p className="mt-1 text-xs text-xlent-muted">
+                {t("sanctioned_entities.deksa_subtitle")}
+              </p>
+            </div>
+            <Link
+              to="/list-admin"
+              className="text-xs font-medium text-xlent-primary underline hover:opacity-80"
+            >
+              {t("sanctioned_entities.deksa_link")}
+            </Link>
+          </div>
+
+          {deksaErrors.length > 0 && (
+            <p className="mt-2 text-xs text-traffic-red">
+              {t("sanctioned_entities.deksa_load_error")}
+            </p>
+          )}
+
+          <div className="mt-3 overflow-x-auto rounded border border-amber-200 bg-white">
+            <table className="min-w-[860px] w-full text-left text-xs">
+              <thead className="bg-amber-50 text-xlent-muted">
+                <tr>
+                  <th className="px-2 py-1.5">{t("sanctioned_entities.deksa_col_list")}</th>
+                  <th className="px-2 py-1.5">{t("sanctioned_entities.deksa_col_status")}</th>
+                  <th className="px-2 py-1.5">{t("sanctioned_entities.deksa_col_version")}</th>
+                  <th className="px-2 py-1.5">{t("sanctioned_entities.deksa_col_checked")}</th>
+                  <th className="px-2 py-1.5">{t("sanctioned_entities.deksa_col_imported")}</th>
+                  <th className="px-2 py-1.5">{t("sanctioned_entities.deksa_col_items")}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {deksaRows.map(({ key, label, state, loading }) => {
+                  const typedState = state as ExportListSyncState | EmbargoSyncState | undefined;
+                  const status = typedState?.status as ListSyncStatus | undefined;
+                  return (
+                    <tr key={key} className="border-t border-amber-100 text-xlent-ink">
+                      <td className="px-2 py-1.5">
+                        <div className="font-medium">{label}</div>
+                        <div className="text-[11px] text-xlent-muted">{key}</div>
+                      </td>
+                      <td className={clsx("px-2 py-1.5", syncStatusClass(status))}>
+                        {loading && !typedState ? t("sanctioned_entities.loading") : syncStatusText(status, t)}
+                      </td>
+                      <td className="px-2 py-1.5">{typedState?.current_version ?? "—"}</td>
+                      <td className="px-2 py-1.5">
+                        {loading && !typedState ? "—" : fmtDate(typedState?.last_checked_at, locale)}
+                      </td>
+                      <td className="px-2 py-1.5">
+                        {loading && !typedState ? "—" : fmtDate(typedState?.last_imported_at, locale)}
+                      </td>
+                      <td className="px-2 py-1.5">
+                        {typedState?.item_count != null ? typedState.item_count.toLocaleString(locale) : "—"}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+
+          <p className="mt-2 text-[11px] text-xlent-muted">
+            {t("sanctioned_entities.deksa_note")}
+          </p>
+        </section>
 
         <div className="flex flex-wrap items-center gap-2">
           <input

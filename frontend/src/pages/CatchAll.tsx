@@ -16,6 +16,7 @@ import { useTranslation } from "react-i18next";
 import clsx from "clsx";
 
 import { listCatchAllInvoices } from "@/api/catchAll";
+import { InvoiceFilePreviewLink } from "@/components/InvoiceFilePreview";
 import type {
   CatchAllSignal,
   CatchAllSignalType,
@@ -195,14 +196,12 @@ export function CatchAllPage() {
                     <StatusChip status={item.check.status} />
                   </td>
                   <td className="px-2 py-3">
-                    <Link
-                      to={`/invoices/${item.invoice_id}`}
-                      className="text-sm font-medium text-xlent-primary hover:underline"
-                    >
-                      {item.original_filename ??
-                        item.invoice_number ??
-                        item.invoice_id.slice(0, 8)}
-                    </Link>
+                    <InvoiceFilePreviewLink
+                      invoiceId={item.invoice_id}
+                      filename={item.original_filename}
+                      invoiceNumber={item.invoice_number}
+                      className="text-sm font-medium"
+                    />
                     {item.check.end_user_name && (
                       <div className="text-xs text-xlent-muted">
                         {t("catch_all.end_user")}: {item.check.end_user_name}

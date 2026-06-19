@@ -43,15 +43,28 @@
     "loading": "Loading page …"
   },
   "ingest": {
-    "title": "Ingest status",
+    "title": "Update status",
     "sources": "External sources:",
     "checking": "Checking …",
     "ok_format": "{{ok}}/{{total}} ok",
     "schedule": "Schedule:",
+    "schedule_detail": "UK daily {{ukTime}} · World Bank monthly {{wbTime}} (day {{wbDay}}) · {{timezone}}",
     "last_updated": "Last updated:",
     "unknown": "Unknown",
     "warning_prefix": "Warning:",
     "open_details": "Open details"
+  },
+  "file_preview": {
+    "title": "Invoice preview",
+    "subtitle": "The original file is shown directly from the stored invoice file.",
+    "pdf_title": "Invoice PDF",
+    "open_new_tab": "Open in new tab",
+    "download": "Download",
+    "close": "Close",
+    "preview_unavailable": "Preview is not available for file type",
+    "default_filetype": "file",
+    "open_details": "Open invoice details",
+    "details_short": "Details"
   },
   "upload": {
     "section_title": "Upload invoice",

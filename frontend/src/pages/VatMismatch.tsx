@@ -7,12 +7,12 @@
  * regnskap/leverandør.
  */
 import { useState } from "react";
-import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import clsx from "clsx";
 
 import { listVatMismatches } from "@/api/invoices";
+import { InvoiceFilePreviewLink } from "@/components/InvoiceFilePreview";
 import { StatusBadge } from "@/components/StatusBadge";
 
 export function VatMismatchPage() {
@@ -114,14 +114,12 @@ export function VatMismatchPage() {
                     )}
                   >
                     <td className="py-3 pl-4 pr-2">
-                      <Link
-                        to={`/invoices/${item.invoice_id}`}
-                        className="text-sm font-medium text-xlent-primary hover:underline"
-                      >
-                        {item.original_filename ??
-                          item.invoice_number ??
-                          item.invoice_id.slice(0, 8)}
-                      </Link>
+                      <InvoiceFilePreviewLink
+                        invoiceId={item.invoice_id}
+                        filename={item.original_filename}
+                        invoiceNumber={item.invoice_number}
+                        className="text-sm font-medium"
+                      />
                       {item.invoice_number && item.original_filename && (
                         <span className="ml-2 text-xs text-xlent-muted">
                           #{item.invoice_number}

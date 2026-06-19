@@ -1,4 +1,4 @@
-"""Daglig ingest og health for eksterne watchlist-kilder."""
+"""Ingest og health for eksterne watchlist-kilder."""
 
 from __future__ import annotations
 
@@ -25,12 +25,13 @@ SOURCE_WORLD_BANK_DEBARRED = "world_bank_debarred_external"
 SOURCE_BRREG_LOOKUP = "brreg_registry_lookup"
 
 _UK_SANCTIONS_CSV_URL = "https://sanctionslist.fcdo.gov.uk/docs/UK-Sanctions-List.csv"
-_WORLD_BANK_DEBARRED_API_URL = (
-    "https://apigwext.worldbank.org/dvsvc/v1.0/json/APPLICATION/ADOBE_EXPRNCE_MGR/FIRM/SANCTIONED_FIRM"
-)
+_WORLD_BANK_DEBARRED_PAGE_URL = "https://www.worldbank.org/en/projects-operations/procurement/debarred-firms"
+_WORLD_BANK_DEBARRED_API_URL_PATTERN = re.compile(r'var\s+prodtabApi\s*=\s*"([^"]+)"')
+_WORLD_BANK_DEBARRED_API_KEY_PATTERN = re.compile(r'var\s+propApiKey\s*=\s*"([^"]+)"')
 _BRREG_ENHETER_API_URL = "https://data.brreg.no/enhetsregisteret/api/enheter"
 
 _EXTERNAL_INGEST_LOCK_KEY = 884_120_741
+_DEFAULT_EXTERNAL_SOURCE_ORDER = (SOURCE_UK_SANCTIONS, SOURCE_WORLD_BANK_DEBARRED)
 
 
 def normalize_name(value: str) -> str:
@@ -45,6 +46,18 @@ def _first_non_empty(row: dict[str, Any], keys: list[str]) -> str:
         if value:
             return value
     return ""
+
+
+def _extract_world_bank_api_details(page_html: str) -> tuple[str, str]:
+    api_url_match = _WORLD_BANK_DEBARRED_API_URL_PATTERN.search(page_html)
+    api_key_match = _WORLD_BANK_DEBARRED_API_KEY_PATTERN.search(page_html)
+    if not api_url_match or not api_key_match:
+        raise RuntimeError("Fant ikke World Bank API-detaljer på den offentlige siden.")
+    api_url = api_url_match.group(1).strip()
+    api_key = api_key_match.group(1).strip()
+    if not api_url or not api_key:
+        raise RuntimeError("World Bank API-detaljer på den offentlige siden var tomme.")
+    return api_url, api_key
 
 
 async def _get_or_create_status_row(session: AsyncSession, source: str) -> SanctionsList:
@@ -146,91 +159,103 @@ def _parse_world_bank_payload(payload: dict[str, Any]) -> list[dict[str, Any]]:
     return out
 
 
-async def ingest_external_watchlists(session: AsyncSession) -> list[dict[str, Any]]:
-    settings = get_settings()
+async def _ingest_uk_sanctions(session: AsyncSession, client: httpx.AsyncClient) -> dict[str, Any]:
+    uk_status = await _get_or_create_status_row(session, SOURCE_UK_SANCTIONS)
+    uk_status.update_status = "updating"
+    uk_status.error_message = None
+    await session.commit()
+    try:
+        uk_resp = await client.get(_UK_SANCTIONS_CSV_URL)
+        uk_resp.raise_for_status()
+        uk_rows = _parse_uk_sanctions_csv(uk_resp.text)
+        await _store_entries(session, source=SOURCE_UK_SANCTIONS, rows=uk_rows)
+        uk_status.update_status = "success"
+        uk_status.last_updated = datetime.now(UTC)
+        uk_status.entry_count = len(uk_rows)
+        uk_status.error_message = None
+        await session.commit()
+        return {
+            "source": SOURCE_UK_SANCTIONS,
+            "status": "success",
+            "entry_count": len(uk_rows),
+        }
+    except Exception as exc:
+        uk_status.update_status = "failed"
+        uk_status.error_message = str(exc)[:1000]
+        await session.commit()
+        logger.exception("external_watchlist_ingest_failed", source=SOURCE_UK_SANCTIONS)
+        return {"source": SOURCE_UK_SANCTIONS, "status": "failed", "entry_count": 0}
+
+
+async def _ingest_world_bank_debarred(session: AsyncSession, client: httpx.AsyncClient) -> dict[str, Any]:
+    wb_status = await _get_or_create_status_row(session, SOURCE_WORLD_BANK_DEBARRED)
+    wb_status.update_status = "updating"
+    wb_status.error_message = None
+    await session.commit()
+    try:
+        page_resp = await client.get(_WORLD_BANK_DEBARRED_PAGE_URL)
+        page_resp.raise_for_status()
+        api_url, api_key = _extract_world_bank_api_details(page_resp.text)
+        wb_resp = await client.get(api_url, headers={"apikey": api_key})
+        wb_resp.raise_for_status()
+        wb_rows = _parse_world_bank_payload(wb_resp.json())
+        await _store_entries(session, source=SOURCE_WORLD_BANK_DEBARRED, rows=wb_rows)
+        wb_status.update_status = "success"
+        wb_status.last_updated = datetime.now(UTC)
+        wb_status.entry_count = len(wb_rows)
+        wb_status.error_message = None
+        await session.commit()
+        return {
+            "source": SOURCE_WORLD_BANK_DEBARRED,
+            "status": "success",
+            "entry_count": len(wb_rows),
+        }
+    except Exception as exc:
+        wb_status.update_status = "failed"
+        wb_status.error_message = str(exc)[:1000]
+        await session.commit()
+        logger.exception("external_watchlist_ingest_failed", source=SOURCE_WORLD_BANK_DEBARRED)
+        return {"source": SOURCE_WORLD_BANK_DEBARRED, "status": "failed", "entry_count": 0}
+
+
+async def _ingest_source(session: AsyncSession, client: httpx.AsyncClient, source: str) -> dict[str, Any]:
+    if source == SOURCE_UK_SANCTIONS:
+        return await _ingest_uk_sanctions(session, client)
+    if source == SOURCE_WORLD_BANK_DEBARRED:
+        return await _ingest_world_bank_debarred(session, client)
+    raise ValueError(f"Ukjent ekstern watchlist-kilde: {source}")
+
+
+async def ingest_external_watchlists(
+    session: AsyncSession,
+    *,
+    sources: list[str] | tuple[str, ...] | None = None,
+) -> list[dict[str, Any]]:
     results: list[dict[str, Any]] = []
+    source_order = sources or _DEFAULT_EXTERNAL_SOURCE_ORDER
 
     async with httpx.AsyncClient(
         timeout=90.0,
         follow_redirects=True,
         headers={"User-Agent": "xlent-compliance-mvp/0.1 (external-watchlist-ingest)"},
     ) as client:
-        uk_status = await _get_or_create_status_row(session, SOURCE_UK_SANCTIONS)
-        uk_status.update_status = "updating"
-        uk_status.error_message = None
-        await session.commit()
-        try:
-            uk_resp = await client.get(_UK_SANCTIONS_CSV_URL)
-            uk_resp.raise_for_status()
-            uk_rows = _parse_uk_sanctions_csv(uk_resp.text)
-            await _store_entries(session, source=SOURCE_UK_SANCTIONS, rows=uk_rows)
-            uk_status.update_status = "success"
-            uk_status.last_updated = datetime.now(UTC)
-            uk_status.entry_count = len(uk_rows)
-            uk_status.error_message = None
-            await session.commit()
-            results.append(
-                {
-                    "source": SOURCE_UK_SANCTIONS,
-                    "status": "success",
-                    "entry_count": len(uk_rows),
-                }
-            )
-        except Exception as exc:
-            uk_status.update_status = "failed"
-            uk_status.error_message = str(exc)[:1000]
-            await session.commit()
-            results.append({"source": SOURCE_UK_SANCTIONS, "status": "failed", "entry_count": 0})
-            logger.exception("external_watchlist_ingest_failed", source=SOURCE_UK_SANCTIONS)
-
-        wb_status = await _get_or_create_status_row(session, SOURCE_WORLD_BANK_DEBARRED)
-        wb_status.update_status = "updating"
-        wb_status.error_message = None
-        await session.commit()
-        try:
-            wb_resp = await client.get(
-                _WORLD_BANK_DEBARRED_API_URL,
-                headers={"apikey": settings.world_bank_debarred_api_key},
-            )
-            wb_resp.raise_for_status()
-            wb_rows = _parse_world_bank_payload(wb_resp.json())
-            await _store_entries(session, source=SOURCE_WORLD_BANK_DEBARRED, rows=wb_rows)
-            wb_status.update_status = "success"
-            wb_status.last_updated = datetime.now(UTC)
-            wb_status.entry_count = len(wb_rows)
-            wb_status.error_message = None
-            await session.commit()
-            results.append(
-                {
-                    "source": SOURCE_WORLD_BANK_DEBARRED,
-                    "status": "success",
-                    "entry_count": len(wb_rows),
-                }
-            )
-        except Exception as exc:
-            wb_status.update_status = "failed"
-            wb_status.error_message = str(exc)[:1000]
-            await session.commit()
-            results.append(
-                {
-                    "source": SOURCE_WORLD_BANK_DEBARRED,
-                    "status": "failed",
-                    "entry_count": 0,
-                }
-            )
-            logger.exception("external_watchlist_ingest_failed", source=SOURCE_WORLD_BANK_DEBARRED)
+        for source in source_order:
+            results.append(await _ingest_source(session, client, source))
 
     return results
 
 
-async def run_external_watchlist_ingest_cycle() -> dict[str, Any]:
+async def run_external_watchlist_ingest_cycle(
+    *,
+    sources: list[str] | tuple[str, ...] | None = None,
+) -> dict[str, Any]:
     async with get_session_factory()() as session:
         locked = await _try_acquire_lock(session)
         if not locked:
             logger.warning("external_watchlist_ingest_skipped_lock_busy")
             return {"started": False, "message": "Ekstern kilde-ingest er allerede i gang."}
         try:
-            rows = await ingest_external_watchlists(session)
+            rows = await ingest_external_watchlists(session, sources=sources)
             return {"started": True, "message": "Eksterne kilder oppdatert.", "sources": rows}
         finally:
             await _release_lock(session)
@@ -242,7 +267,6 @@ async def list_external_source_health(
     include_brreg_probe: bool = True,
 ) -> list[dict[str, Any]]:
     settings = get_settings()
-    stale_after = timedelta(hours=max(1, settings.external_source_stale_hours))
     rows = (
         (
             await session.execute(
@@ -258,6 +282,11 @@ async def list_external_source_health(
     for source in (SOURCE_UK_SANCTIONS, SOURCE_WORLD_BANK_DEBARRED):
         row = by_source.get(source)
         stale = False
+        stale_after = (
+            timedelta(days=max(1, settings.world_bank_debarred_stale_days))
+            if source == SOURCE_WORLD_BANK_DEBARRED
+            else timedelta(hours=max(1, settings.external_source_stale_hours))
+        )
         if row and row.last_updated:
             stale = datetime.now(UTC) - row.last_updated > stale_after
         out.append(

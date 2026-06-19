@@ -7,6 +7,7 @@ import { apiClient } from "@/api/client";
 
 import { useAuth } from "@/auth/AuthContext";
 import { InvoiceUploader } from "@/components/InvoiceUploader";
+import { InvoiceFilePreviewLink } from "@/components/InvoiceFilePreview";
 import { Pagination } from "@/components/Pagination";
 import { StatusBadge } from "@/components/StatusBadge";
 import { ComplianceChip } from "@/components/ComplianceBadge";
@@ -727,8 +728,15 @@ export function InvoiceList() {
                     : t("ingest.ok_format", { ok: okSources, total: externalSources.length || 0 })}
                 </span>
                 {" · "}
-                {t("ingest.schedule")} {sanctionsStatus?.external_refresh_schedule_time ?? "07:45"}{" "}
-                {sanctionsStatus?.refresh_schedule_timezone ?? "Europe/Oslo"}
+                {t("ingest.schedule")}{" "}
+                <span className="font-medium text-xlent-ink">
+                  {t("ingest.schedule_detail", {
+                    ukTime: sanctionsStatus?.external_refresh_schedule_time ?? "07:45",
+                    wbTime: sanctionsStatus?.world_bank_refresh_schedule_time ?? "03:15",
+                    wbDay: sanctionsStatus?.world_bank_refresh_schedule_day_of_month ?? 1,
+                    timezone: sanctionsStatus?.refresh_schedule_timezone ?? "Europe/Oslo",
+                  })}
+                </span>
               </p>
               <p className="mt-1 text-xs text-xlent-muted">
                 {t("ingest.last_updated")}{" "}
@@ -987,13 +995,12 @@ export function InvoiceList() {
                         <ComplianceChip invoice={invoice} />
                       </td>
                       <td className="px-3 py-2">
-                        <Link
-                          to={`/invoices/${invoice.id}`}
-                          className="block max-w-[220px] truncate text-xlent-primary hover:underline"
-                          title={invoice.original_filename ?? invoice.id}
-                        >
-                          {invoice.original_filename ?? invoice.id}
-                        </Link>
+                        <InvoiceFilePreviewLink
+                          invoiceId={invoice.id}
+                          filename={invoice.original_filename}
+                          invoiceNumber={invoice.invoice_number}
+                          className="block max-w-[220px] text-sm"
+                        />
                         {invoice.invoice_number && (
                           <span className="ml-2 text-xs text-xlent-muted">
                             #{invoice.invoice_number}

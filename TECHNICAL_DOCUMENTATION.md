@@ -33,6 +33,7 @@ Se `docs/architecture.md` for diagram. Hovedkomponenter:
 | Datatype | Kilde | Oppdateringsfrekvens |
 |----------|-------|----------------------|
 | Invoices | Kundens egne PDF-er | Per transaksjon |
+| Eksterne screeningkilder | UK Sanctions: daglig via offentlig CSV; World Bank Debarred Firms and Individuals: månedlig via offentlig side | Daglig for UK / månedlig for World Bank |
 | Sanksjonslister | UN, EU, OFAC, norske lister via OpenSanctions | Daglig |
 | Rammeavtaler | Kundens egne PDF-er | Ved nye avtaler |
 | Regler | Konfigurert av kunden | Ved behov |
@@ -63,7 +64,7 @@ LLM-kall logges strukturert med modell, tokenbruk og statushendelser. I tillegg 
 ## 8. Datakvalitetskontroll (Art. 10)
 
 - Hver sanksjonsliste-loader validerer innholdet etter nedlasting (forventet entry count, struktur, oppdateringsdato).
-- Staleness-grenser er konfigurerbare per kilde; de er ikke hardkodet til ett globalt tall.
+- Staleness-grenser er konfigurerbare per kilde; UK Sanctions og World Bank Debarred følger egne terskler.
 - Treningsdata: ingen — systemet bruker pre-trente modeller. Few-shot eksempler i prompts dokumenteres i `backend/app/llm/prompts/`.
 
 ## 9. Begrensninger

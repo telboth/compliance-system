@@ -1,4 +1,4 @@
-"""Legg til tabell for lokal ingest av eksterne watchlist-kilder.
+"""Legg til tabell for lokal lagring av eksterne watchlist-kilder.
 
 Revision ID: 20260516_0015
 Revises: 20260516_0014

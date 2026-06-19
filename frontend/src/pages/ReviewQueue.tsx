@@ -10,6 +10,7 @@ import clsx from "clsx";
 import { useTranslation } from "react-i18next";
 import { useMemo } from "react";
 
+import { InvoiceFilePreviewLink } from "@/components/InvoiceFilePreview";
 import { StatusBadge } from "@/components/StatusBadge";
 import { useReviewQueue } from "@/hooks/useInvoices";
 import type { ReviewQueueItem, ComplianceScore } from "@/api/types";
@@ -209,12 +210,12 @@ function QueueRow({ item }: { item: ReviewQueueItem }) {
         <ScoreChip score={item.compliance_score} />
       </td>
       <td className="py-3 px-2">
-        <Link
-          to={`/invoices/${item.id}`}
-          className="font-medium text-xlent-primary hover:underline"
-        >
-          {item.original_filename ?? item.invoice_number ?? item.id.slice(0, 8)}
-        </Link>
+        <InvoiceFilePreviewLink
+          invoiceId={item.id}
+          filename={item.original_filename}
+          invoiceNumber={item.invoice_number}
+          className="font-medium"
+        />
         {item.invoice_number && item.original_filename && (
           <span className="ml-2 text-xs text-xlent-muted">#{item.invoice_number}</span>
         )}

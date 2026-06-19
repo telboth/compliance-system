@@ -36,3 +36,29 @@ class RegulatorySourceOut(BaseModel):
     feed_url: str
     category: str
     description: str
+    enabled: bool
+    source_type: str
+    status_note: str | None = None
+    status: str
+    alert_count: int
+    latest_alert_at: datetime | None = None
+
+
+class RegulatoryRefreshSourceOut(BaseModel):
+    name: str
+    feed_url: str
+    category: str
+    description: str
+    enabled: bool
+    source_type: str
+    status_note: str | None = None
+    result_status: str
+    new_alerts: int
+    message: str | None = None
+
+
+class RegulatoryRefreshResponse(BaseModel):
+    new_alerts_by_source: dict[str, int]
+    total_new: int
+    notifications_sent: int
+    sources: list[RegulatoryRefreshSourceOut]

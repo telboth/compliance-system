@@ -1,4 +1,4 @@
-"""Regulatorisk Radar API — varsler fra OFAC, EUR-Lex, HM Treasury og UN SC."""
+"""Regulatorisk Radar API — varsler og kildestatus for regulatoriske feeds."""
 
 from __future__ import annotations
 
@@ -8,6 +8,8 @@ from app.core.database import SessionDep
 from app.schemas.regulatory import (
     RegulatoryAlertListResponse,
     RegulatoryAlertOut,
+    RegulatoryRefreshResponse,
+    RegulatoryRefreshSourceOut,
     RegulatorySourceOut,
 )
 from app.services import regulatory_radar_service as rr_svc
@@ -38,27 +40,21 @@ async def list_alerts(
 
 
 @router.post("/refresh", status_code=status.HTTP_200_OK)
-async def refresh_feeds(session: SessionDep) -> dict[str, object]:
-    """Hent alle konfigurerte feeds manuelt og lagre nye varsler."""
-    results = await rr_svc.run_all_feeds(session)
+async def refresh_feeds(session: SessionDep) -> RegulatoryRefreshResponse:
+    """Hent alle konfigurerte kilder manuelt og lagre nye varsler."""
+    results = await rr_svc.refresh_sources(session)
     notified = await rr_svc.notify_unnotified(session)
     await session.commit()
-    return {
-        "new_alerts_by_source": results,
-        "total_new": sum(results.values()),
-        "notifications_sent": notified,
-    }
+    return RegulatoryRefreshResponse(
+        new_alerts_by_source={result["name"]: result["new_alerts"] for result in results},
+        total_new=sum(result["new_alerts"] for result in results),
+        notifications_sent=notified,
+        sources=[RegulatoryRefreshSourceOut.model_validate(result) for result in results],
+    )
 
 
 @router.get("/sources", response_model=list[RegulatorySourceOut])
-async def list_sources() -> list[RegulatorySourceOut]:
-    """Returner listen over konfigurerte feed-kilder."""
-    return [
-        RegulatorySourceOut(
-            name=feed["name"],
-            feed_url=feed["feed_url"],
-            category=feed["category"],
-            description=feed["description"],
-        )
-        for feed in rr_svc.REGULATORY_FEEDS
-    ]
+async def list_sources(session: SessionDep) -> list[RegulatorySourceOut]:
+    """Returner listen over konfigurerte kilder med status og metadata."""
+    sources = await rr_svc.list_sources(session)
+    return [RegulatorySourceOut.model_validate(source) for source in sources]

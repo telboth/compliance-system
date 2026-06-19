@@ -556,6 +556,8 @@ export interface SanctionsStatusResponse {
   refresh_schedule_time: string;
   refresh_schedule_timezone: string;
   external_refresh_schedule_time: string;
+  world_bank_refresh_schedule_time: string;
+  world_bank_refresh_schedule_day_of_month: number;
   last_refresh_run: SanctionsRefreshRunStatus | null;
 }
 
@@ -982,12 +984,32 @@ export interface RegulatorySource {
   feed_url: string;
   category: string;
   description: string;
+  enabled: boolean;
+  source_type: string;
+  status_note: string | null;
+  status: string;
+  alert_count: number;
+  latest_alert_at: string | null;
+}
+
+export interface RegulatoryRefreshSource {
+  name: string;
+  feed_url: string;
+  category: string;
+  description: string;
+  enabled: boolean;
+  source_type: string;
+  status_note: string | null;
+  result_status: string;
+  new_alerts: number;
+  message: string | null;
 }
 
 export interface RegulatoryRefreshResponse {
   new_alerts_by_source: Record<string, number>;
   total_new: number;
   notifications_sent: number;
+  sources: RegulatoryRefreshSource[];
 }
 
 // ── Leverandørregister ────────────────────────────────────────────────────────
