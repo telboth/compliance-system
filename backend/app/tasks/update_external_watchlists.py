@@ -13,7 +13,10 @@ def _task_result(result: dict[str, object]) -> dict[str, str]:
             "message": str(result.get("message") or ""),
         }
     source_rows = result.get("sources")
-    if isinstance(source_rows, list) and any(isinstance(row, dict) and row.get("status") == "failed" for row in source_rows):
+    has_failed_source = isinstance(source_rows, list) and any(
+        isinstance(row, dict) and row.get("status") == "failed" for row in source_rows
+    )
+    if has_failed_source:
         return {
             "status": "failed",
             "message": str(result.get("message") or ""),

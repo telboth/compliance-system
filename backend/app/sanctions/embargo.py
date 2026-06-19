@@ -295,18 +295,16 @@ async def seed_db_from_static(session: object) -> int:
     else:
         active_count: int = (
             await session.execute(  # type: ignore[union-attr]
-                _select(_func.count())
-                .select_from(EmbargoCountry)
-                .where(EmbargoCountry.is_active.is_(True))
+                _select(_func.count()).select_from(EmbargoCountry).where(EmbargoCountry.is_active.is_(True))
             )
         ).scalar_one()
         if active_count > 0:
             active_versions = set(
-                (await session.execute(  # type: ignore[union-attr]
-                    _select(EmbargoCountry.source_version)
-                    .where(EmbargoCountry.is_active.is_(True))
-                    .distinct()
-                ))
+                (
+                    await session.execute(  # type: ignore[union-attr]
+                        _select(EmbargoCountry.source_version).where(EmbargoCountry.is_active.is_(True)).distinct()
+                    )
+                )
                 .scalars()
                 .all()
             )

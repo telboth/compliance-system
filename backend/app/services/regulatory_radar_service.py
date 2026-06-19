@@ -101,8 +101,7 @@ REGULATORY_FEEDS: list[RegulatorySourceConfig] = [
         "enabled": False,
         "source_type": "disabled",
         "status_note": (
-            "EUR-Lex krever egen RSS-varsling eller brukerkonfigurasjon. "
-            "Ingen stabil offentlig feed er satt opp her."
+            "EUR-Lex krever egen RSS-varsling eller brukerkonfigurasjon. Ingen stabil offentlig feed er satt opp her."
         ),
         "headers": None,
     },

@@ -15,10 +15,10 @@ from app.services.export_control_service import seed_reference_categories
 
 async def _get_state(db_session, list_code: str) -> ExportListSyncState:
     return (
-        await db_session.execute(
-            select(ExportListSyncState).where(ExportListSyncState.list_code == list_code)
-        )
-    ).scalars().one()
+        (await db_session.execute(select(ExportListSyncState).where(ExportListSyncState.list_code == list_code)))
+        .scalars()
+        .one()
+    )
 
 
 @pytest.mark.asyncio

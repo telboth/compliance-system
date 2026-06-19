@@ -16,8 +16,8 @@ def test_parse_ofac_recent_actions_extracts_items() -> None:
         '<div class="margin-bottom-4 search-result views-row">'
         '<div><div class="font-sans-lg margin-bottom-05 margin-top-1 text-no-underline">'
         '<a href="/recent-actions/20260618" hreflang="en">Counter Terrorism Designations</a>'
-        "</div></div><div><div class=\"margin-top-1 font-sans-2xs line-height-sans-3 margin-bottom-1\">"
-        "June 18, 2026 - <a href=\"/recent-actions/sanctions-list-updates\">Sanctions List Updates</a>"
+        '</div></div><div><div class="margin-top-1 font-sans-2xs line-height-sans-3 margin-bottom-1">'
+        'June 18, 2026 - <a href="/recent-actions/sanctions-list-updates">Sanctions List Updates</a>'
         "</div></div></div>"
     )
 
@@ -87,7 +87,7 @@ async def test_un_feed_uses_browser_headers_and_is_enabled(
             self.kwargs = kwargs
             self.calls: list[tuple[str, dict[str, str]]] = []
 
-        async def __aenter__(self) -> "FakeClient":
+        async def __aenter__(self) -> FakeClient:
             return self
 
         async def __aexit__(self, exc_type, exc, tb) -> None:
@@ -110,8 +110,9 @@ async def test_un_feed_uses_browser_headers_and_is_enabled(
     assert result["new_alerts"] == 1
     assert session.flushed is True
     assert len(session.items) == 1
-    assert getattr(session.items[0], "source") == "UN SC"
-    assert getattr(session.items[0], "title") == "Update to the consolidated list"
+    alert = session.items[0]
+    assert alert.source == "UN SC"
+    assert alert.title == "Update to the consolidated list"
 
 
 @pytest.mark.asyncio
@@ -175,7 +176,7 @@ async def test_fetch_and_store_feed_skips_duplicate_guids_within_same_feed(
         def __init__(self, **kwargs) -> None:
             self.kwargs = kwargs
 
-        async def __aenter__(self) -> "FakeClient":
+        async def __aenter__(self) -> FakeClient:
             return self
 
         async def __aexit__(self, exc_type, exc, tb) -> None:
@@ -194,7 +195,8 @@ async def test_fetch_and_store_feed_skips_duplicate_guids_within_same_feed(
     assert result["new_alerts"] == 1
     assert session.flushed is True
     assert len(session.items) == 1
-    assert getattr(session.items[0], "guid") == "duplicate-guid"
+    alert = session.items[0]
+    assert alert.guid == "duplicate-guid"
 
 
 @pytest.mark.asyncio
@@ -246,8 +248,7 @@ async def test_refresh_feeds_returns_per_source_results(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     eur_lex_note = (
-        "EUR-Lex krever egen RSS-varsling eller brukerkonfigurasjon. "
-        "Ingen stabil offentlig feed er satt opp her."
+        "EUR-Lex krever egen RSS-varsling eller brukerkonfigurasjon. Ingen stabil offentlig feed er satt opp her."
     )
 
     async def _fake_refresh_sources(*args, **kwargs):

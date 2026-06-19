@@ -84,7 +84,7 @@ async def test_world_bank_ingest_uses_public_page_scrape(
         def __init__(self) -> None:
             self.calls: list[tuple[str, dict[str, str] | None]] = []
 
-        async def __aenter__(self) -> "FakeClient":
+        async def __aenter__(self) -> FakeClient:
             return self
 
         async def __aexit__(self, exc_type, exc, tb) -> None:
@@ -108,7 +108,10 @@ async def test_world_bank_ingest_uses_public_page_scrape(
     async def _fake_store_entries(session, *, source: str, rows: list[dict[str, object]]) -> None:
         captured_rows[source] = rows
 
-    monkeypatch.setattr("app.services.external_watchlist_service._get_or_create_status_row", _fake_get_or_create_status_row)
+    monkeypatch.setattr(
+        "app.services.external_watchlist_service._get_or_create_status_row",
+        _fake_get_or_create_status_row,
+    )
     monkeypatch.setattr("app.services.external_watchlist_service._store_entries", _fake_store_entries)
     monkeypatch.setattr("app.services.external_watchlist_service.httpx.AsyncClient", lambda **kwargs: fake_client)
 
