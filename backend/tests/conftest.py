@@ -26,7 +26,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 _DEFAULT_TEST_DATABASE_URL = "postgresql+asyncpg://xlent:xlent_dev_password@postgres:5432/xlent_compliance_test"
 os.environ["DATABASE_URL"] = os.environ.get(
     "TEST_DATABASE_URL",
-    _DEFAULT_TEST_DATABASE_URL,
+    os.environ.get("DATABASE_URL", _DEFAULT_TEST_DATABASE_URL),
 )
 if "_test" not in os.environ["DATABASE_URL"]:
     raise RuntimeError(
@@ -63,6 +63,15 @@ async def db_engine():
     await engine.dispose()
 
 
+@pytest.fixture(autouse=True)
+def isolated_upload_dir(tmp_path: Path):
+    """Unngå at tester skriver til dev-/containerens faste upload-mappe."""
+    upload_dir = tmp_path / "uploads"
+    upload_dir.mkdir()
+    get_settings().upload_dir = upload_dir
+    return upload_dir
+
+
 @pytest_asyncio.fixture
 async def db_session(db_engine) -> AsyncIterator[AsyncSession]:
     factory = async_sessionmaker(db_engine, expire_on_commit=False)
@@ -84,10 +93,6 @@ async def app(db_engine, tmp_path: Path) -> AsyncIterator[FastAPI]:
                 raise
 
     # Bruk en temporær upload-mappe per test slik at vi ikke skitner til disken.
-    upload_dir = tmp_path / "uploads"
-    upload_dir.mkdir()
-    get_settings().upload_dir = upload_dir
-
     test_app = create_app()
     test_app.dependency_overrides[get_session] = _override_session
     yield test_app
