@@ -12,5 +12,6 @@
  *   v0.8.4 — 49 kjemikalier seedet med ekte CAS-numre og synonymer (ML7 stridsmidler,
  *             1C002/1C011 metaller, 1C350/1C450 CWC-forløpere, 1C111/1C210 eksplosiver),
  *             utvidet keyword-leksikon for kategori 1 og ML7
+ *   v0.8.5 — review queue cleanup, sammenslått faktura-flyt og release-oppdatering
  */
-export const APP_VERSION = "v0.8.4";
+export const APP_VERSION = "v0.8.5";
