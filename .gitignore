@@ -15,5 +15,6 @@ __pycache__/
 .mypy_cache/
 .ruff_cache/
 *.tsbuildinfo
+backend/celerybeat-schedule
 .DS_Store
 Thumbs.db
