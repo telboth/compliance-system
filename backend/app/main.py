@@ -141,8 +141,8 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
     # Seed embargo-data, bootstrap sync-status ved behov, og last cache fra DB.
     try:
         from app.core.database import get_session_factory
-        from app.services.export_control_service import seed_reference_categories
         from app.sanctions.embargo import load_cache_from_db, seed_db_from_static
+        from app.services.export_control_service import seed_reference_categories
 
         async with get_session_factory()() as _s:
             seeded = await seed_db_from_static(_s)

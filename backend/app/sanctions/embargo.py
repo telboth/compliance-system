@@ -301,16 +301,15 @@ async def seed_db_from_static(session: object) -> int:
             )
         ).scalar_one()
         if active_count > 0:
-            active_versions = {
-                version
-                for version in (
-                    await session.execute(  # type: ignore[union-attr]
-                        _select(EmbargoCountry.source_version)
-                        .where(EmbargoCountry.is_active.is_(True))
-                        .distinct()
-                    )
-                ).scalars().all()
-            }
+            active_versions = set(
+                (await session.execute(  # type: ignore[union-attr]
+                    _select(EmbargoCountry.source_version)
+                    .where(EmbargoCountry.is_active.is_(True))
+                    .distinct()
+                ))
+                .scalars()
+                .all()
+            )
             if active_versions == {"seed"}:
                 bootstrap_item_count = active_count
                 bootstrap_version = "seed"
