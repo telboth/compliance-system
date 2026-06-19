@@ -184,10 +184,15 @@ async def test_extraction_pipeline(
     tests/fixtures/expected/<filnavn>.yaml brukes til felt-sammenligning;
     felt med ``null`` hoppes over.
     """
+    from app.core.config import get_settings
     from app.models.invoice import Invoice, InvoiceDirection, InvoiceStatus
     from app.parsers import parse_pdf
     from app.services.extraction_service import run_extraction
     from app.services.invoice_service import get_invoice
+
+    settings = get_settings()
+    if not settings.openai_api_key_value and not settings.anthropic_api_key_value:
+        pytest.skip("LLM API-nøkkel mangler; full extraction-pipeline krever OpenAI eller Anthropic.")
 
     # ── 1. Parse faktura-filen ───────────────────────────────────────────────
     parsed = parse_pdf(invoice_path)
