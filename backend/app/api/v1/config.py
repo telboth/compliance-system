@@ -76,7 +76,7 @@ async def update_keys(
 
     if not anthropic and not openai_key:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail="Minst én nøkkel (anthropic_api_key eller openai_api_key) må oppgis.",
         )
 

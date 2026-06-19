@@ -35,7 +35,7 @@ class NotFoundError(ApplicationError):
 
 
 class ValidationError(ApplicationError):
-    status_code = status.HTTP_422_UNPROCESSABLE_ENTITY
+    status_code = status.HTTP_422_UNPROCESSABLE_CONTENT
     code = "VALIDATION_ERROR"
 
 
@@ -48,7 +48,7 @@ class FileTooLargeError(ValidationError):
 
 
 class ParsingError(ApplicationError):
-    status_code = status.HTTP_422_UNPROCESSABLE_ENTITY
+    status_code = status.HTTP_422_UNPROCESSABLE_CONTENT
     code = "PARSING_ERROR"
 
 

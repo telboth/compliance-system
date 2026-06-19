@@ -35,8 +35,10 @@ from app.models.invoice import (
     compute_approval_state,
 )
 from app.schemas.invoice import (
+    CatchAllCheck,
     EntityRead,
     EntityUpdate,
+    ExportControlCheck,
     ExtractionRequest,
     ExtractionResponse,
     InvoiceFieldsUpdate,
@@ -52,6 +54,7 @@ from app.schemas.invoice import (
     ReviewCreate,
     ReviewQueueResponse,
     RiskEscalationCreate,
+    VatMismatchCheck,
     VatMismatchItem,
     VatMismatchListResponse,
 )
@@ -93,9 +96,9 @@ def _safe_filename(name: str) -> str:
 
 def _to_invoice_read(invoice: Invoice) -> InvoiceRead:
     payload = InvoiceRead.model_validate(invoice)
-    payload.vat_mismatch_check = evaluate_invoice_vat_mismatch(invoice).to_dict()
-    payload.export_control_check = evaluate_invoice_export_control(invoice).to_dict()
-    payload.catch_all_check = evaluate_invoice_catch_all(invoice).to_dict()
+    payload.vat_mismatch_check = VatMismatchCheck.model_validate(evaluate_invoice_vat_mismatch(invoice).to_dict())
+    payload.export_control_check = ExportControlCheck.model_validate(evaluate_invoice_export_control(invoice).to_dict())
+    payload.catch_all_check = CatchAllCheck.model_validate(evaluate_invoice_catch_all(invoice).to_dict())
     payload.approval_state = (
         invoice.approval_state
         if invoice.approval_state is not None

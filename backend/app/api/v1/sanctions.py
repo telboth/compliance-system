@@ -417,7 +417,7 @@ async def start_screening(
 
     if invoice.status not in allowed_statuses:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail=(
                 f"Invoice ma vaere i status 'extracted', 'screened' eller 'screening_failed' "
                 f"for a kunne screenes. Na er status: {invoice.status.value!r}"
@@ -1169,7 +1169,7 @@ async def retry_pipeline_invoice(
     if chosen == "extract":
         if not invoice.raw_text:
             raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                 detail="Invoice mangler raw_text og må parses først.",
             )
         prev_status = invoice.status.value
@@ -1217,7 +1217,7 @@ async def retry_pipeline_invoice(
             InvoiceStatus.SCREENING,
         }:
             raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                 detail="Invoice må være ekstrahert før screening kan restartes.",
             )
         prev_status = invoice.status.value
@@ -1257,7 +1257,7 @@ async def retry_pipeline_invoice(
         )
 
     raise HTTPException(
-        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+        status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
         detail=f"Ugyldig target: {chosen}",
     )
 

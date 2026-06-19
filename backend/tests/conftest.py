@@ -43,14 +43,6 @@ from app.core.database import Base, get_session
 from app.main import create_app
 
 
-@pytest.fixture(scope="session")
-def event_loop_policy():
-    """Bruk default policy — pytest-asyncio håndterer loop per test."""
-    import asyncio
-
-    return asyncio.get_event_loop_policy()
-
-
 @pytest_asyncio.fixture
 async def db_engine():
     """Frisk database per test — drop alle tabeller, opprett dem på nytt."""

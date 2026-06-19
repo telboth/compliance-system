@@ -153,9 +153,11 @@ class SanctionsRefreshResponse(BaseModel):
 class SanctionedEntityRead(BaseModel):
     """Forenklet representasjon av en sanksjonert entitet fra yente."""
 
+    model_config = ConfigDict(populate_by_name=True)
+
     id: str
     caption: str
-    schema: str
+    schema_: str = Field(alias="schema", serialization_alias="schema")
     datasets: list[str]
     countries: list[str] = Field(default_factory=list)
     topics: list[str] = Field(default_factory=list)
